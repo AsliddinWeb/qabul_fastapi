@@ -22,6 +22,7 @@ class OtpRequestResponse(AppSchema):
     expires_in: int = Field(description="Seconds until the code expires")
     resend_after: int = Field(description="Seconds until the next OTP can be requested")
     delivered: bool = Field(default=True, description="True if real SMS was sent; False = dev mode (no SMS gateway)")
+    code_length: int = Field(description="Number of digits the code will have (server-configured)")
 
 
 class OtpVerify(AppSchema):

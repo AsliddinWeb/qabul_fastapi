@@ -18,7 +18,9 @@ const initialTtl = Number(route.query.ttl) || 120
 const initialCooldown = Number(route.query.cooldown) || 60
 const wasDelivered = route.query.delivered !== '0'  // default true (real SMS)
 
-const OTP_LEN = 6
+// Server-configured code length (4 or 6, set via OTP_LENGTH env). Falls back to 4.
+const OTP_LEN = Math.max(4, Math.min(8, Number(route.query.len) || 4))
+const codePattern = new RegExp(`^\\d{${OTP_LEN}}$`)
 const digits = ref<string[]>(Array(OTP_LEN).fill(''))
 const inputs = ref<HTMLInputElement[]>([])
 const loading = ref(false)
@@ -46,7 +48,7 @@ onMounted(() => {
 onUnmounted(() => { if (timer) clearInterval(timer) })
 
 const code = computed(() => digits.value.join(''))
-const isComplete = computed(() => code.value.length === OTP_LEN && /^\d{6}$/.test(code.value))
+const isComplete = computed(() => code.value.length === OTP_LEN && codePattern.test(code.value))
 const minutes = computed(() => String(Math.floor(remaining.value / 60)).padStart(2, '0'))
 const seconds = computed(() => String(remaining.value % 60).padStart(2, '0'))
 

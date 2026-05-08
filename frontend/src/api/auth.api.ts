@@ -6,6 +6,7 @@ export interface OtpRequestResponse {
   expires_in: number
   resend_after: number
   delivered: boolean  // false = dev mode (no real SMS sent)
+  code_length: number  // server-configured OTP code length (e.g. 4 or 6)
 }
 
 export interface AuthSession {

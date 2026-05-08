@@ -38,6 +38,7 @@ async function submit() {
         ttl: String(res.expires_in),
         cooldown: String(res.resend_after),
         delivered: res.delivered ? '1' : '0',
+        len: String(res.code_length),
       },
     })
   } catch (e) {

@@ -56,7 +56,8 @@ class AuthService:
         # verify_otp will reject. This avoids leaking which phones are staff.
         ttl, cooldown, delivered = await self.otp.issue(payload.phone, OtpPurpose.LOGIN)
         return OtpRequestResponse(
-            phone=payload.phone, expires_in=ttl, resend_after=cooldown, delivered=delivered,
+            phone=payload.phone, expires_in=ttl, resend_after=cooldown,
+            delivered=delivered, code_length=settings.otp_length,
         )
 
     async def verify_otp(self, payload: OtpVerify) -> LoginResponse:

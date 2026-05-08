@@ -46,7 +46,7 @@ class Settings(BaseSettings):
 
     # --- OTP ---
     otp_ttl_seconds: int = 120
-    otp_length: int = 6
+    otp_length: int = 4
     otp_resend_cooldown_seconds: int = 60
     otp_max_attempts: int = 5
 
