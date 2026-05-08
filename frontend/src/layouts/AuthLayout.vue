@@ -25,7 +25,7 @@ const theme = useThemeStore()
           <img src="/logo.webp" alt="XIU" class="w-11 h-11 rounded-xl shadow-md transition-transform group-hover:scale-105 object-contain" loading="eager" />
           <div class="leading-tight">
             <div class="font-bold tracking-tight text-slate-900 dark:text-slate-100">Xalqaro innovatsion</div>
-            <div class="text-xs text-slate-500 dark:text-slate-400 -mt-0.5">universiteti</div>
+            <div class="text-xs text-slate-500 dark:text-slate-400 -mt-0.5">Universiteti</div>
           </div>
         </a>
         <button

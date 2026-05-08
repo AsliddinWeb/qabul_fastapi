@@ -58,7 +58,7 @@ function go(id: string) {
         <img src="/logo.webp" alt="XIU" class="w-10 h-10 rounded-xl shadow-sm transition-transform duration-300 group-hover:scale-105 object-contain" loading="eager" />
         <div class="hidden sm:flex flex-col leading-[1.05] tracking-tight">
           <span class="text-[13px] font-semibold" :style="{ color: 'rgb(var(--fg))' }">Xalqaro innovatsion</span>
-          <span class="text-[13px] font-semibold" :style="{ color: 'rgb(var(--fg-muted))' }">universiteti</span>
+          <span class="text-[13px] font-semibold" :style="{ color: 'rgb(var(--fg-muted))' }">Universiteti</span>
         </div>
       </a>
 

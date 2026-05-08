@@ -25,7 +25,7 @@ function go(id: string) {
                 Xalqaro innovatsion
               </div>
               <div class="text-[14px] font-bold tracking-tight" :style="{ color: 'rgb(var(--fg-muted))' }">
-                universiteti
+                Universiteti
               </div>
             </div>
           </div>
