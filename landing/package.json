@@ -1,0 +1,28 @@
+{
+  "name": "xiu-admission-landing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev --host 0.0.0.0 --port 3000",
+    "build": "nuxt build",
+    "preview": "nuxt preview --host 0.0.0.0 --port 3000",
+    "generate": "nuxt generate",
+    "postinstall": "nuxt prepare",
+    "type-check": "nuxt typecheck"
+  },
+  "dependencies": {
+    "nuxt": "^3.11.0",
+    "vue": "^3.4.21",
+    "vue-router": "^4.3.0"
+  },
+  "devDependencies": {
+    "@nuxtjs/tailwindcss": "^6.11.0",
+    "@nuxtjs/sitemap": "^5.1.0",
+    "@nuxtjs/robots": "^4.0.0",
+    "tailwindcss": "^3.4.1",
+    "autoprefixer": "^10.4.18",
+    "postcss": "^8.4.35",
+    "typescript": "^5.4.0"
+  }
+}

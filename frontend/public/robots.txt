@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin/
+Disallow: /operator/
+Disallow: /director/
+Disallow: /accountant/
+Disallow: /applicant/
+
+Sitemap: /sitemap.xml

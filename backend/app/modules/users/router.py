@@ -1,0 +1,166 @@
+from __future__ import annotations
+
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, Query, Request, Response, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.dependencies import CurrentUser, get_current_user, get_db, require_permission
+from app.core.permissions import Permission
+from app.core.schemas import PageResponse
+from app.db.enums import UserRole
+from app.modules.audit.service import AuditService
+from app.modules.users.schemas import (
+    UserCreate,
+    UserPasswordChange,
+    UserRead,
+    UserUpdate,
+)
+from app.modules.users.service import UserService
+
+router = APIRouter()
+
+
+def _service(session: AsyncSession = Depends(get_db)) -> UserService:
+    return UserService(session)
+
+
+@router.get("/me", response_model=UserRead)
+async def me(
+    current: CurrentUser = Depends(get_current_user),
+    svc: UserService = Depends(_service),
+) -> UserRead:
+    user = await svc.get(UUID(current.user_id))
+    return UserRead.model_validate(user)
+
+
+@router.get(
+    "",
+    response_model=PageResponse[UserRead],
+    dependencies=[Depends(require_permission(Permission.USERS_LIST))],
+)
+async def list_users(
+    role: UserRole | None = Query(default=None),
+    is_active: bool | None = Query(default=None),
+    search: str | None = Query(default=None, min_length=1, max_length=100),
+    page: int = Query(default=1, ge=1),
+    size: int = Query(default=20, ge=1, le=100),
+    svc: UserService = Depends(_service),
+) -> PageResponse[UserRead]:
+    items, total = await svc.list(
+        role=role, is_active=is_active, search=search, page=page, size=size
+    )
+    return PageResponse[UserRead].build(
+        items=[UserRead.model_validate(u) for u in items],
+        total=total,
+        page=page,
+        size=size,
+    )
+
+
+@router.post(
+    "",
+    response_model=UserRead,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_permission(Permission.USERS_CREATE))],
+)
+async def create_user(
+    payload: UserCreate,
+    request: Request,
+    current: CurrentUser = Depends(get_current_user),
+    svc: UserService = Depends(_service),
+) -> UserRead:
+    obj = await svc.create(payload, created_by_id=UUID(current.user_id))
+    await AuditService(svc.session).log(
+        "user.create",
+        user_id=UUID(current.user_id),
+        entity_type="users",
+        entity_id=obj.id,
+        changes={"role": obj.role.value, "phone": obj.phone},
+        request=request,
+    )
+    await svc.session.commit()
+    return UserRead.model_validate(obj)
+
+
+@router.get(
+    "/{user_id}",
+    response_model=UserRead,
+    dependencies=[Depends(require_permission(Permission.USERS_READ))],
+)
+async def get_user(user_id: UUID, svc: UserService = Depends(_service)) -> UserRead:
+    obj = await svc.get(user_id)
+    return UserRead.model_validate(obj)
+
+
+@router.patch(
+    "/{user_id}",
+    response_model=UserRead,
+    dependencies=[Depends(require_permission(Permission.USERS_UPDATE))],
+)
+async def update_user(
+    user_id: UUID,
+    payload: UserUpdate,
+    request: Request,
+    current: CurrentUser = Depends(get_current_user),
+    svc: UserService = Depends(_service),
+) -> UserRead:
+    obj = await svc.update(user_id, payload)
+    await AuditService(svc.session).log(
+        "user.update",
+        user_id=UUID(current.user_id),
+        entity_type="users",
+        entity_id=obj.id,
+        changes=payload.model_dump(exclude_unset=True),
+        request=request,
+    )
+    await svc.session.commit()
+    return UserRead.model_validate(obj)
+
+
+@router.post(
+    "/{user_id}/password",
+    response_model=UserRead,
+    dependencies=[Depends(require_permission(Permission.USERS_RESET_PASSWORD))],
+)
+async def reset_password(
+    user_id: UUID,
+    payload: UserPasswordChange,
+    request: Request,
+    current: CurrentUser = Depends(get_current_user),
+    svc: UserService = Depends(_service),
+) -> UserRead:
+    obj = await svc.change_password(user_id, payload)
+    await AuditService(svc.session).log(
+        "user.reset_password",
+        user_id=UUID(current.user_id),
+        entity_type="users",
+        entity_id=obj.id,
+        request=request,
+    )
+    await svc.session.commit()
+    return UserRead.model_validate(obj)
+
+
+@router.delete(
+    "/{user_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+    dependencies=[Depends(require_permission(Permission.USERS_DELETE))],
+)
+async def delete_user(
+    user_id: UUID,
+    request: Request,
+    current: CurrentUser = Depends(get_current_user),
+    svc: UserService = Depends(_service),
+) -> Response:
+    await svc.soft_delete(user_id)
+    await AuditService(svc.session).log(
+        "user.delete",
+        user_id=UUID(current.user_id),
+        entity_type="users",
+        entity_id=user_id,
+        request=request,
+    )
+    await svc.session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

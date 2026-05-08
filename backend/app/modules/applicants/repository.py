@@ -1,0 +1,192 @@
+from __future__ import annotations
+
+from uuid import UUID
+
+from sqlalchemy import func, or_, select
+
+from app.core.repository import BaseRepository
+from app.modules.applicants.models import (
+    Applicant,
+    Course,
+    Diplom,
+    EducationType,
+    InstitutionType,
+    TransferDiplom,
+)
+
+
+class ApplicantRepository(BaseRepository[Applicant]):
+    model = Applicant
+
+    async def get_by_user_id(self, user_id: UUID) -> Applicant | None:
+        return await self.get_by(user_id=user_id)
+
+    async def get_by_pinfl(self, pinfl: str) -> Applicant | None:
+        return await self.get_by(pinfl=pinfl)
+
+    async def list_filtered(
+        self,
+        *,
+        region_id: UUID | None = None,
+        registered_by_id: UUID | None = None,
+        search: str | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[Applicant], int]:
+        stmt = select(Applicant)
+        count_stmt = select(func.count(Applicant.id))
+
+        if region_id is not None:
+            stmt = stmt.where(Applicant.region_id == region_id)
+            count_stmt = count_stmt.where(Applicant.region_id == region_id)
+        if registered_by_id is not None:
+            stmt = stmt.where(Applicant.registered_by_id == registered_by_id)
+            count_stmt = count_stmt.where(Applicant.registered_by_id == registered_by_id)
+        if search:
+            like = f"%{search}%"
+            cond = or_(
+                Applicant.first_name.ilike(like),
+                Applicant.last_name.ilike(like),
+                Applicant.other_name.ilike(like),
+                Applicant.passport_series.ilike(like),
+                Applicant.pinfl.ilike(like),
+            )
+            stmt = stmt.where(cond)
+            count_stmt = count_stmt.where(cond)
+
+        stmt = stmt.order_by(Applicant.created_at.desc()).limit(limit).offset(offset)
+
+        rows = list((await self.session.scalars(stmt)).all())
+        total = await self.session.scalar(count_stmt) or 0
+        return rows, total
+
+
+class EducationTypeRepository(BaseRepository[EducationType]):
+    model = EducationType
+
+
+class InstitutionTypeRepository(BaseRepository[InstitutionType]):
+    model = InstitutionType
+
+
+class CourseRepository(BaseRepository[Course]):
+    model = Course
+
+
+class DiplomRepository(BaseRepository[Diplom]):
+    model = Diplom
+
+    async def get_by_user_id(self, user_id: UUID) -> Diplom | None:
+        return await self.get_by(user_id=user_id)
+
+    async def list_filtered(
+        self,
+        *,
+        user_id: UUID | None = None,
+        search: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[dict], int]:
+        """Returns diploms joined with applicant info (last/first/other name, pinfl, passport)."""
+        stmt = (
+            select(
+                Diplom,
+                Applicant.last_name.label("a_last_name"),
+                Applicant.first_name.label("a_first_name"),
+                Applicant.other_name.label("a_other_name"),
+                Applicant.pinfl.label("a_pinfl"),
+                Applicant.passport_series.label("a_passport_series"),
+            )
+            .outerjoin(Applicant, Applicant.user_id == Diplom.user_id)
+        )
+        count_stmt = select(func.count(Diplom.id)).select_from(Diplom).outerjoin(Applicant, Applicant.user_id == Diplom.user_id)
+        if user_id is not None:
+            stmt = stmt.where(Diplom.user_id == user_id)
+            count_stmt = count_stmt.where(Diplom.user_id == user_id)
+        if search:
+            like = f"%{search}%"
+            cond = or_(
+                Diplom.serial_number.ilike(like),
+                Diplom.university_name.ilike(like),
+                Applicant.last_name.ilike(like),
+                Applicant.first_name.ilike(like),
+                Applicant.pinfl.ilike(like),
+            )
+            stmt = stmt.where(cond)
+            count_stmt = count_stmt.where(cond)
+        stmt = stmt.order_by(Diplom.created_at.desc()).limit(limit).offset(offset)
+
+        rows = (await self.session.execute(stmt)).all()
+        result: list[dict] = []
+        for d, a_last, a_first, a_other, a_pinfl, a_passport in rows:
+            data = {**d.__dict__}
+            data.pop("_sa_instance_state", None)
+            data["applicant_last_name"] = a_last
+            data["applicant_first_name"] = a_first
+            data["applicant_other_name"] = a_other
+            data["applicant_pinfl"] = a_pinfl
+            data["applicant_passport_series"] = a_passport
+            result.append(data)
+        total = await self.session.scalar(count_stmt) or 0
+        return result, total
+
+
+class TransferDiplomRepository(BaseRepository[TransferDiplom]):
+    model = TransferDiplom
+
+    async def get_by_user_id(self, user_id: UUID) -> TransferDiplom | None:
+        return await self.get_by(user_id=user_id)
+
+    async def list_filtered(
+        self,
+        *,
+        user_id: UUID | None = None,
+        country_id: UUID | None = None,
+        search: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> tuple[list[dict], int]:
+        """Returns transfer diploms joined with applicant info."""
+        stmt = (
+            select(
+                TransferDiplom,
+                Applicant.last_name.label("a_last_name"),
+                Applicant.first_name.label("a_first_name"),
+                Applicant.other_name.label("a_other_name"),
+                Applicant.pinfl.label("a_pinfl"),
+                Applicant.passport_series.label("a_passport_series"),
+            )
+            .outerjoin(Applicant, Applicant.user_id == TransferDiplom.user_id)
+        )
+        count_stmt = select(func.count(TransferDiplom.id)).select_from(TransferDiplom).outerjoin(Applicant, Applicant.user_id == TransferDiplom.user_id)
+        if user_id is not None:
+            stmt = stmt.where(TransferDiplom.user_id == user_id)
+            count_stmt = count_stmt.where(TransferDiplom.user_id == user_id)
+        if country_id is not None:
+            stmt = stmt.where(TransferDiplom.country_id == country_id)
+            count_stmt = count_stmt.where(TransferDiplom.country_id == country_id)
+        if search:
+            like = f"%{search}%"
+            cond = or_(
+                TransferDiplom.university_name.ilike(like),
+                Applicant.last_name.ilike(like),
+                Applicant.first_name.ilike(like),
+                Applicant.pinfl.ilike(like),
+            )
+            stmt = stmt.where(cond)
+            count_stmt = count_stmt.where(cond)
+        stmt = stmt.order_by(TransferDiplom.created_at.desc()).limit(limit).offset(offset)
+
+        rows = (await self.session.execute(stmt)).all()
+        result: list[dict] = []
+        for d, a_last, a_first, a_other, a_pinfl, a_passport in rows:
+            data = {**d.__dict__}
+            data.pop("_sa_instance_state", None)
+            data["applicant_last_name"] = a_last
+            data["applicant_first_name"] = a_first
+            data["applicant_other_name"] = a_other
+            data["applicant_pinfl"] = a_pinfl
+            data["applicant_passport_series"] = a_passport
+            result.append(data)
+        total = await self.session.scalar(count_stmt) or 0
+        return result, total
