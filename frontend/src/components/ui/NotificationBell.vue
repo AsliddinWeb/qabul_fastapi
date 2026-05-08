@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { Bell, AlertTriangle, Inbox } from 'lucide-vue-next'
+import { Bell, AlertTriangle, Inbox, CheckCheck } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { leadsApi, type Lead } from '@/api/leads.api'
 import Dropdown from '@/components/ui/Dropdown.vue'
@@ -16,6 +16,32 @@ let timer: ReturnType<typeof setInterval> | null = null
 
 const isStaff = computed(() => ['admin', 'superadmin', 'operator', 'director'].includes(auth.user?.role || ''))
 
+// "Mark all as read" stored per-user in localStorage. We treat any alert
+// with last_alert_at <= lastReadAt as already-read; the badge counter and
+// unread highlight come off this.
+const READ_KEY = computed(() => `notif:readAt:${auth.user?.id || 'anon'}`)
+const lastReadAt = ref<number>(0)
+
+function loadLastRead() {
+  try {
+    const v = localStorage.getItem(READ_KEY.value)
+    lastReadAt.value = v ? Number(v) : 0
+  } catch { lastReadAt.value = 0 }
+}
+
+function markAllRead() {
+  const now = Date.now()
+  lastReadAt.value = now
+  try { localStorage.setItem(READ_KEY.value, String(now)) } catch { /* ignore */ }
+}
+
+function isUnread(a: Alert): boolean {
+  if (!a.last_alert_at) return true
+  return new Date(a.last_alert_at).getTime() > lastReadAt.value
+}
+
+const unreadCount = computed(() => alerts.value.filter(isUnread).length)
+
 async function refresh() {
   if (!isStaff.value) return
   loading.value = true
@@ -29,6 +55,7 @@ async function refresh() {
 }
 
 onMounted(() => {
+  loadLastRead()
   refresh()
   // Re-poll every 60s while the page is active.
   timer = setInterval(refresh, 60_000)
@@ -44,11 +71,6 @@ function relTime(iso: string | null): string {
   return `${Math.floor(diff / 86_400_000)} kun`
 }
 
-function avatarInitials(s: string): string {
-  const parts = (s || '').split(/\s+/).filter(Boolean)
-  return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || '—'
-}
-
 function open(a: Alert) {
   router.push(`/admin/leads/${a.id}`)
 }
@@ -60,9 +82,9 @@ function open(a: Alert) {
       <button class="relative grid place-items-center w-10 h-10 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               title="Bildirishnomalar">
         <Bell class="w-4 h-4" />
-        <span v-if="alerts.length"
+        <span v-if="unreadCount"
               class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold grid place-items-center ring-2 ring-white dark:ring-slate-900 tabular-nums">
-          {{ alerts.length > 99 ? '99+' : alerts.length }}
+          {{ unreadCount > 99 ? '99+' : unreadCount }}
         </span>
       </button>
     </template>
@@ -75,10 +97,22 @@ function open(a: Alert) {
           <div class="text-sm font-semibold text-slate-900 dark:text-slate-100">Bildirishnomalar</div>
           <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Oxirgi 24 soat ichidagi SLA ogohlantirishlari</div>
         </div>
-        <span v-if="alerts.length"
+        <span v-if="unreadCount"
               class="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-500 text-white tabular-nums">
-          {{ alerts.length }}
+          {{ unreadCount }}
         </span>
+      </div>
+
+      <!-- Mark all read action -->
+      <div v-if="alerts.length && unreadCount > 0"
+           class="px-4 py-2 border-b border-slate-100 dark:border-slate-800/60">
+        <button
+          class="inline-flex items-center gap-1.5 text-[11px] font-medium text-brand-600 dark:text-brand-300 hover:text-brand-700 dark:hover:text-brand-200 transition-colors"
+          @click="markAllRead"
+        >
+          <CheckCheck class="w-3.5 h-3.5" />
+          Hammasini o'qildi qilish
+        </button>
       </div>
 
       <!-- Loading -->
@@ -97,19 +131,29 @@ function open(a: Alert) {
       <ul v-else class="max-h-[400px] overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/60">
         <li v-for="a in alerts" :key="a.id"
             class="px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition-colors flex items-start gap-3"
+            :class="isUnread(a) ? 'bg-rose-50/30 dark:bg-rose-500/5' : ''"
             @click="open(a)">
-          <div class="grid place-items-center w-9 h-9 rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300 shrink-0">
+          <div class="grid place-items-center w-9 h-9 rounded-lg shrink-0"
+               :class="isUnread(a)
+                 ? 'bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300'
+                 : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'">
             <AlertTriangle class="w-4 h-4" />
           </div>
           <div class="min-w-0 flex-1">
             <div class="flex items-center justify-between gap-2">
-              <span class="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{{ a.full_name }}</span>
+              <span class="text-sm font-semibold truncate"
+                    :class="isUnread(a)
+                      ? 'text-slate-900 dark:text-slate-100'
+                      : 'text-slate-500 dark:text-slate-400'">
+                {{ a.full_name }}
+              </span>
               <span class="text-[10px] text-slate-500 dark:text-slate-400 shrink-0">{{ relTime(a.last_alert_at) }}</span>
             </div>
             <div class="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
               <span v-if="a.stage_name">{{ a.stage_name }} · </span>{{ a.phone }}
             </div>
-            <div class="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-0.5">
+            <div v-if="isUnread(a)"
+                 class="text-[11px] text-amber-600 dark:text-amber-400 font-medium mt-0.5">
               Bosqichda harakatsiz
             </div>
           </div>
