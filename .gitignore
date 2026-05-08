@@ -108,3 +108,6 @@ old/
 
 # Local-only deployment notes (contains server-specific info, don't share)
 DEPLOY.md
+
+# Legacy data dumps (CSV from old CRM — already baked into seed scripts)
+leadd/
