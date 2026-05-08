@@ -28,8 +28,11 @@ dependencies = [
     "passlib[argon2]>=1.7.4",
     "argon2-cffi>=23.1.0",
 
-    # HTTP client (Eskiz)
+    # HTTP client
     "httpx>=0.27.0",
+
+    # Eskiz SMS SDK (async support via aiohttp)
+    "eskiz-pkg[async]>=2.0.1",
 
     # Files / PDF
     "python-multipart>=0.0.9",

@@ -48,7 +48,7 @@ class AuthService:
         self.redis = redis
         self.users = UserRepository(session)
         self.refresh_tokens = RefreshTokenRepository(session)
-        self.otp = OtpService(redis=redis, sms=sms_client or EskizClient(redis=redis))
+        self.otp = OtpService(redis=redis, sms=sms_client or EskizClient())
 
     # ---------- OTP (applicant flow) ----------
     async def request_otp(self, payload: OtpRequest) -> OtpRequestResponse:
