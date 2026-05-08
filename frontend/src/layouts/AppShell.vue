@@ -73,9 +73,8 @@ if (typeof document !== 'undefined') {
       <div class="h-16 flex items-center px-3 border-b border-slate-200 dark:border-slate-800">
         <RouterLink to="/" class="flex items-center gap-2.5 group min-w-0 flex-1"
                     :class="ui.sidebarCollapsed ? 'justify-center' : ''">
-          <span class="w-9 h-9 rounded-xl bg-brand-600 grid place-items-center text-white font-bold shadow-sm shrink-0">
-            X
-          </span>
+          <img src="/logo.webp" alt="XIU" class="w-9 h-9 rounded-xl shrink-0 object-contain" loading="eager" />
+
           <div v-if="!ui.sidebarCollapsed" class="leading-tight min-w-0">
             <div class="font-bold text-slate-900 dark:text-slate-100 tracking-tight truncate">XIU Qabul</div>
             <div v-if="panels.currentPanel"

@@ -55,8 +55,7 @@ function go(id: string) {
     <div class="container-x flex items-center h-[68px] gap-3">
       <!-- Brand -->
       <a href="#home" @click.prevent="go('home')" class="flex items-center gap-3 shrink-0 group">
-        <span class="grid place-items-center w-10 h-10 rounded-xl text-white font-bold text-base shadow-sm transition-transform duration-300 group-hover:scale-105"
-              :style="{ background: 'linear-gradient(135deg, rgb(var(--brand-deep)), rgb(var(--brand)))' }">X</span>
+        <img src="/logo.webp" alt="XIU" class="w-10 h-10 rounded-xl shadow-sm transition-transform duration-300 group-hover:scale-105 object-contain" loading="eager" />
         <div class="hidden sm:flex flex-col leading-[1.05] tracking-tight">
           <span class="text-[13px] font-semibold" :style="{ color: 'rgb(var(--fg))' }">Xalqaro innovatsion</span>
           <span class="text-[13px] font-semibold" :style="{ color: 'rgb(var(--fg-muted))' }">universiteti</span>

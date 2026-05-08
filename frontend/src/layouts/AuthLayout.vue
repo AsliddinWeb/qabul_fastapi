@@ -22,8 +22,7 @@ const theme = useThemeStore()
     <div class="w-full max-w-md relative">
       <div class="flex items-center justify-between mb-5">
         <a href="/" class="flex items-center gap-3 group">
-          <span class="grid place-items-center w-11 h-11 rounded-xl text-white font-bold text-lg shadow-md transition-transform group-hover:scale-105"
-                style="background: linear-gradient(135deg, rgb(67 56 202), rgb(99 102 241));">X</span>
+          <img src="/logo.webp" alt="XIU" class="w-11 h-11 rounded-xl shadow-md transition-transform group-hover:scale-105 object-contain" loading="eager" />
           <div class="leading-tight">
             <div class="font-bold tracking-tight text-slate-900 dark:text-slate-100">Xalqaro innovatsion</div>
             <div class="text-xs text-slate-500 dark:text-slate-400 -mt-0.5">universiteti</div>

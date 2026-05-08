@@ -19,8 +19,7 @@ function go(id: string) {
         <!-- Brand block -->
         <div class="lg:col-span-5">
           <div class="flex items-center gap-3 mb-4">
-            <span class="grid place-items-center w-10 h-10 rounded-xl text-white font-bold shadow-sm"
-                  :style="{ background: 'linear-gradient(135deg, rgb(var(--brand-deep)), rgb(var(--brand)))' }">X</span>
+            <img src="/logo.webp" alt="XIU" class="w-10 h-10 rounded-xl shadow-sm object-contain" loading="lazy" />
             <div class="leading-[1.05]">
               <div class="text-[14px] font-bold tracking-tight" :style="{ color: 'rgb(var(--fg))' }">
                 Xalqaro innovatsion
