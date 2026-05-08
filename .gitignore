@@ -105,3 +105,6 @@ old/
 *.bak
 *.tmp
 .claude/
+
+# Local-only deployment notes (contains server-specific info, don't share)
+DEPLOY.md
