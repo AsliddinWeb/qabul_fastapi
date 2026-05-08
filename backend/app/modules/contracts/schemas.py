@@ -39,9 +39,11 @@ class ContractSettingsBase(AppSchema):
     default_contract_type: ContractType = ContractType.TWO_PARTY
     auto_generate_pdf: bool = True
     pdf_page_size: str = Field(default="A4", max_length=10)
-    company_name: str = Field(default="Ta'lim muassasasi", max_length=200)
+    company_name: str = Field(default="Xalqaro Innovatsion Universiteti", max_length=200)
     company_address: str | None = None
+    company_inn: str | None = Field(default=None, max_length=20)
     director_name: str | None = Field(default=None, max_length=100)
+    director_title: str = Field(default="Rektor", max_length=50)
 
 
 class ContractSettingsUpdate(AppSchema):
@@ -50,7 +52,9 @@ class ContractSettingsUpdate(AppSchema):
     pdf_page_size: str | None = Field(default=None, max_length=10)
     company_name: str | None = Field(default=None, max_length=200)
     company_address: str | None = None
+    company_inn: str | None = Field(default=None, max_length=20)
     director_name: str | None = Field(default=None, max_length=100)
+    director_title: str | None = Field(default=None, max_length=50)
 
 
 class ContractSettingsRead(IdSchema, TimestampedSchema, ContractSettingsBase):

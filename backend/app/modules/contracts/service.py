@@ -187,8 +187,8 @@ class ContractsService:
         await self.parties.create(
             contract_id=contract.id,
             party_role=PartyRole.UNIVERSITY,
-            full_name=cfg.company_name or settings.university_name,
-            address=cfg.company_address or settings.university_legal_address,
+            full_name=cfg.company_name,
+            address=cfg.company_address,
         )
 
         passport_series = applicant.passport_series or ""
@@ -250,6 +250,7 @@ class ContractsService:
         edu_level = await self.education_levels.get(application.education_level_id)
         edu_form = await self.education_forms.get(application.education_form_id)
         parties = await self.parties.list_for_contract(contract.id)
+        cfg = await self.get_settings()
 
         # Look up course (for perevod) and user (for phone)
         from app.modules.applicants.repository import CourseRepository
@@ -273,6 +274,7 @@ class ContractsService:
                     course=course,
                     user=user,
                     parties=parties,
+                    cfg=cfg,
                     base_url=base_url,
                 ),
             )
@@ -342,7 +344,7 @@ def _make_qr_data_uri(payload: str) -> str:
 
 def _build_context(
     *, contract, applicant, application, program, branch, edu_level, edu_form, parties,
-    course=None, user=None, base_url: str | None = None,
+    course=None, user=None, cfg=None, base_url: str | None = None,
 ) -> dict:
     today = date.today()
 
@@ -471,10 +473,10 @@ def _build_context(
             for p in parties
         ],
         "university": {
-            "name": settings.university_name,
-            "legal_address": settings.university_legal_address,
-            "inn": settings.university_inn,
-            "director_name": settings.university_director_name,
-            "director_title": settings.university_director_title,
+            "name": cfg.company_name if cfg else "",
+            "legal_address": cfg.company_address if cfg else "",
+            "inn": cfg.company_inn if cfg else "",
+            "director_name": cfg.director_name if cfg else "",
+            "director_title": cfg.director_title if cfg else "",
         },
     }

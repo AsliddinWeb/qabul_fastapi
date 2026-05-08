@@ -107,6 +107,7 @@ const ADMIN_NAV: NavEntry[] = [
   group('system', 'Sozlamalar', Settings, [
     leaf('/admin/users',                'Foydalanuvchilar',       UsersIcon,      'rose'),
     leaf('/admin/contract-templates',   'Shartnoma shabloni',     FilePlus2,      'violet'),
+    leaf('/admin/contract-settings',    'Shartnoma sozlamalari',  Building2,      'indigo'),
     leaf('/admin/audit',                'Audit jurnali',          Shield,         'slate'),
   ]),
 ]

@@ -82,10 +82,16 @@ class ContractSettings(UUIDPKMixin, TimestampMixin, Base):
     )
 
     company_name: Mapped[str] = mapped_column(
-        String(200), nullable=False, default="Ta'lim muassasasi", server_default="Ta'lim muassasasi"
+        String(200), nullable=False,
+        default="Xalqaro Innovatsion Universiteti",
+        server_default="Xalqaro Innovatsion Universiteti",
     )
     company_address: Mapped[str | None] = mapped_column(Text, nullable=True)
+    company_inn: Mapped[str | None] = mapped_column(String(20), nullable=True)
     director_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    director_title: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="Rektor", server_default="Rektor"
+    )
 
 
 class Contract(UUIDPKMixin, TimestampMixin, Base):

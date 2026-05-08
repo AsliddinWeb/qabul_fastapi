@@ -73,9 +73,40 @@ export interface ContractDetailed {
   updated_at: string
 }
 
+export interface ContractSettings {
+  id: string
+  default_contract_type: ContractType
+  auto_generate_pdf: boolean
+  pdf_page_size: string
+  company_name: string
+  company_address: string | null
+  company_inn: string | null
+  director_name: string | null
+  director_title: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ContractSettingsUpdatePayload {
+  default_contract_type?: ContractType
+  auto_generate_pdf?: boolean
+  pdf_page_size?: string
+  company_name?: string
+  company_address?: string | null
+  company_inn?: string | null
+  director_name?: string | null
+  director_title?: string
+}
+
 export const contractsApi = {
   templates: () =>
     http.get<ContractTemplateRead[]>('/contracts/templates').then((r) => r.data),
+
+  // Singleton — university identity used in generated contracts/PDFs
+  getSettings: () =>
+    http.get<ContractSettings>('/contracts/settings').then((r) => r.data),
+  updateSettings: (payload: ContractSettingsUpdatePayload) =>
+    http.patch<ContractSettings>('/contracts/settings', payload).then((r) => r.data),
 
   template: (id: string) =>
     http.get<ContractTemplateRead>(`/contracts/templates/${id}`).then((r) => r.data),

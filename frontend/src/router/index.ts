@@ -134,6 +134,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'contract-templates',     name: 'admin-templates',    component: () => import('@/views/admin/ContractTemplatesPage.vue'),    meta: { title: 'Shartnoma shabloni' } },
       { path: 'contract-templates/new', name: 'admin-template-new', component: () => import('@/views/admin/ContractTemplateEditor.vue'),  meta: { title: 'Yangi shablon' } },
       { path: 'contract-templates/:id', name: 'admin-template-edit',component: () => import('@/views/admin/ContractTemplateEditor.vue'),  meta: { title: 'Shablonni tahrirlash' } },
+      { path: 'contract-settings',      name: 'admin-contract-settings', component: () => import('@/views/admin/ContractSettingsPage.vue'),  meta: { title: 'Shartnoma sozlamalari' } },
     ],
   },
 

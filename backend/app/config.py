@@ -75,13 +75,6 @@ class Settings(BaseSettings):
     leads_sla_hours: int = 72
     leads_sla_poll_seconds: float = 3600
 
-    # --- University identity (used in contracts as "university" party) ---
-    university_name: str = "Xalqaro Innovatsion Universiteti"
-    university_legal_address: str = "Toshkent shahri"
-    university_inn: str = ""
-    university_director_name: str = "Direktor"
-    university_director_title: str = "Rektor"
-
 
 @lru_cache
 def get_settings() -> Settings:
