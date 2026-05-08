@@ -90,7 +90,12 @@ async function submit() {
   saving.value = true
   try {
     // Strip phone formatting before sending — backend wants compact "+998..." form.
-    const sendable = { ...form, phone: compactPhone(form.phone) }
+    // Empty email -> null (EmailStr can't parse "").
+    const sendable = {
+      ...form,
+      phone: compactPhone(form.phone),
+      email: form.email?.trim() ? form.email.trim() : null,
+    }
     if (isEdit.value && id.value) {
       // Don't send password on update — use reset password flow instead.
       const { password, ...payload } = sendable

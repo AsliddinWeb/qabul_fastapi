@@ -2,11 +2,21 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from typing import Any
+
 from pydantic import EmailStr, Field, field_validator
 
 from app.core.schemas import AppSchema, IdSchema, TimestampedSchema
 from app.db.enums import UserRole
 from app.utils.phone import normalize_phone
+
+
+def _empty_to_none(v: Any) -> Any:
+    """Treat empty/whitespace-only strings as None — needed because EmailStr
+    rejects '' as invalid."""
+    if isinstance(v, str) and not v.strip():
+        return None
+    return v
 
 
 class UserBase(AppSchema):
@@ -19,6 +29,11 @@ class UserBase(AppSchema):
     @classmethod
     def _normalize(cls, v: str) -> str:
         return normalize_phone(v)
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def _email_empty_to_none(cls, v: Any) -> Any:
+        return _empty_to_none(v)
 
 
 class UserCreate(UserBase):
@@ -33,6 +48,11 @@ class UserUpdate(AppSchema):
     email: EmailStr | None = None
     role: UserRole | None = None
     is_active: bool | None = None
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def _email_empty_to_none(cls, v: Any) -> Any:
+        return _empty_to_none(v)
 
 
 class UserPasswordChange(AppSchema):
