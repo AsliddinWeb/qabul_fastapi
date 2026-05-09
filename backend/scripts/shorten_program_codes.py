@@ -1,16 +1,22 @@
-"""One-shot script: shorten existing program codes from
-"BAK-AXBOROT-TIZIMLARI-VA-TEXNOLOGIYALARI-018-S" to "BAK-ATT-S".
+"""One-shot script: shorten existing program codes to a compact
+"{LEVEL}-{NAME}-{FORM}" format.
 
 Strategy:
-  • Level prefix: first 3 letters of education level ("BAK", "MAG").
-  • Name acronym: initials of the first 3-4 words; if the name is a
-    single word, use its first 3 letters. Strips non-alphabetic chars.
+  • Level prefix: first letter only ("B" for Bakalavr, "M" for Magistr).
+  • Name slug: first 2 letters of the FIRST word
+    (e.g. "Iqtisodiyot" -> "IQ", "Pedagogika" -> "PE").
+    On collision, fall back to 3 letters, then 4. If still colliding,
+    append "-2", "-3", ... to disambiguate.
   • Form suffix: "K" (kunduzgi) / "S" (sirtqi). Preserved from the old
     code if present, otherwise inferred from the program's education_form.
-  • Disambiguator: NO sequence number by default. If two programs would
-    end up with the same code (acronym collision), append "-2", "-3", ...
 
-contract_series mirrors code (same value).
+Examples:
+  Iqtisodiyot — Bakalavr — Kunduzgi  ->  B-IQ-K
+  Iqtisodiyot — Bakalavr — Sirtqi    ->  B-IQ-S
+  Iqtisodiyot — Magistr — Kunduzgi   ->  M-IQ-K
+  Pedagogika  — Bakalavr — Kunduzgi  ->  B-PE-K
+
+contract_series mirrors code.
 
 Run on the server once after migrations:
     docker compose exec backend python -m scripts.shorten_program_codes
@@ -35,19 +41,19 @@ logger = get_logger("shorten_codes")
 
 
 def _level_prefix(name: str) -> str:
-    return re.sub(r"[^A-Za-z]", "", (name or "").upper())[:3] or "PRG"
+    """Single letter: B / M / O / etc."""
+    letters = re.sub(r"[^A-Za-z]", "", (name or "").upper())
+    return letters[:1] or "X"
 
 
-def _name_acronym(name: str) -> str:
-    """Initials of the first 3 words; fall back to first 3 letters if 1 word."""
+def _first_word_slug(name: str, n_chars: int) -> str:
+    """First N letters of the first word. Apostrophe-stripped (o' -> o, g' -> g)."""
     s = (name or "").replace("'", "").replace("`", "")
     s = s.replace("o'", "o").replace("g'", "g").replace("O'", "O").replace("G'", "G")
     words = re.findall(r"[A-Za-zА-Яа-я]+", s)
     if not words:
         return "X"
-    if len(words) == 1:
-        return words[0][:3].upper()
-    return "".join(w[0] for w in words[:4]).upper()
+    return words[0][:n_chars].upper()
 
 
 def _form_suffix(form_name: str | None, prev_code: str) -> str:
@@ -74,30 +80,53 @@ async def main() -> None:
 
         programs = list((await session.scalars(select(Program))).all())
 
-        # First pass: compute the *natural* short code for each program.
-        natural: list[tuple[Program, str]] = []
-        for p in programs:
+        def build(p: Program, n_chars: int) -> str:
             level_pref = _level_prefix(levels.get(p.education_level_id, ""))
-            acro = _name_acronym(p.name)
+            slug = _first_word_slug(p.name, n_chars)
             suffix = _form_suffix(forms.get(p.education_form_id), p.code)
-            base = f"{level_pref}-{acro}"
+            base = f"{level_pref}-{slug}"
             if suffix:
                 base = f"{base}-{suffix}"
-            natural.append((p, base))
+            return base
 
-        # Second pass: only programs that collide get a numeric tail.
-        from collections import Counter
-        cnt = Counter(code for _, code in natural)
-        used: dict[str, int] = {}
-        proposed: list[tuple[Program, str]] = []
-        for p, base in natural:
-            if cnt[base] == 1:
-                proposed.append((p, base))
-                continue
-            used[base] = used.get(base, 0) + 1
-            n = used[base]
-            disambiguated = base if n == 1 else f"{base}-{n}"
-            proposed.append((p, disambiguated))
+        # Try widths 2 -> 3 -> 4 letters. After each pass, ANY program whose
+        # code clashes with another program's code is recomputed at the next
+        # width. This way "Iqtisodiyot" gets B-IQ-K, but two programs both
+        # starting with "Ma..." escalate to 3 letters (MAK / MAT) before
+        # falling back to numeric disambiguation.
+        chosen: dict[str, str] = {}  # program_id -> code
+        candidates: dict[str, list[Program]] = {}
+
+        for width in (2, 3, 4):
+            # Re-evaluate any unresolved program at this width.
+            unresolved = [p for p in programs if str(p.id) not in chosen]
+            if not unresolved:
+                break
+
+            # Bucket by code at this width
+            buckets: dict[str, list[Program]] = {}
+            for p in unresolved:
+                buckets.setdefault(build(p, width), []).append(p)
+
+            for code, group in buckets.items():
+                if len(group) == 1:
+                    # Also make sure this code isn't already locked-in for someone else
+                    if code not in chosen.values():
+                        chosen[str(group[0].id)] = code
+                # else: leave for next-wider pass
+
+        # Anything still unresolved gets numeric disambiguation at width=4.
+        leftovers = [p for p in programs if str(p.id) not in chosen]
+        for p in leftovers:
+            base = build(p, 4)
+            n = 2
+            code = base
+            while code in chosen.values():
+                code = f"{base}-{n}"
+                n += 1
+            chosen[str(p.id)] = code
+
+        proposed: list[tuple[Program, str]] = [(p, chosen[str(p.id)]) for p in programs]
 
         # Apply
         renamed = 0
