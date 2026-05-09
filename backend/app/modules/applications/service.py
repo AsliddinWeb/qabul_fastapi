@@ -108,12 +108,16 @@ class ApplicationsService:
             if not td or td.user_id != applicant.user_id:
                 raise ValidationError("Transfer diplom does not belong to this applicant")
 
-        # Uniqueness: one application per (applicant, program).
-        existing = await self.repo.get_by(
-            applicant_id=applicant_id, program_id=payload.program_id
-        )
-        if existing:
-            raise ConflictError("You already applied to this program")
+        # One ACTIVE application per applicant — they pick a single program.
+        # Rejected applications don't count (admin can re-apply on someone's
+        # behalf after a rejection); pending / under-review / accepted do.
+        all_for_applicant = await self.repo.list_for_applicant(applicant_id)
+        active = [a for a in all_for_applicant if a.status != ApplicationStatus.REJECTED]
+        if active:
+            raise ConflictError(
+                "Bu abituriyent uchun aktiv ariza allaqachon mavjud. "
+                "Yangi ariza topshirish uchun avval mavjudini o'chirib tashlash kerak."
+            )
 
         application = await self.repo.create(
             application_number=_generate_application_number(),

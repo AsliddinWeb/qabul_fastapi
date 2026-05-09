@@ -36,10 +36,10 @@ onMounted(async () => {
 
 const greeting = computed(() => {
   const h = new Date().getHours()
-  if (h < 12) return 'Xayrli tong'
-  if (h < 17) return 'Xayrli kun'
-  if (h < 22) return 'Xayrli kech'
-  return 'Tunda salomat'
+  if (h >= 5 && h < 12)  return 'Xayrli tong'
+  if (h >= 12 && h < 17) return 'Xayrli kun'
+  if (h >= 17 && h < 22) return 'Xayrli kech'
+  return 'Hayrli oqshom'
 })
 
 const firstName = computed(() => {

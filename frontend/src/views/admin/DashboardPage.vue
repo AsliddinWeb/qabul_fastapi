@@ -252,10 +252,20 @@ const ENTITY_LABELS = AUDIT_ENTITY_TYPES
 
 const greeting = computed(() => {
   const h = new Date().getHours()
-  if (h < 12) return 'Xayrli tong'
-  if (h < 17) return 'Xayrli kun'
-  if (h < 22) return 'Xayrli kech'
-  return 'Tunda salomat'
+  if (h >= 5 && h < 12)  return 'Xayrli tong'
+  if (h >= 12 && h < 17) return 'Xayrli kun'
+  if (h >= 17 && h < 22) return 'Xayrli kech'
+  return 'Hayrli oqshom'
+})
+
+// First word of full_name only when it looks like a real personal name —
+// "Super Admin" / "Operator Test" sound robotic when truncated to "Super".
+const greetName = computed(() => {
+  const fn = auth.user?.full_name?.trim() || ''
+  if (!fn) return ''
+  const first = fn.split(/\s+/)[0]
+  const generic = new Set(['admin', 'super', 'superadmin', 'operator', 'director', 'accountant', 'xiu'])
+  return generic.has(first.toLowerCase()) ? '' : first
 })
 
 function trendDelta(getter: (b: any) => number): { v: number; up: boolean } {
@@ -278,7 +288,7 @@ void auditCategory
   <div class="space-y-5">
     <!-- Page header with breadcrumb + action buttons -->
     <PageHeader
-      :title="`${greeting}, ${(auth.user?.full_name || 'XIU').split(' ')[0]}!`"
+      :title="greetName ? `${greeting}, ${greetName}!` : `${greeting}!`"
       :subtitle="loading ? 'Yuklanmoqda...' : `Tizimda ${totalApplications} ariza · ${data.applicationsByStatus.topshirildi} ta yangi`"
       :crumbs="[{ label: 'Bosh sahifa', to: '/admin' }]"
     >

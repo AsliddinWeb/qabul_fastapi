@@ -22,6 +22,11 @@ const visibleCount = ref(12)
 const appliedProgramIds = computed(
   () => new Set(myApps.value.map((a) => a.program_id)),
 )
+// Applicants are limited to ONE active application — block all "apply"
+// buttons (not just the matching program) when they already have one.
+const hasActiveApplication = computed(
+  () => myApps.value.some(a => a.status !== 'rad_etildi'),
+)
 
 // Build distinct option lists from the loaded programs (no extra requests)
 const branches = computed(() => {
@@ -255,6 +260,14 @@ async function apply(p: ProgramRead) {
             disabled
           >
             <Check class="w-4 h-4" /> Ariza topshirilgan
+          </button>
+          <button
+            v-else-if="hasActiveApplication"
+            class="btn-ghost w-full justify-center cursor-not-allowed"
+            disabled
+            title="Sizning aktiv arizangiz bor"
+          >
+            Aktiv ariza mavjud
           </button>
           <button
             v-else

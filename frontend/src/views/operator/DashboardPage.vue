@@ -141,10 +141,18 @@ const sparkWon  = computed(() => spark(monthlyTrend.value.map(b => b.won)))
 // ---- Greeting ----
 const greeting = computed(() => {
   const h = new Date().getHours()
-  if (h < 12) return 'Xayrli tong'
-  if (h < 17) return 'Xayrli kun'
-  if (h < 22) return 'Xayrli kech'
-  return 'Tunda salomat'
+  if (h >= 5 && h < 12)  return 'Xayrli tong'
+  if (h >= 12 && h < 17) return 'Xayrli kun'
+  if (h >= 17 && h < 22) return 'Xayrli kech'
+  return 'Hayrli oqshom'
+})
+
+const greetName = computed(() => {
+  const fn = auth.user?.full_name?.trim() || ''
+  if (!fn) return ''
+  const first = fn.split(/\s+/)[0]
+  const generic = new Set(['admin', 'super', 'superadmin', 'operator', 'director', 'accountant', 'xiu'])
+  return generic.has(first.toLowerCase()) ? '' : first
 })
 
 // ---- Time format ----
@@ -222,7 +230,7 @@ void _unused
   <div class="space-y-6">
     <!-- Page header with breadcrumb + quick actions -->
     <PageHeader
-      :title="`${greeting}, ${(auth.user?.full_name || 'Operator').split(' ')[0]}!`"
+      :title="greetName ? `${greeting}, ${greetName}!` : `${greeting}!`"
       :subtitle="loading
         ? 'Yuklanmoqda...'
         : scheduledTasks.length > 0
