@@ -363,7 +363,15 @@ const availableForms = computed(() => {
       .filter((p) => p.branch_id === form.branch_id && p.education_level_id === form.education_level_id)
       .map((p) => p.education_form_id),
   )
-  return allEducationForms.value.filter((f) => ids.has(f.id))
+  let forms = allEducationForms.value.filter((f) => ids.has(f.id))
+  // Business rule: 1-kurs (yangi_qabul) applicants can only enroll in
+  // kunduzgi. Mirrors the limit applicants see in the onboarding wizard.
+  if (form.admission_type === 'yangi_qabul') {
+    forms = forms.filter((f: any) =>
+      (f.name || '').toLowerCase().includes('kunduz')
+    )
+  }
+  return forms
 })
 const availablePrograms = computed(() => {
   if (!form.branch_id || !form.education_level_id || !form.education_form_id) return []
@@ -387,6 +395,17 @@ watch(() => form.education_level_id, () => {
 watch(() => form.education_form_id, () => {
   if (prefilling.value) return
   form.program_id = ''
+})
+
+// Switching admission_type re-applies the kunduzgi-only rule.
+// If the selected form is no longer in availableForms (e.g. user picked
+// Sirtqi then switched to 1-kurs), drop it so they re-pick.
+watch(() => form.admission_type, () => {
+  if (prefilling.value) return
+  if (form.education_form_id && !availableForms.value.find((f: any) => f.id === form.education_form_id)) {
+    form.education_form_id = ''
+    form.program_id = ''
+  }
 })
 
 const selectedProgram = computed(() => allPrograms.value.find((p) => p.id === form.program_id))
@@ -998,6 +1017,10 @@ async function submit() {
             <option v-for="f in availableForms" :key="f.id" :value="f.id">{{ f.name }}</option>
           </select>
           <p v-if="errors.education_form_id" class="mt-1 text-xs text-red-600">{{ errors.education_form_id }}</p>
+          <p v-else-if="form.admission_type === 'yangi_qabul'"
+             class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            1-kursga topshirish faqat Kunduzgi shaklda mumkin.
+          </p>
         </div>
 
         <div>

@@ -98,6 +98,20 @@ class ApplicationsService:
                 "Program's branch / education level / education form mismatch"
             )
 
+        # Business rule: 1-kurs (yangi qabul) is kunduzgi-only. Check the
+        # form's name (not the UUID) so this stays correct if the dictionary
+        # gets renamed.
+        if payload.admission_type == AdmissionType.REGULAR:
+            from sqlalchemy import select as _select
+            from app.modules.programs.models import EducationForm
+            form_name = await self.session.scalar(
+                _select(EducationForm.name).where(EducationForm.id == payload.education_form_id)
+            )
+            if form_name and "kunduz" not in form_name.lower():
+                raise ValidationError(
+                    "1-kursga topshirish faqat Kunduzgi shaklda mumkin"
+                )
+
         # Diplom / transfer_diplom validation already enforced in schema.
         if payload.admission_type == AdmissionType.REGULAR and payload.diplom_id:
             d = await self.diploms.get(payload.diplom_id)
