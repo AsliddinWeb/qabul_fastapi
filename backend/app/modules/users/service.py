@@ -85,32 +85,22 @@ class UserService:
         return await self.repo.update(user, is_active=False)
 
     async def soft_delete(self, user_id: UUID) -> None:
-        """Hard-delete the user.
+        """Hard-delete the user with full cascade (Django-admin style).
 
-        Despite the legacy name, this fully removes the row so the phone
-        becomes available for fresh registration. Cascading FKs:
-          • refresh_tokens (CASCADE)  — gone with the user
-          • created_by_id, assigned_to_id, registered_by_id (SET NULL)
-          • applicants/diploms/applications etc are NOT cascaded — the
-            check below blocks the delete if any exist so we don't silently
-            orphan or remove real domain data.
+        Migration 03_user_delete_cascade.sql changed FKs to ON DELETE CASCADE
+        for the entire applicant tree, so a single DELETE removes:
+          • users  → refresh_tokens, applicants
+          • applicants → diploms, transfer_diploms, applications, educations
+          • applications → contracts, application_status_history
+          • contracts → contract_parties, payments
+
+        SET NULL is preserved for ownership references (created_by_id,
+        assigned_to_id, registered_by_id) so leads/audit history aren't
+        deleted with the user — only the "who created" pointer is cleared.
         """
         user = await self.get(user_id)
         if user.role == UserRole.SUPERADMIN:
             raise ValidationError("Cannot delete superadmin")
-
-        # Block deletion if applicant data exists — admin must purge those
-        # explicitly. Avoids accidental loss of applications/contracts/etc.
-        from sqlalchemy import select, func
-        from app.modules.applicants.models import Applicant
-        applicant_count = await self.session.scalar(
-            select(func.count()).select_from(Applicant).where(Applicant.user_id == user.id)
-        )
-        if applicant_count and applicant_count > 0:
-            raise ValidationError(
-                "Foydalanuvchini o'chirib bo'lmaydi: bog'liq abituriyent "
-                "ma'lumotlari mavjud. Avval abituriyent profilini o'chiring."
-            )
 
         await self.session.delete(user)
         await self.session.flush()
