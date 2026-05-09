@@ -172,7 +172,7 @@ const stats = [
   </section>
 
   <!-- ============================ PROGRAMS ============================ -->
-  <section id="programs" class="scroll-mt-header relative section-divider"
+  <section id="programs" class="scroll-mt-header relative section-divider overflow-hidden"
            :style="{ background: 'rgb(var(--bg-soft))' }">
     <div class="container-x py-14 sm:py-20 lg:py-28">
       <!-- Section heading -->
@@ -291,7 +291,7 @@ const stats = [
       <div v-else class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         <article
           v-for="(p, idx) in visiblePrograms" :key="p.id"
-          class="card-hover p-5 sm:p-6 cursor-pointer group reveal-card"
+          class="card-hover p-5 sm:p-6 cursor-pointer group reveal-card overflow-hidden min-w-0"
           :style="{ animationDelay: `${idx * 50}ms` }"
           @click="openLeadModal(p.id)"
         >
@@ -306,33 +306,33 @@ const stats = [
                 <path d="M6 12v5c3 3 9 3 12 0v-5" />
               </svg>
             </div>
-            <div class="text-right">
-              <div class="text-[10px] uppercase tracking-[0.10em] font-bold"
+            <div class="text-right min-w-0 flex-1">
+              <div class="text-[10px] uppercase tracking-[0.10em] font-bold truncate"
                    :style="{ color: 'rgb(var(--fg-muted))' }">
                 {{ p.education_level_name || 'Bakalavr' }}
               </div>
-              <div class="text-[10px] font-mono mt-1" :style="{ color: 'rgb(var(--fg-muted))' }">{{ p.code }}</div>
+              <div class="text-[10px] font-mono mt-1 truncate" :style="{ color: 'rgb(var(--fg-muted))' }">{{ p.code }}</div>
             </div>
           </div>
 
-          <h3 class="text-[17px] font-bold mb-2 leading-snug min-h-[3rem] line-clamp-2"
+          <h3 class="text-[16px] sm:text-[17px] font-bold mb-2 leading-snug min-h-[2.6rem] sm:min-h-[3rem] line-clamp-2"
               :style="{ color: 'rgb(var(--fg))' }">
             {{ p.name }}
           </h3>
 
-          <div class="text-[13px] mb-5 truncate" :style="{ color: 'rgb(var(--fg-muted))' }">
+          <div class="text-[12px] sm:text-[13px] mb-4 sm:mb-5 truncate" :style="{ color: 'rgb(var(--fg-muted))' }">
             <span v-if="p.branch_name">{{ p.branch_name }}</span>
             <span v-if="p.education_form_name"> · {{ p.education_form_name }}</span>
             <span v-if="p.study_duration_years"> · {{ p.study_duration_years }} yil</span>
           </div>
 
-          <div class="flex items-center justify-between pt-4"
+          <div class="flex items-center justify-between gap-2 pt-3.5 sm:pt-4"
                :style="{ borderTop: '1px solid rgb(var(--border))' }">
-            <div class="text-[15px] font-bold tabular-nums" :style="{ color: 'rgb(var(--fg))' }">
+            <div class="text-[14px] sm:text-[15px] font-bold tabular-nums min-w-0 truncate" :style="{ color: 'rgb(var(--fg))' }">
               {{ fmtPrice(p.tuition_fee) }}
-              <span class="text-xs font-normal ml-0.5" :style="{ color: 'rgb(var(--fg-muted))' }">so'm/yil</span>
+              <span class="text-[10px] sm:text-xs font-normal ml-0.5" :style="{ color: 'rgb(var(--fg-muted))' }">so'm/yil</span>
             </div>
-            <span class="text-[13px] font-semibold inline-flex items-center gap-1 transition-all duration-200 group-hover:gap-2"
+            <span class="text-[12px] sm:text-[13px] font-semibold inline-flex items-center gap-1 transition-all duration-200 group-hover:gap-2 shrink-0"
                   :style="{ color: tone(p.id).fg }">
               Ariza
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -352,7 +352,7 @@ const stats = [
   </section>
 
   <!-- ============================ ABOUT ============================ -->
-  <section id="about" class="scroll-mt-header relative section-divider">
+  <section id="about" class="scroll-mt-header relative section-divider overflow-hidden">
     <div class="container-x py-14 sm:py-20 lg:py-28">
       <div class="grid lg:grid-cols-12 gap-8 lg:gap-16">
         <div class="lg:col-span-5">
@@ -394,7 +394,7 @@ const stats = [
   </section>
 
   <!-- ============================ CONTACT ============================ -->
-  <section id="contact" class="scroll-mt-header relative section-divider"
+  <section id="contact" class="scroll-mt-header relative section-divider overflow-hidden"
            :style="{ background: 'rgb(var(--bg-soft))' }">
     <div class="container-x py-14 sm:py-20 lg:py-28">
       <div class="grid lg:grid-cols-12 gap-8 lg:gap-16">
@@ -425,7 +425,7 @@ const stats = [
           <a v-for="c in [
             { type: 'tel',  href: 'tel:+998554061515',                                          label: 'Telefon',   value: '+998 55 406 15 15',                                tone: 'indigo' },
             { type: 'mail', href: 'mailto:info@xiuedu.uz',                                      label: 'Email',     value: 'info@xiuedu.uz',                                   tone: 'amber' },
-            { type: 'tg',   href: 'https://t.me/xalqaro_innovatsion_universiteti',              label: 'Telegram',  value: '@xalqaro_innovatsion_universiteti',                tone: 'sky' },
+            { type: 'tg',   href: 'https://t.me/xalqaro_innovatsion_universiteti',              label: 'Telegram',  value: '@xalqaro_innovatsion',                             tone: 'sky' },
             { type: 'map',  href: 'https://maps.google.com/?q=Qarshi+I.Karimov+ko%27chasi+405', label: 'Manzil',    value: 'Qarshi sh., I.Karimov ko‘chasi, 405-uy',           tone: 'rose' },
           ]" :key="c.type"
             :href="c.href" :target="c.type === 'tel' || c.type === 'mail' ? '_self' : '_blank'" rel="noopener"
@@ -454,12 +454,12 @@ const stats = [
                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
               </svg>
             </span>
-            <div class="min-w-0 flex-1">
+            <div class="min-w-0 flex-1 overflow-hidden">
               <div class="text-[10px] uppercase tracking-[0.10em] font-bold mb-0.5"
                    :style="{ color: 'rgb(var(--fg-muted))' }">
                 {{ c.label }}
               </div>
-              <div class="font-semibold text-[15px] truncate transition-colors group-hover:text-[rgb(var(--brand))]"
+              <div class="font-semibold text-[14px] sm:text-[15px] truncate transition-colors group-hover:text-[rgb(var(--brand))]"
                    :style="{ color: 'rgb(var(--fg))' }">
                 {{ c.value }}
               </div>

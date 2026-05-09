@@ -8,9 +8,9 @@ onMounted(() => init())
 </script>
 
 <template>
-  <div class="min-h-screen flex flex-col">
+  <div class="min-h-screen flex flex-col overflow-x-hidden">
     <AppHeader />
-    <main class="flex-1">
+    <main class="flex-1 overflow-x-hidden">
       <slot />
     </main>
     <AppFooter />
