@@ -108,11 +108,13 @@ class ApplicantsService:
         data = _normalize_applicant(payload.model_dump())
         if data.get("pinfl") and await self.applicants.get_by_pinfl(data["pinfl"]):
             raise ConflictError("Applicant with this PINFL already exists")
-        return await self.applicants.create(
+        applicant = await self.applicants.create(
             user_id=user_id,
             registered_by_id=registered_by_id,
             **data,
         )
+        await self._sync_user_full_name(user_id, applicant)
+        return applicant
 
     async def create_by_operator(
         self,
@@ -148,12 +150,33 @@ class ApplicantsService:
             registered_by_id=operator_id,
             **data,
         )
+        await self._sync_user_full_name(user.id, applicant)
         return applicant, user
 
     async def update(self, applicant_id: UUID, payload: ApplicantUpdate) -> Applicant:
         obj = await self.get(applicant_id)
         data = _normalize_applicant(payload.model_dump(exclude_unset=True))
-        return await self.applicants.update(obj, **data)
+        applicant = await self.applicants.update(obj, **data)
+        # Keep users.full_name in sync with applicant identity so the
+        # /admin/users page (and any other user-facing list) shows a
+        # readable name instead of empty/F.I.Sh.
+        await self._sync_user_full_name(applicant.user_id, applicant)
+        return applicant
+
+    async def _sync_user_full_name(self, user_id: UUID, applicant: Applicant) -> None:
+        """Mirror applicant last/first/other_name onto users.full_name.
+
+        Called after every applicant create/update so the user record
+        carries a human-readable label even when the user signed up via
+        SMS-OTP and never had a full_name set directly.
+        """
+        parts = [applicant.last_name, applicant.first_name, applicant.other_name]
+        full_name = " ".join(p.strip() for p in parts if p and p.strip()) or None
+        if not full_name:
+            return
+        user = await self.users.get(user_id)
+        if user and user.full_name != full_name:
+            await self.users.update(user, full_name=full_name)
 
     async def delete(self, applicant_id: UUID) -> None:
         obj = await self.get(applicant_id)
