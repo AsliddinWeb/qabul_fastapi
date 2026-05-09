@@ -1,13 +1,14 @@
 """One-shot script: shorten existing program codes from
-"BAK-AXBOROT-TIZIMLARI-VA-TEXNOLOGIYALARI-018-S" to "BAK-ATT-018-S".
+"BAK-AXBOROT-TIZIMLARI-VA-TEXNOLOGIYALARI-018-S" to "BAK-ATT-S".
 
 Strategy:
   • Level prefix: first 3 letters of education level ("BAK", "MAG").
-  • Name acronym: take initials of the first 3-4 words; if the name is a
+  • Name acronym: initials of the first 3-4 words; if the name is a
     single word, use its first 3 letters. Strips non-alphabetic chars.
   • Form suffix: "K" (kunduzgi) / "S" (sirtqi). Preserved from the old
     code if present, otherwise inferred from the program's education_form.
-  • Sequence: keep the same NNN already in use (don't re-number).
+  • Disambiguator: NO sequence number by default. If two programs would
+    end up with the same code (acronym collision), append "-2", "-3", ...
 
 contract_series mirrors code (same value).
 
@@ -63,12 +64,6 @@ def _form_suffix(form_name: str | None, prev_code: str) -> str:
     return ""
 
 
-def _seq_from_old(prev_code: str) -> str:
-    """Pull a 3-digit run number out of the old code if it had one."""
-    m = re.search(r"(\d{3})", prev_code or "")
-    return m.group(1) if m else "001"
-
-
 async def main() -> None:
     configure_logging(debug=False)
 
@@ -79,31 +74,30 @@ async def main() -> None:
 
         programs = list((await session.scalars(select(Program))).all())
 
-        # First pass: compute new codes; track per-base counts in case of
-        # collisions (different majors that map to the same acronym).
-        proposed: list[tuple[Program, str]] = []
-        seen: dict[str, int] = {}
-
+        # First pass: compute the *natural* short code for each program.
+        natural: list[tuple[Program, str]] = []
         for p in programs:
             level_pref = _level_prefix(levels.get(p.education_level_id, ""))
             acro = _name_acronym(p.name)
             suffix = _form_suffix(forms.get(p.education_form_id), p.code)
-            seq = _seq_from_old(p.code)
-
-            base = f"{level_pref}-{acro}-{seq}"
+            base = f"{level_pref}-{acro}"
             if suffix:
                 base = f"{base}-{suffix}"
+            natural.append((p, base))
 
-            # If we've already issued this code in this run (different program
-            # mapped to the same acronym), bump the seq.
-            if base in seen:
-                seen[base] += 1
-                # Add a small disambiguator
-                base = f"{base}-{seen[base]}"
-            else:
-                seen[base] = 1
-
-            proposed.append((p, base))
+        # Second pass: only programs that collide get a numeric tail.
+        from collections import Counter
+        cnt = Counter(code for _, code in natural)
+        used: dict[str, int] = {}
+        proposed: list[tuple[Program, str]] = []
+        for p, base in natural:
+            if cnt[base] == 1:
+                proposed.append((p, base))
+                continue
+            used[base] = used.get(base, 0) + 1
+            n = used[base]
+            disambiguated = base if n == 1 else f"{base}-{n}"
+            proposed.append((p, disambiguated))
 
         # Apply
         renamed = 0
