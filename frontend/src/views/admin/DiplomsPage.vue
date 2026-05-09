@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch, nextTick } from 'vue'
-import { Plus, Award, Pencil, Trash2, Search, X, UserPlus } from 'lucide-vue-next'
+import { Plus, Award, Pencil, Trash2, Search, X, UserPlus, FileText, ExternalLink } from 'lucide-vue-next'
 import { AxiosError } from 'axios'
 import { adminApi, type NamedRecord, type RegionRead, type DistrictRead } from '@/api/admin.api'
 import EmptyState from '@/components/ui/EmptyState.vue'
@@ -445,10 +445,19 @@ function avatarColor(uid: string): string {
         </div>
       </div>
 
-      <FileUpload v-model="form.diploma_file_id"
-                  label="Diplom skani (PDF yoki rasm)"
-                  hint="Ixtiyoriy. Diplom asl nusxasining skani yoki rasmi"
-                  subdir="diploms" />
+      <div>
+        <label class="field-label">Diplom skani (PDF yoki rasm)</label>
+        <a v-if="editing && editing.diploma_file_id"
+           :href="`/api/v1/files/${editing.diploma_file_id}`" target="_blank" rel="noopener"
+           class="inline-flex items-center gap-2 mb-2 px-3 py-2 rounded-lg text-sm font-medium border border-slate-200 dark:border-slate-700 hover:border-brand-400 hover:text-brand-600 transition-colors">
+          <FileText class="w-4 h-4" />
+          Hozirgi faylni ochish
+          <ExternalLink class="w-3.5 h-3.5" />
+        </a>
+        <FileUpload v-model="form.diploma_file_id"
+                    hint="Ixtiyoriy. Diplom asl nusxasining skani yoki rasmi"
+                    subdir="diploms" />
+      </div>
 
       <div class="flex gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
         <button type="submit" class="btn-primary" :disabled="saving">

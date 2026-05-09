@@ -7,7 +7,7 @@ import {
   FileSignature, Ban, Download, Plus, CreditCard, RotateCcw,
   Clock, Send, Eye, Phone, MapPin, IdCard,
   Building2, Layers, BookOpen, Calendar, Globe, Hash, Wallet,
-  AlertTriangle, Inbox, Paperclip,
+  AlertTriangle, Inbox, Paperclip, ExternalLink,
 } from 'lucide-vue-next'
 import { AxiosError } from 'axios'
 import { adminApi } from '@/api/admin.api'
@@ -66,12 +66,35 @@ async function loadAll() {
     educationForm.value = (formsList as any[]).find((x: any) => x.id === application.value.education_form_id) || null
 
     if (ap?.user_id) {
-      const [dList, tList] = await Promise.all([
+      const [dList, tList, eduTypes, instTypes, courses, regions, countries] = await Promise.all([
         adminApi.diploms.list({ user_id: ap.user_id }).catch(() => ({ items: [] }) as any),
         adminApi.transferDiploms.list({ user_id: ap.user_id }).catch(() => ({ items: [] }) as any),
+        adminApi.educationTypes.list().catch(() => []),
+        adminApi.institutionTypes.list().catch(() => []),
+        adminApi.courses.list().catch(() => []),
+        // We don't know which country, so fetch countries flat-list:
+        adminApi.regions.list().catch(() => []),
+        adminApi.countries.list().catch(() => []),
       ])
       diplom.value = (dList as any).items?.[0] || null
       transferDiplom.value = (tList as any).items?.[0] || null
+
+      // Resolve nested labels for the cards
+      const lookup = (arr: any[], id: string) => arr.find((x: any) => x.id === id)?.name || null
+      if (diplom.value) {
+        diplom.value._education_type = lookup(eduTypes as any[], diplom.value.education_type_id)
+        diplom.value._institution_type = lookup(instTypes as any[], diplom.value.institution_type_id)
+        diplom.value._region = lookup(regions as any[], diplom.value.region_id)
+        // district loaded on demand
+        if (diplom.value.region_id) {
+          const districts = await adminApi.districts.list(diplom.value.region_id).catch(() => [])
+          diplom.value._district = lookup(districts as any[], diplom.value.district_id)
+        }
+      }
+      if (transferDiplom.value) {
+        transferDiplom.value._country = lookup(countries as any[], transferDiplom.value.country_id)
+        transferDiplom.value._course = lookup(courses as any[], transferDiplom.value.target_course_id)
+      }
     }
 
     // Load contract templates (active ones)
@@ -232,10 +255,29 @@ const compatibleTemplates = computed(() =>
   })
 )
 
+// Display value with thousand separators ("9 520 000"), kept in sync with
+// contractForm.total_amount (number). Also used by the input @input handler.
+const contractAmountDisplay = ref('')
+function fmtSeparated(n: number | null | undefined): string {
+  if (n === null || n === undefined || isNaN(Number(n))) return ''
+  return Number(Math.floor(n)).toLocaleString('uz-UZ').replace(/,/g, ' ')
+}
+function onContractAmountInput(e: Event) {
+  // Only digits — drop everything else, including dots (don't let .00 inflate).
+  const raw = (e.target as HTMLInputElement).value.replace(/\D/g, '')
+  const n = raw ? parseInt(raw, 10) : null
+  contractForm.total_amount = n
+  contractAmountDisplay.value = n === null ? '' : fmtSeparated(n)
+}
+
 function openContractForm() {
   showContractForm.value = true
   if (program.value?.tuition_fee) {
-    contractForm.total_amount = Number(program.value.tuition_fee)
+    const n = Math.floor(Number(program.value.tuition_fee))
+    contractForm.total_amount = n
+    contractAmountDisplay.value = fmtSeparated(n)
+  } else {
+    contractAmountDisplay.value = ''
   }
 }
 
@@ -663,17 +705,46 @@ function applicantInitials(): string {
             </span>
             Diplom (1-kurs)
           </h2>
-          <div v-if="diplom"
-               class="flex items-center gap-3 p-3 rounded-xl bg-slate-50 ring-1 ring-slate-200/60
-                      dark:bg-slate-800/40 dark:ring-slate-700/40">
-            <div class="icon-bubble bg-white text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:ring-slate-700">
-              <GraduationCap class="w-5 h-5" />
+          <div v-if="diplom" class="space-y-3">
+            <div class="grid sm:grid-cols-2 gap-3 text-sm">
+              <div>
+                <div class="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-0.5">Seriya raqami</div>
+                <div class="font-mono font-semibold text-slate-900 dark:text-slate-100">{{ diplom.serial_number }}</div>
+              </div>
+              <div>
+                <div class="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-0.5">Bitirgan yili</div>
+                <div class="font-medium text-slate-900 dark:text-slate-100">{{ diplom.graduation_year }}</div>
+              </div>
+              <div class="sm:col-span-2">
+                <div class="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-0.5">Muassasa</div>
+                <div class="text-slate-900 dark:text-slate-100">{{ diplom.university_name }}</div>
+              </div>
+              <div v-if="diplom._education_type">
+                <div class="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-0.5">Hujjat turi</div>
+                <div class="text-slate-900 dark:text-slate-100">{{ diplom._education_type }}</div>
+              </div>
+              <div v-if="diplom._institution_type">
+                <div class="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-0.5">Muassasa turi</div>
+                <div class="text-slate-900 dark:text-slate-100">{{ diplom._institution_type }}</div>
+              </div>
+              <div v-if="diplom._region">
+                <div class="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-0.5">Viloyat</div>
+                <div class="text-slate-900 dark:text-slate-100">{{ diplom._region }}</div>
+              </div>
+              <div v-if="diplom._district">
+                <div class="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-0.5">Tuman</div>
+                <div class="text-slate-900 dark:text-slate-100">{{ diplom._district }}</div>
+              </div>
             </div>
-            <div class="min-w-0 flex-1">
-              <div class="font-mono font-semibold text-slate-900 dark:text-slate-100">{{ diplom.serial_number }}</div>
-              <div class="text-sm text-slate-700 dark:text-slate-300 truncate">{{ diplom.university_name }}</div>
-              <div class="text-xs text-slate-500 dark:text-slate-400">Bitirgan yil: {{ diplom.graduation_year }}</div>
-            </div>
+            <a v-if="diplom.diploma_file_id"
+               :href="`/api/v1/files/${diplom.diploma_file_id}`"
+               target="_blank" rel="noopener"
+               class="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border border-slate-200 dark:border-slate-700 hover:border-brand-400 hover:text-brand-600 transition-colors">
+              <FileText class="w-4 h-4" />
+              Diplom faylini ko'rish
+              <ExternalLink class="w-3.5 h-3.5" />
+            </a>
+            <p v-else class="text-xs text-slate-500 dark:text-slate-400">Fayl yuklanmagan</p>
           </div>
           <div v-else
                class="flex items-center gap-2 text-sm p-3 rounded-xl
@@ -690,15 +761,30 @@ function applicantInitials(): string {
             </span>
             Perevod diplomi
           </h2>
-          <div v-if="transferDiplom"
-               class="flex items-center gap-3 p-3 rounded-xl bg-slate-50 ring-1 ring-slate-200/60
-                      dark:bg-slate-800/40 dark:ring-slate-700/40">
-            <div class="icon-bubble bg-white text-slate-700 ring-1 ring-slate-200 dark:bg-slate-900 dark:text-slate-200 dark:ring-slate-700">
-              <Globe class="w-5 h-5" />
+          <div v-if="transferDiplom" class="space-y-3">
+            <div class="grid sm:grid-cols-2 gap-3 text-sm">
+              <div class="sm:col-span-2">
+                <div class="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-0.5">Muassasa</div>
+                <div class="text-slate-900 dark:text-slate-100">{{ transferDiplom.university_name }}</div>
+              </div>
+              <div v-if="transferDiplom._country">
+                <div class="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-0.5">Davlat</div>
+                <div class="text-slate-900 dark:text-slate-100">{{ transferDiplom._country }}</div>
+              </div>
+              <div v-if="transferDiplom._course">
+                <div class="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-0.5">Kurs</div>
+                <div class="text-slate-900 dark:text-slate-100">{{ transferDiplom._course }}</div>
+              </div>
             </div>
-            <div class="min-w-0 flex-1">
-              <div class="font-medium text-slate-900 dark:text-slate-100 truncate">{{ transferDiplom.university_name }}</div>
-            </div>
+            <a v-if="transferDiplom.transcript_file_id"
+               :href="`/api/v1/files/${transferDiplom.transcript_file_id}`"
+               target="_blank" rel="noopener"
+               class="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border border-slate-200 dark:border-slate-700 hover:border-brand-400 hover:text-brand-600 transition-colors">
+              <FileText class="w-4 h-4" />
+              Transkript faylini ko'rish
+              <ExternalLink class="w-3.5 h-3.5" />
+            </a>
+            <p v-else class="text-xs text-slate-500 dark:text-slate-400">Transkript fayli yuklanmagan</p>
           </div>
           <div v-else
                class="flex items-center gap-2 text-sm p-3 rounded-xl
@@ -854,7 +940,10 @@ function applicantInitials(): string {
               </div>
               <div>
                 <label class="field-label">Jami summa</label>
-                <input v-model.number="contractForm.total_amount" type="number" class="input font-mono" />
+                <input :value="contractAmountDisplay" @input="onContractAmountInput"
+                       type="text" inputmode="numeric" class="input font-mono"
+                       placeholder="9 520 000" />
+                <p class="field-hint">Yiliga, so'm</p>
               </div>
               <div class="flex gap-2">
                 <button class="btn-primary flex-1" :disabled="contractCreating || !compatibleTemplates.length" @click="createContract">
