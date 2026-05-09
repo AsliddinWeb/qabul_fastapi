@@ -85,9 +85,32 @@ class UserService:
         return await self.repo.update(user, is_active=False)
 
     async def soft_delete(self, user_id: UUID) -> None:
-        from datetime import datetime, timezone
+        """Hard-delete the user.
 
+        Despite the legacy name, this fully removes the row so the phone
+        becomes available for fresh registration. Cascading FKs:
+          • refresh_tokens (CASCADE)  — gone with the user
+          • created_by_id, assigned_to_id, registered_by_id (SET NULL)
+          • applicants/diploms/applications etc are NOT cascaded — the
+            check below blocks the delete if any exist so we don't silently
+            orphan or remove real domain data.
+        """
         user = await self.get(user_id)
         if user.role == UserRole.SUPERADMIN:
             raise ValidationError("Cannot delete superadmin")
-        await self.repo.update(user, deleted_at=datetime.now(timezone.utc), is_active=False)
+
+        # Block deletion if applicant data exists — admin must purge those
+        # explicitly. Avoids accidental loss of applications/contracts/etc.
+        from sqlalchemy import select, func
+        from app.modules.applicants.models import Applicant
+        applicant_count = await self.session.scalar(
+            select(func.count()).select_from(Applicant).where(Applicant.user_id == user.id)
+        )
+        if applicant_count and applicant_count > 0:
+            raise ValidationError(
+                "Foydalanuvchini o'chirib bo'lmaydi: bog'liq abituriyent "
+                "ma'lumotlari mavjud. Avval abituriyent profilini o'chiring."
+            )
+
+        await self.session.delete(user)
+        await self.session.flush()
