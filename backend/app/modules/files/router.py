@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import CurrentUser, get_current_user, get_db
+from app.core.exceptions import UnauthorizedError
+from app.core.security import decode_token
 from app.modules.files.service import FileRepository, FilesService
 
 router = APIRouter()
@@ -79,10 +81,33 @@ async def upload_file(
 )
 async def download_file(
     file_id: UUID,
-    current: CurrentUser = Depends(get_current_user),
+    request: Request,
+    token: str | None = None,
     session: AsyncSession = Depends(get_db),
 ) -> Response:
-    """Stream a stored file's bytes back to the caller."""
+    """Stream a stored file's bytes.
+
+    Authenticates EITHER via the Authorization header (normal API calls)
+    OR via a `?token=<jwt>` query string (so the same URL can be opened
+    in a new tab as a regular link, e.g. from an admin's "view file"
+    button). Both paths use the same JWT decode.
+    """
+    auth_header = request.headers.get("authorization") or request.headers.get("Authorization")
+    jwt_str: str | None = None
+    if auth_header and auth_header.lower().startswith("bearer "):
+        jwt_str = auth_header.split(" ", 1)[1].strip()
+    elif token:
+        jwt_str = token
+    if not jwt_str:
+        raise UnauthorizedError("Missing authorization (header or ?token=)")
+
+    try:
+        payload = decode_token(jwt_str)
+    except ValueError as exc:
+        raise UnauthorizedError("Invalid or expired token") from exc
+    if payload.get("type") != "access":
+        raise UnauthorizedError("Wrong token type")
+
     file = await FileRepository(session).get(file_id)
     if not file:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")

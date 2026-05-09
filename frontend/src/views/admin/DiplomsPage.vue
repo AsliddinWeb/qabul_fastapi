@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch, nextTick } from 'vue'
 import { Plus, Award, Pencil, Trash2, Search, X, UserPlus, FileText, ExternalLink } from 'lucide-vue-next'
+import { fileUrl } from '@/utils/files'
 import { AxiosError } from 'axios'
 import { adminApi, type NamedRecord, type RegionRead, type DistrictRead } from '@/api/admin.api'
 import EmptyState from '@/components/ui/EmptyState.vue'
@@ -448,7 +449,7 @@ function avatarColor(uid: string): string {
       <div>
         <label class="field-label">Diplom skani (PDF yoki rasm)</label>
         <a v-if="editing && editing.diploma_file_id"
-           :href="`/api/v1/files/${editing.diploma_file_id}`" target="_blank" rel="noopener"
+           :href="fileUrl(editing.diploma_file_id)!" target="_blank" rel="noopener"
            class="inline-flex items-center gap-2 mb-2 px-3 py-2 rounded-lg text-sm font-medium border border-slate-200 dark:border-slate-700 hover:border-brand-400 hover:text-brand-600 transition-colors">
           <FileText class="w-4 h-4" />
           Hozirgi faylni ochish

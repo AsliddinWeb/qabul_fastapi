@@ -11,6 +11,7 @@ import {
 } from 'lucide-vue-next'
 import { AxiosError } from 'axios'
 import { adminApi } from '@/api/admin.api'
+import { fileUrl } from '@/utils/files'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { APPLICATION_STATUS, ADMISSION_TYPE, CONTRACT_STATUS, CONTRACT_TYPE, PAYMENT_STATUS, tr } from '@/utils/labels'
@@ -737,7 +738,7 @@ function applicantInitials(): string {
               </div>
             </div>
             <a v-if="diplom.diploma_file_id"
-               :href="`/api/v1/files/${diplom.diploma_file_id}`"
+               :href="fileUrl(diplom.diploma_file_id)!"
                target="_blank" rel="noopener"
                class="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border border-slate-200 dark:border-slate-700 hover:border-brand-400 hover:text-brand-600 transition-colors">
               <FileText class="w-4 h-4" />
@@ -777,7 +778,7 @@ function applicantInitials(): string {
               </div>
             </div>
             <a v-if="transferDiplom.transcript_file_id"
-               :href="`/api/v1/files/${transferDiplom.transcript_file_id}`"
+               :href="fileUrl(transferDiplom.transcript_file_id)!"
                target="_blank" rel="noopener"
                class="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border border-slate-200 dark:border-slate-700 hover:border-brand-400 hover:text-brand-600 transition-colors">
               <FileText class="w-4 h-4" />
