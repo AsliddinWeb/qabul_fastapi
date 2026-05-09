@@ -6,6 +6,7 @@ import {
   Save, User as UserIcon, IdCard, GraduationCap, ClipboardList, Check,
   ArrowRight, ArrowLeft, AlertCircle, CheckCircle2, Loader2,
 } from 'lucide-vue-next'
+import FileUpload from '@/components/ui/FileUpload.vue'
 import {
   applicantsApi,
   type ApplicantBase,
@@ -202,10 +203,12 @@ function validateDiplom(): boolean {
     }
     if (!diplom.region_id) e.region_id = "Viloyatni tanlang"
     if (!diplom.district_id) e.district_id = "Tumanni tanlang"
+    if (!diplom.diploma_file_id) e.diploma_file_id = "Diplom yoki shahodatnoma faylini yuklang"
   } else {
     if (!transferDiplom.country_id) e.country_id = "Davlatni tanlang"
     if (!transferDiplom.university_name.trim()) e.university_name = "Muassasa nomini kiriting"
-    if (!transferDiplom.target_course_id) e.target_course_id = "Maqsadli kursni tanlang"
+    if (!transferDiplom.target_course_id) e.target_course_id = "Kursni tanlang"
+    if (!transferDiplom.transcript_file_id) e.transcript_file_id = "Transkript faylini yuklang"
   }
   errors.value = e
   return Object.keys(e).length === 0
@@ -700,8 +703,10 @@ onMounted(async () => {
           <p v-if="errors.district_id" class="field-error">{{ errors.district_id }}</p>
         </div>
         <div class="sm:col-span-2">
-          <label class="label">Diplom yoki shahodatnoma (PDF yoki rasm)</label>
-          <p class="field-hint">Fayl yuklash funksionalligi keyingi versiyada qo'shiladi.</p>
+          <label class="label">Diplom yoki shahodatnoma <span class="text-rose-500">*</span></label>
+          <FileUpload v-model="diplom.diploma_file_id" subdir="diploms"
+                      hint="PDF yoki rasm. Fayl o'lchami eng ko'pi 10 MB." />
+          <p v-if="errors.diploma_file_id" class="field-error">{{ errors.diploma_file_id }}</p>
         </div>
       </div>
 
@@ -717,7 +722,7 @@ onMounted(async () => {
           <p v-if="errors.country_id" class="field-error">{{ errors.country_id }}</p>
         </div>
         <div>
-          <label class="label">Maqsadli kurs <span class="text-rose-500">*</span></label>
+          <label class="label">Kurs <span class="text-rose-500">*</span></label>
           <select v-model="transferDiplom.target_course_id" class="input"
                   :class="errors.target_course_id ? 'error' : ''">
             <option value="">— tanlang —</option>
@@ -731,6 +736,12 @@ onMounted(async () => {
                  :class="errors.university_name ? 'error' : ''"
                  placeholder="Moskva davlat universiteti" />
           <p v-if="errors.university_name" class="field-error">{{ errors.university_name }}</p>
+        </div>
+        <div class="sm:col-span-2">
+          <label class="label">Transkript fayli <span class="text-rose-500">*</span></label>
+          <FileUpload v-model="transferDiplom.transcript_file_id" subdir="transfer-diploms"
+                      hint="Akademik transkript (PDF). Fayl o'lchami eng ko'pi 10 MB." />
+          <p v-if="errors.transcript_file_id" class="field-error">{{ errors.transcript_file_id }}</p>
         </div>
       </div>
 
