@@ -116,11 +116,22 @@ async def download_file(
     if not path.exists():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File missing on disk")
     data = path.read_bytes()
+
+    # Build a Content-Disposition that survives non-ASCII filenames.
+    # HTTP headers are latin-1 only, so any non-Latin char (Uzbek apostrophes,
+    # Cyrillic, emoji, ...) crashes the response with UnicodeEncodeError.
+    # Use RFC 5987: provide an ASCII fallback + UTF-8 encoded filename*.
+    from urllib.parse import quote
+    raw_name = file.original_name or "file"
+    ascii_safe = raw_name.encode("ascii", errors="replace").decode("ascii").replace('"', "_")
+    encoded = quote(raw_name, safe="")
+    disposition = f"inline; filename=\"{ascii_safe}\"; filename*=UTF-8''{encoded}"
+
     return Response(
         content=data,
         media_type=file.mime_type or "application/octet-stream",
         headers={
-            "Content-Disposition": f'inline; filename="{file.original_name}"',
+            "Content-Disposition": disposition,
             "Cache-Control": "private, no-cache",
         },
     )
