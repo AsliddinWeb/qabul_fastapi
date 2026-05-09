@@ -46,12 +46,20 @@ def _service(session: AsyncSession = Depends(get_db)) -> ApplicantsService:
 
 
 # ---------- Self ----------
-@router.get("/me", response_model=ApplicantDetailed)
+@router.get("/me", response_model=ApplicantDetailed | None)
 async def my_profile(
     current: CurrentUser = Depends(get_current_user),
     svc: ApplicantsService = Depends(_service),
-) -> ApplicantDetailed:
-    obj = await svc.get_for_user(UUID(current.user_id))
+) -> ApplicantDetailed | None:
+    """Return the current user's applicant profile, or null if not yet created.
+
+    Frontend onboarding wizard treats null as "step 1 — fill in personal data".
+    Returning 200 + null is friendlier than 404 for that flow (no scary error
+    in the network tab on first login).
+    """
+    obj = await svc.applicants.get_by_user_id(UUID(current.user_id))
+    if not obj:
+        return None
     diplom = await svc.diploms.get_by_user_id(obj.user_id)
     transfer = await svc.transfer_diploms.get_by_user_id(obj.user_id)
     detail = ApplicantDetailed.model_validate(obj)

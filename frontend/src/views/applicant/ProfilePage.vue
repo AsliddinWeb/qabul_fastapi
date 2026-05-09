@@ -349,7 +349,12 @@ function handleApiError(e: unknown) {
 
 async function loadInitial() {
   try {
+    // Backend returns 200 + null for first-login users (no profile yet).
     profile.value = await applicantsApi.me()
+  } catch {
+    profile.value = null
+  }
+  if (profile.value) {
     Object.assign(personal, {
       last_name: profile.value.last_name || '',
       first_name: profile.value.first_name || '',
@@ -386,8 +391,6 @@ async function loadInitial() {
       })
       admissionType.value = 'perevod'
     }
-  } catch {
-    profile.value = null
   }
   try {
     const res = await applicationsApi.myList()

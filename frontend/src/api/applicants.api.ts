@@ -69,7 +69,9 @@ export interface ApplicantDetailed extends ApplicantRead {
 }
 
 export const applicantsApi = {
-  me: () => http.get<ApplicantDetailed>('/applicants/me').then((r) => r.data),
+  // Backend returns 200 + null when the current user hasn't created an
+  // applicant profile yet (first-login state).
+  me: () => http.get<ApplicantDetailed | null>('/applicants/me').then((r) => r.data),
 
   createMe: (payload: ApplicantBase) =>
     http.post<ApplicantRead>('/applicants/me', payload).then((r) => r.data),
