@@ -11,6 +11,8 @@ import {
 } from 'lucide-vue-next'
 import { AxiosError } from 'axios'
 import { adminApi } from '@/api/admin.api'
+import { consultingApi, type ConsultingAgency } from '@/api/consulting.api'
+import { useAuthStore } from '@/stores/auth'
 import { fileUrl } from '@/utils/files'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
@@ -22,7 +24,9 @@ import LoginInfoCard from '@/components/ui/LoginInfoCard.vue'
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
+const auth = useAuthStore()
 const { ask } = useConfirm()
+const canSeeConsulting = computed(() => auth.isConsulting)
 
 const id = computed(() => route.params.id as string)
 const panelPrefix = computed(() => route.path.startsWith('/operator/') ? '/operator' : '/admin')
@@ -42,6 +46,9 @@ const cancelledContracts = ref<any[]>([])
 const contractTemplates = ref<any[]>([])
 const payments = ref<any[]>([])
 const lead = ref<any>(null)
+const consultingAgencies = ref<ConsultingAgency[]>([])
+const consultingSelected = ref<string>('')
+const savingConsulting = ref(false)
 
 function authHeader(): Record<string, string> {
   const t = localStorage.getItem('access_token')
@@ -126,6 +133,12 @@ async function loadAll() {
     } else {
       lead.value = null
     }
+
+    // Consulting agencies (only fetched for users with is_consulting=true)
+    if (canSeeConsulting.value) {
+      consultingAgencies.value = await consultingApi.list(true).catch(() => [])
+      consultingSelected.value = application.value.consulting_agency_id || ''
+    }
   } catch (e) {
     const ax = e as AxiosError<{ error?: { message?: string } }>
     toast.error(ax.response?.data?.error?.message || "Yuklab bo'lmadi")
@@ -171,6 +184,24 @@ const STATUS_ACCENT_TEXT: Record<string, string> = {
 // =============================================================================
 // Actions
 // =============================================================================
+async function saveConsulting() {
+  savingConsulting.value = true
+  try {
+    await adminApi.applications.update(id.value, {
+      consulting_agency_id: consultingSelected.value || null,
+    })
+    toast.success(consultingSelected.value
+      ? "Konsalting agentligi biriktirildi"
+      : "Konsalting agentligi olib tashlandi")
+    await loadAll()
+  } catch (e) {
+    const ax = e as AxiosError<{ error?: { message?: string } }>
+    toast.error(ax.response?.data?.error?.message || "Saqlab bo'lmadi")
+  } finally {
+    savingConsulting.value = false
+  }
+}
+
 async function startReview() {
   try {
     await adminApi.applications.startReview(id.value)
@@ -852,6 +883,28 @@ function applicantInitials(): string {
 
       <!-- RIGHT COLUMN — Lead source + Contract + Payments -->
       <div class="space-y-5">
+        <!-- Konsulting agentligi (only for is_consulting users) -->
+        <section v-if="canSeeConsulting" class="card p-5">
+          <h2 class="section-title inline-flex items-center gap-2 mb-3">
+            <span class="icon-bubble-sm bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">
+              <Building2 class="w-4 h-4" />
+            </span>
+            Konsulting agentligi
+          </h2>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mb-3">
+            Ariza qaysi agentlik orqali kelganini biriktiring (ixtiyoriy).
+          </p>
+          <select v-model="consultingSelected" class="input mb-3">
+            <option value="">— Belgilanmagan —</option>
+            <option v-for="a in consultingAgencies" :key="a.id" :value="a.id">{{ a.name }}</option>
+          </select>
+          <button class="btn-primary w-full justify-center btn-sm"
+                  :disabled="savingConsulting || consultingSelected === (application.consulting_agency_id || '')"
+                  @click="saveConsulting">
+            {{ savingConsulting ? 'Saqlanmoqda...' : 'Saqlash' }}
+          </button>
+        </section>
+
         <!-- Lead source (if this application was converted from a Lead) -->
         <section v-if="lead" class="card p-5">
           <h2 class="section-title inline-flex items-center gap-2 mb-3">
