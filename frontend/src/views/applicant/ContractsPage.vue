@@ -29,11 +29,15 @@ function fmtDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString('uz-UZ', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+// Cancelled contracts shouldn't contribute to summary totals or remain
+// clickable — they're shown as muted, read-only entries with amounts hidden.
+const activeContracts = computed(() => items.value.filter(c => c.status !== 'cancelled'))
+
 const stats = computed(() => {
-  const totalAmount = items.value.reduce((s, c) => s + parseFloat(c.total_amount || '0'), 0)
-  const paidAmount  = items.value.reduce((s, c) => s + parseFloat(c.paid_amount  || '0'), 0)
+  const totalAmount = activeContracts.value.reduce((s, c) => s + parseFloat(c.total_amount || '0'), 0)
+  const paidAmount  = activeContracts.value.reduce((s, c) => s + parseFloat(c.paid_amount  || '0'), 0)
   return {
-    count: items.value.length,
+    count: activeContracts.value.length,
     totalAmount,
     paidAmount,
     remaining: Math.max(0, totalAmount - paidAmount),
@@ -105,47 +109,65 @@ function paidPercent(c: ContractDetailed): number {
 
       <!-- Contracts -->
       <div class="space-y-3">
-        <RouterLink v-for="c in items" :key="c.id"
-                    :to="`/applicant/contracts/${c.id}`"
-                    class="card-hover p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-4 group">
-          <span class="grid place-items-center w-12 h-12 rounded-xl shrink-0 bg-teal-100 text-teal-600 dark:bg-teal-500/20 dark:text-teal-300 transition-transform group-hover:scale-105">
+        <component
+          v-for="c in items" :key="c.id"
+          :is="c.status === 'cancelled' ? 'div' : 'router-link'"
+          :to="c.status === 'cancelled' ? undefined : `/applicant/contracts/${c.id}`"
+          class="card-hover p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center gap-4 group"
+          :class="c.status === 'cancelled' ? 'opacity-60 cursor-not-allowed pointer-events-none' : ''"
+        >
+          <span class="grid place-items-center w-12 h-12 rounded-xl shrink-0 bg-teal-100 text-teal-600 dark:bg-teal-500/20 dark:text-teal-300 transition-transform group-hover:scale-105"
+                :class="c.status === 'cancelled' ? 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500' : ''">
             <FileText class="w-5 h-5" />
           </span>
 
           <div class="flex-1 min-w-0">
             <div class="flex flex-wrap items-center gap-2 mb-1">
-              <span class="font-mono font-bold text-sm text-slate-900 dark:text-slate-100">
+              <span class="font-mono font-bold text-sm"
+                    :class="c.status === 'cancelled' ? 'text-slate-500 dark:text-slate-400 line-through' : 'text-slate-900 dark:text-slate-100'">
                 {{ c.contract_number }}
               </span>
               <span class="pill bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                 {{ tr(CONTRACT_TYPE, c.type) }}
               </span>
             </div>
-            <div class="text-base font-bold text-slate-900 dark:text-slate-100 tabular-nums">
-              {{ fmtMoney(c.total_amount) }}
-              <span class="text-xs font-normal text-slate-500">{{ c.currency }}</span>
-            </div>
-            <!-- Progress bar -->
-            <div class="mt-2.5 max-w-xs">
-              <div class="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mb-1">
-                <span>To'lov: {{ fmtMoney(c.paid_amount) }}</span>
-                <span class="font-mono">{{ paidPercent(c) }}%</span>
+
+            <!-- Active contract: show amounts + progress -->
+            <template v-if="c.status !== 'cancelled'">
+              <div class="text-base font-bold text-slate-900 dark:text-slate-100 tabular-nums">
+                {{ fmtMoney(c.total_amount) }}
+                <span class="text-xs font-normal text-slate-500">{{ c.currency }}</span>
               </div>
-              <div class="h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                <div class="h-full rounded-full bg-emerald-500 transition-all"
-                     :style="{ width: paidPercent(c) + '%' }"></div>
+              <div class="mt-2.5 max-w-xs">
+                <div class="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 mb-1">
+                  <span>To'lov: {{ fmtMoney(c.paid_amount) }}</span>
+                  <span class="font-mono">{{ paidPercent(c) }}%</span>
+                </div>
+                <div class="h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                  <div class="h-full rounded-full bg-emerald-500 transition-all"
+                       :style="{ width: paidPercent(c) + '%' }"></div>
+                </div>
               </div>
-            </div>
-            <div v-if="c.signed_at" class="text-xs text-slate-500 dark:text-slate-400 mt-2">
-              Imzolangan: {{ fmtDate(c.signed_at) }}
-            </div>
+              <div v-if="c.signed_at" class="text-xs text-slate-500 dark:text-slate-400 mt-2">
+                Imzolangan: {{ fmtDate(c.signed_at) }}
+              </div>
+            </template>
+
+            <!-- Cancelled: hide amounts, show explanation -->
+            <template v-else>
+              <div class="text-base font-bold tabular-nums text-slate-400 dark:text-slate-500">—</div>
+              <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Bekor qilingan shartnoma
+              </div>
+            </template>
           </div>
 
           <div class="flex items-center gap-3">
             <StatusBadge :status="c.status" :label="tr(CONTRACT_STATUS, c.status)" />
-            <ArrowRight class="w-4 h-4 text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-colors" />
+            <ArrowRight v-if="c.status !== 'cancelled'"
+                        class="w-4 h-4 text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-colors" />
           </div>
-        </RouterLink>
+        </component>
       </div>
     </template>
   </div>

@@ -25,6 +25,15 @@ onMounted(async () => {
   try {
     const list = await contractsApi.myList()
     contract.value = list.find((c) => c.id === id.value) || null
+
+    // Cancelled contracts shouldn't be reachable by applicants — bounce
+    // back to the list (the card itself is non-clickable, but block direct
+    // URL access too).
+    if (contract.value?.status === 'cancelled') {
+      router.replace('/applicant/contracts')
+      return
+    }
+
     if (contract.value) {
       const all = await paymentsApi.myList().catch(() => [])
       payments.value = all.filter((p) => p.contract_id === id.value)

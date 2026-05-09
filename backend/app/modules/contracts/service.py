@@ -375,8 +375,10 @@ def _build_context(
     if program and program.tuition_fee is not None:
         yillik_tolov = f"{int(program.tuition_fee):,}".replace(",", " ")
 
-    # Phone: prefer applicant.additional_phone, fall back to user.phone
-    phone = applicant.additional_phone or (user.phone if user else "") or ""
+    # Phone: use the applicant's primary registration number (users.phone),
+    # which is what they signed up with. additional_phone is a backup-only
+    # contact and shouldn't be the one stamped on contracts.
+    phone = (user.phone if user else "") or applicant.additional_phone or ""
 
     # === QR code: encode public PDF URL → scannable PNG data URI ===
     # Prefer base_url derived from the request (works in any environment),
