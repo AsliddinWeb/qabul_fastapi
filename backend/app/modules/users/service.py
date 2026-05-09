@@ -62,7 +62,17 @@ class UserService:
         user = await self.get(user_id)
         if user.role == UserRole.SUPERADMIN and payload.role is not None and payload.role != UserRole.SUPERADMIN:
             raise ValidationError("Cannot demote a superadmin")
-        return await self.repo.update(user, **payload.model_dump(exclude_unset=True))
+
+        data = payload.model_dump(exclude_unset=True)
+
+        # Phone change: ensure uniqueness against other users.
+        new_phone = data.get("phone")
+        if new_phone and new_phone != user.phone:
+            existing = await self.repo.get_by_phone(new_phone)
+            if existing and existing.id != user.id:
+                raise ValidationError("Bu telefon raqami allaqachon ro'yxatdan o'tgan")
+
+        return await self.repo.update(user, **data)
 
     async def change_password(self, user_id: UUID, payload: UserPasswordChange) -> User:
         user = await self.get(user_id)

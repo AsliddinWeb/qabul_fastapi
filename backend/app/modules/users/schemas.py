@@ -45,11 +45,22 @@ class UserCreate(UserBase):
 
 
 class UserUpdate(AppSchema):
+    phone: str | None = Field(default=None, min_length=4, max_length=20)
     full_name: str | None = Field(default=None, max_length=255)
     email: EmailStr | None = None
     role: UserRole | None = None
     is_active: bool | None = None
     is_consulting: bool | None = None
+
+    @field_validator("phone", mode="before")
+    @classmethod
+    def _normalize_phone(cls, v: Any) -> Any:
+        if v is None:
+            return None
+        v = _empty_to_none(v)
+        if v is None:
+            return None
+        return normalize_phone(v)
 
     @field_validator("email", mode="before")
     @classmethod
