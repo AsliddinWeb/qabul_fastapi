@@ -175,4 +175,6 @@ class AuthService:
             phone=user.phone,
             role=user.role,
             is_phone_verified=user.is_phone_verified,
+            is_consulting=user.is_consulting,
+            is_root_superadmin=user.is_root_superadmin,
         )

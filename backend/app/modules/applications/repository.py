@@ -8,6 +8,7 @@ from app.core.repository import BaseRepository
 from app.db.enums import AdmissionType, ApplicationStatus
 from app.modules.applicants.models import Applicant
 from app.modules.applications.models import Application, ApplicationStatusHistory
+from app.modules.consulting.models import ConsultingAgency
 from app.modules.programs.models import Branch, EducationForm, EducationLevel, Program
 
 
@@ -120,6 +121,7 @@ class ApplicationRepository(BaseRepository[Application]):
         branch_id: UUID | None = None,
         education_level_id: UUID | None = None,
         education_form_id: UUID | None = None,
+        consulting_agency_id: UUID | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> tuple[list[dict], int]:
@@ -136,6 +138,8 @@ class ApplicationRepository(BaseRepository[Application]):
             clauses.append(Application.education_level_id == education_level_id)
         if education_form_id is not None:
             clauses.append(Application.education_form_id == education_form_id)
+        if consulting_agency_id is not None:
+            clauses.append(Application.consulting_agency_id == consulting_agency_id)
 
         rows = await self._detailed_query(*clauses, limit=limit, offset=offset)
 
@@ -157,12 +161,17 @@ class ApplicationRepository(BaseRepository[Application]):
                 Applicant.first_name.label("a_first_name"),
                 Applicant.last_name.label("a_last_name"),
                 Applicant.other_name.label("a_other_name"),
+                ConsultingAgency.name.label("consulting_agency_name"),
             )
             .join(Program, Application.program_id == Program.id)
             .join(Branch, Application.branch_id == Branch.id)
             .join(EducationLevel, Application.education_level_id == EducationLevel.id)
             .join(EducationForm, Application.education_form_id == EducationForm.id)
             .join(Applicant, Application.applicant_id == Applicant.id)
+            .outerjoin(
+                ConsultingAgency,
+                Application.consulting_agency_id == ConsultingAgency.id,
+            )
         )
         for c in where_clauses:
             stmt = stmt.where(c)
@@ -172,7 +181,8 @@ class ApplicationRepository(BaseRepository[Application]):
 
         rows = (await self.session.execute(stmt)).all()
         result = []
-        for app, p_name, p_code, b_name, lvl_name, form_name, a_first, a_last, a_other in rows:
+        for (app, p_name, p_code, b_name, lvl_name, form_name,
+             a_first, a_last, a_other, ca_name) in rows:
             data = {**app.__dict__}
             data.pop("_sa_instance_state", None)
             full_name = " ".join(filter(None, [a_last, a_first, a_other])).strip() or None
@@ -183,6 +193,7 @@ class ApplicationRepository(BaseRepository[Application]):
                 "education_level_name": lvl_name,
                 "education_form_name": form_name,
                 "applicant_full_name": full_name,
+                "consulting_agency_name": ca_name,
             })
             result.append(data)
         return result

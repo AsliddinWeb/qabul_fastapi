@@ -17,6 +17,11 @@ export const useAuthStore = defineStore('auth', {
   getters: {
     isAuthenticated: (s) => !!s.accessToken,
     role: (s): Role | null => s.user?.role ?? null,
+    /** True only for the single root user — they manage consulting agencies. */
+    isRootSuperadmin: (s) => !!s.user?.is_root_superadmin,
+    /** True for users marked is_consulting (root included), used to gate
+     *  the consulting_agency field/filter on application screens. */
+    isConsulting: (s) => !!(s.user?.is_consulting || s.user?.is_root_superadmin),
   },
 
   actions: {

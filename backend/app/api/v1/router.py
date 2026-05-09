@@ -7,6 +7,7 @@ from app.modules.applicants.router import router as applicants_router
 from app.modules.applications.router import router as applications_router
 from app.modules.audit.router import router as audit_router
 from app.modules.auth.router import router as auth_router
+from app.modules.consulting.router import router as consulting_router
 from app.modules.contracts.router import router as contracts_router
 from app.modules.dictionaries.router import router as dictionaries_router
 from app.modules.files.router import router as files_router
@@ -36,4 +37,5 @@ api_router.include_router(dictionaries_router, prefix="/dictionaries", tags=["di
 api_router.include_router(audit_router,        prefix="/audit",        tags=["audit"])
 api_router.include_router(files_router,        prefix="/files",        tags=["files"])
 api_router.include_router(leads_router,        prefix="/leads",        tags=["leads"])
+api_router.include_router(consulting_router,   prefix="/consulting-agencies", tags=["consulting"])
 api_router.include_router(crm_admin_router,    prefix="/integrations/crm", tags=["integrations"])

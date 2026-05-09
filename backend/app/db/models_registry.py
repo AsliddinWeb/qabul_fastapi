@@ -10,6 +10,7 @@ from app.modules.applicants import models as applicants_models
 from app.modules.applications import models as applications_models
 from app.modules.audit import models as audit_models
 from app.modules.auth import models as auth_models
+from app.modules.consulting import models as consulting_models
 from app.modules.contracts import models as contracts_models
 from app.modules.dictionaries import models as dictionaries_models
 from app.modules.files import models as files_models

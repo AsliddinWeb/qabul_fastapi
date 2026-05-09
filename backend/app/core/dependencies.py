@@ -101,6 +101,52 @@ def require_permission(perm: Permission):
     return _checker
 
 
+async def require_root_superadmin(
+    user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CurrentUser:
+    """Allow ONLY the single root superadmin (user.is_root_superadmin=True).
+
+    Other superadmins are rejected — this is a deliberate one-person gate
+    for the consulting-agency catalog so partner data stays compartmented.
+    """
+    from sqlalchemy import select
+    from app.modules.users.models import User as UserModel
+    from uuid import UUID as _UUID
+
+    res = await db.execute(
+        select(UserModel.is_root_superadmin).where(UserModel.id == _UUID(user.user_id))
+    )
+    is_root = res.scalar_one_or_none() or False
+    if not is_root:
+        raise ForbiddenError("Only the root superadmin can access this resource")
+    return user
+
+
+async def require_consulting_or_root(
+    user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CurrentUser:
+    """Allow root superadmin OR any user with is_consulting=True.
+
+    Used to gate read-only access to the consulting agencies list (so
+    consulting-marked operators can pick an agency when filing/filtering
+    applications).
+    """
+    from sqlalchemy import select
+    from app.modules.users.models import User as UserModel
+    from uuid import UUID as _UUID
+
+    res = await db.execute(
+        select(UserModel.is_root_superadmin, UserModel.is_consulting)
+        .where(UserModel.id == _UUID(user.user_id))
+    )
+    row = res.first()
+    if not row or not (row[0] or row[1]):
+        raise ForbiddenError("Consulting access required")
+    return user
+
+
 def require_any_permission(*perms: Permission):
     """Dependency factory: allow if user has at least one of the given permissions."""
 

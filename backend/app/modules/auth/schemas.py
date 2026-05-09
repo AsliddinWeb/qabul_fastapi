@@ -65,6 +65,8 @@ class AuthSession(AppSchema):
     phone: str
     role: UserRole
     is_phone_verified: bool
+    is_consulting: bool = False
+    is_root_superadmin: bool = False
 
 
 class LoginResponse(AppSchema):

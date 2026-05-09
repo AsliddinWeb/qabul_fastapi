@@ -6,6 +6,8 @@ export interface UserRead extends User {
   email: string | null
   is_active: boolean
   is_phone_verified: boolean
+  is_consulting?: boolean
+  is_root_superadmin?: boolean
   last_login_at: string | null
   created_at: string
   updated_at: string
@@ -18,6 +20,7 @@ export interface UserCreatePayload {
   role: Role
   password?: string | null
   is_active?: boolean
+  is_consulting?: boolean
 }
 
 export interface DictionaryTypeRead {
@@ -272,6 +275,7 @@ export const adminApi = {
       status?: string; admission_type?: string;
       program_id?: string; branch_id?: string;
       education_level_id?: string; education_form_id?: string;
+      consulting_agency_id?: string;
       page?: number; size?: number;
     } = {}) =>
       http.get<PageResponse<any>>('/applications', { params }).then((r) => r.data),

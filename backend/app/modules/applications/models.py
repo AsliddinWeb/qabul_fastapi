@@ -113,6 +113,16 @@ class Application(UUIDPKMixin, TimestampMixin, Base):
     )
     lead_source_code: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
+    # Consulting agency (partner) that brought the applicant in. Optional.
+    # Visible/filterable only by users with is_consulting=True (UI-side gate);
+    # the column itself is part of the public model.
+    consulting_agency_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("consulting_agencies.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+
 
 class ApplicationStatusHistory(UUIDPKMixin, Base):
     """Append-only audit trail of status transitions."""

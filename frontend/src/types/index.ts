@@ -11,6 +11,10 @@ export interface User {
   phone: string
   full_name?: string
   role: Role
+  /** Marker for users who can see the consulting_agency field on applications. */
+  is_consulting?: boolean
+  /** True only for the single root superadmin. Manages consulting agencies. */
+  is_root_superadmin?: boolean
 }
 
 export interface ApiError {

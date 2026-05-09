@@ -10,6 +10,8 @@ import Skeleton from '@/components/ui/Skeleton.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import { AxiosError } from 'axios'
 import { adminApi } from '@/api/admin.api'
+import { consultingApi, type ConsultingAgency } from '@/api/consulting.api'
+import { useAuthStore } from '@/stores/auth'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import Dropdown from '@/components/ui/Dropdown.vue'
 import SearchSelect from '@/components/ui/SearchSelect.vue'
@@ -31,9 +33,13 @@ interface Application {
   program_name?: string | null
   branch_name?: string | null
   applicant_full_name?: string | null
+  consulting_agency_id?: string | null
+  consulting_agency_name?: string | null
 }
 
 const toast = useToast()
+const auth = useAuthStore()
+const canSeeConsulting = computed(() => auth.isConsulting)
 const { ask } = useConfirm()
 const router = useRouter()
 const route = useRoute()
@@ -54,6 +60,7 @@ const filters = reactive({
   education_level_id: '' as string,
   education_form_id: '' as string,
   program_id: '' as string,
+  consulting_agency_id: '' as string,
   search: '' as string,
   page: 1,
   size: 20,
@@ -63,6 +70,10 @@ const branches = ref<any[]>([])
 const educationLevels = ref<any[]>([])
 const educationForms = ref<any[]>([])
 const programs = ref<any[]>([])
+const consultingAgencies = ref<ConsultingAgency[]>([])
+const agencyOptions = computed(() =>
+  consultingAgencies.value.map(a => ({ id: a.id, label: a.name })),
+)
 
 const branchOptions = computed(() => branches.value.map((b: any) => ({ id: b.id, label: b.name })))
 const levelOptions  = computed(() => educationLevels.value.map((l: any) => ({ id: l.id, label: l.name })))
@@ -94,6 +105,7 @@ const activeFilterCount = computed(() => {
   if (filters.education_level_id) n++
   if (filters.education_form_id) n++
   if (filters.program_id) n++
+  if (filters.consulting_agency_id) n++
   return n
 })
 
@@ -104,6 +116,7 @@ function clearFilters() {
   filters.education_level_id = ''
   filters.education_form_id = ''
   filters.program_id = ''
+  filters.consulting_agency_id = ''
   filters.search = ''
 }
 
@@ -121,6 +134,9 @@ async function load() {
       education_level_id: filters.education_level_id || undefined,
       education_form_id: filters.education_form_id || undefined,
       program_id: filters.program_id || undefined,
+      consulting_agency_id: canSeeConsulting.value
+        ? (filters.consulting_agency_id || undefined)
+        : undefined,
       page: filters.page,
       size: filters.size,
     })
@@ -160,6 +176,7 @@ watch(() => filters.education_form_id, () => {
   filters.page = 1; load()
 })
 watch(() => filters.program_id, () => { filters.page = 1; load() })
+watch(() => filters.consulting_agency_id, () => { filters.page = 1; load() })
 watch(() => filters.page, load)
 
 onMounted(async () => {
@@ -173,6 +190,11 @@ onMounted(async () => {
   educationLevels.value = lvl
   educationForms.value = frm
   programs.value = prg
+
+  if (canSeeConsulting.value) {
+    consultingAgencies.value = await consultingApi.list(false).catch(() => [])
+  }
+
   await Promise.all([load(), loadStats()])
 })
 
@@ -471,6 +493,10 @@ const reviewedPercent = computed(() => {
         <div>
           <label class="field-label">Yo'nalish</label>
           <SearchSelect v-model="filters.program_id" :options="programOptions" placeholder="— hammasi —" allow-clear />
+        </div>
+        <div v-if="canSeeConsulting">
+          <label class="field-label">Konsalting</label>
+          <SearchSelect v-model="filters.consulting_agency_id" :options="agencyOptions" placeholder="— hammasi —" allow-clear />
         </div>
       </div>
     </div>

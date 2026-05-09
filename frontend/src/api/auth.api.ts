@@ -14,6 +14,8 @@ export interface AuthSession {
   phone: string
   role: Role
   is_phone_verified: boolean
+  is_consulting?: boolean
+  is_root_superadmin?: boolean
 }
 
 export interface TokenPair {
@@ -52,5 +54,7 @@ export function sessionToUser(session: AuthSession): User {
     id: session.user_id,
     phone: session.phone,
     role: session.role,
+    is_consulting: session.is_consulting ?? false,
+    is_root_superadmin: session.is_root_superadmin ?? false,
   }
 }

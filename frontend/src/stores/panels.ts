@@ -38,6 +38,7 @@ export interface NavLeaf {
   label: string
   icon: FunctionalComponent
   tone?: NavTone
+  rootOnly?: boolean
 }
 
 export interface NavGroup {
@@ -46,15 +47,18 @@ export interface NavGroup {
   label: string
   icon: FunctionalComponent
   items: NavLeaf[]
+  rootOnly?: boolean
 }
 
 export type NavEntry = NavLeaf | NavGroup
 
-const leaf = (to: string, label: string, icon: any, tone: NavTone = 'slate'): NavLeaf =>
-  ({ type: 'leaf', to, label, icon, tone })
+interface NavOpts { rootOnly?: boolean }
 
-const group = (key: string, label: string, icon: any, items: NavLeaf[]): NavGroup =>
-  ({ type: 'group', key, label, icon, items })
+const leaf = (to: string, label: string, icon: any, tone: NavTone = 'slate', opts: NavOpts = {}): NavLeaf =>
+  ({ type: 'leaf', to, label, icon, tone, ...opts })
+
+const group = (key: string, label: string, icon: any, items: NavLeaf[], opts: NavOpts = {}): NavGroup =>
+  ({ type: 'group', key, label, icon, items, ...opts })
 
 export interface PanelDef {
   key: string
@@ -110,6 +114,11 @@ const ADMIN_NAV: NavEntry[] = [
     leaf('/admin/contract-settings',    'Shartnoma sozlamalari',  Building2,      'indigo'),
     leaf('/admin/audit',                'Audit jurnali',          Shield,         'slate'),
   ]),
+
+  // ROOT-ONLY group — filtered out at runtime for non-root users by panels store.
+  group('root', 'Konsalting', Building2, [
+    leaf('/admin/consulting-agencies',  'Konsalting agentliklari', Building2,     'indigo', { rootOnly: true }),
+  ], { rootOnly: true }),
 ]
 
 const OPERATOR_NAV: NavEntry[] = [
@@ -170,7 +179,16 @@ export const usePanelsStore = defineStore('panels', {
       }
     },
     nav(): NavEntry[] {
-      return this.currentPanel?.nav || []
+      const all = this.currentPanel?.nav || []
+      const isRoot = useAuthStore().isRootSuperadmin
+      // Filter root-only groups/leaves for non-root users.
+      return all
+        .filter(e => !(e.type === 'group' && e.rootOnly && !isRoot))
+        .map(e => {
+          if (e.type !== 'group') return e
+          return { ...e, items: e.items.filter(l => !(l.rootOnly && !isRoot)) }
+        })
+        .filter(e => e.type !== 'group' || e.items.length > 0)
     },
   },
 })

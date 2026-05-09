@@ -32,6 +32,18 @@ class User(UUIDPKMixin, TimestampMixin, Base):
         Boolean, nullable=False, default=False, server_default="false"
     )
 
+    # Marker for users who can see/filter the consulting_agency field on
+    # applications. Set by the root superadmin via /admin/users.
+    is_consulting: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false", index=True
+    )
+    # Single root user — only this user can manage consulting agencies.
+    # Auto-assigned to the first-ever superadmin by migration; never exposed
+    # in the regular user CRUD UI.
+    is_root_superadmin: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     created_by_id: Mapped[UUID | None] = mapped_column(

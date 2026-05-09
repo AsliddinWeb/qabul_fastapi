@@ -171,6 +171,7 @@ async def list_applications(
     branch_id: UUID | None = Query(default=None),
     education_level_id: UUID | None = Query(default=None),
     education_form_id: UUID | None = Query(default=None),
+    consulting_agency_id: UUID | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=100),
     svc: ApplicationsService = Depends(_service),
@@ -182,6 +183,7 @@ async def list_applications(
         branch_id=branch_id,
         education_level_id=education_level_id,
         education_form_id=education_form_id,
+        consulting_agency_id=consulting_agency_id,
         limit=size,
         offset=(page - 1) * size,
     )

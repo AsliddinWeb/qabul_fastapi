@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Save, Eye, EyeOff, KeyRound } from 'lucide-vue-next'
 import { AxiosError } from 'axios'
 import { adminApi, type UserCreatePayload } from '@/api/admin.api'
+import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { PLACEHOLDERS, formatPhone, compactPhone, phoneUz as vPhone, email as vEmail, password as vPassword } from '@/utils/validators'
@@ -13,6 +14,7 @@ import PageHeader from '@/components/ui/PageHeader.vue'
 const route = useRoute()
 const router = useRouter()
 const toast = useToast()
+const auth = useAuthStore()
 const { ask } = useConfirm()
 
 const id = computed(() => route.params.id as string | undefined)
@@ -25,6 +27,7 @@ const form = reactive<UserCreatePayload>({
   role: 'operator',
   password: '',
   is_active: true,
+  is_consulting: false,
 })
 
 const showPassword = ref(false)
@@ -45,6 +48,7 @@ onMounted(async () => {
       email: u.email || '',
       role: u.role,
       is_active: u.is_active,
+      is_consulting: !!u.is_consulting,
       password: '', // never show
     })
   } catch (e) {
@@ -208,6 +212,17 @@ async function resetPassword() {
         <label class="sm:col-span-2 flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
           <input v-model="form.is_active" type="checkbox" class="rounded" />
           <span>Faol holatda</span>
+        </label>
+
+        <label v-if="auth.isRootSuperadmin"
+               class="sm:col-span-2 flex items-start gap-2.5 text-sm text-slate-700 dark:text-slate-300 p-3 rounded-lg bg-indigo-50/40 dark:bg-indigo-500/10 border border-indigo-200/60 dark:border-indigo-700/30">
+          <input v-model="form.is_consulting" type="checkbox" class="mt-0.5 rounded" />
+          <div>
+            <div class="font-medium">Konsalting</div>
+            <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Faqat shu belgili foydalanuvchilar arizalarda konsalting agentligi maydonini ko'radi va undan filterlanish imkoniyatiga ega bo'ladi.
+            </div>
+          </div>
         </label>
       </div>
 

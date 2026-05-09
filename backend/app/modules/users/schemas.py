@@ -41,6 +41,7 @@ class UserCreate(UserBase):
 
     password: str | None = Field(default=None, min_length=8, max_length=100)
     is_active: bool = True
+    is_consulting: bool = False
 
 
 class UserUpdate(AppSchema):
@@ -48,6 +49,7 @@ class UserUpdate(AppSchema):
     email: EmailStr | None = None
     role: UserRole | None = None
     is_active: bool | None = None
+    is_consulting: bool | None = None
 
     @field_validator("email", mode="before")
     @classmethod
@@ -66,6 +68,8 @@ class UserRead(IdSchema, TimestampedSchema):
     role: UserRole
     is_active: bool
     is_phone_verified: bool
+    is_consulting: bool = False
+    is_root_superadmin: bool = False
     last_login_at: datetime | None = None
 
 

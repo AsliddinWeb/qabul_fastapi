@@ -21,6 +21,7 @@ class ApplicationCreateSelf(AppSchema):
     diplom_id: UUID | None = None
     transfer_diplom_id: UUID | None = None
     course_id: UUID | None = None
+    consulting_agency_id: UUID | None = None
 
     notes: str | None = Field(default=None, max_length=2000)
 
@@ -63,6 +64,7 @@ class ApplicationUpdate(AppSchema):
     transfer_diplom_id: UUID | None = None
     course_id: UUID | None = None
     contract_file_id: UUID | None = None
+    consulting_agency_id: UUID | None = None
     notes: str | None = None
 
 
@@ -86,6 +88,7 @@ class ApplicationRead(IdSchema, TimestampedSchema):
     notes: str | None = None
     lead_id: UUID | None = None
     lead_source_code: str | None = None
+    consulting_agency_id: UUID | None = None
 
 
 class ApplicationDetailed(ApplicationRead):
@@ -97,3 +100,4 @@ class ApplicationDetailed(ApplicationRead):
     education_level_name: str | None = None
     education_form_name: str | None = None
     applicant_full_name: str | None = None
+    consulting_agency_name: str | None = None
