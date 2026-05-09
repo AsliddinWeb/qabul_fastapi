@@ -14,6 +14,7 @@ import { usePanelsStore } from '@/stores/panels'
 import { useAuthStore } from '@/stores/auth'
 import { useUIStore } from '@/stores/ui'
 import { adminApi } from '@/api/admin.api'
+import { authApi } from '@/api/auth.api'
 
 const panels = usePanelsStore()
 const auth = useAuthStore()
@@ -26,7 +27,29 @@ const todayNew = ref<number | null>(null)
 
 const isAdmin = computed(() => ['admin', 'superadmin'].includes(auth.user?.role || ''))
 
+// Refresh the user profile from backend on mount so newly added flags
+// (is_consulting, is_root_superadmin) propagate without forcing a logout.
+async function refreshMe() {
+  if (!auth.isAuthenticated || !auth.user) return
+  try {
+    const me = await authApi.me()
+    auth.setSession(
+      auth.accessToken!,
+      auth.refreshToken!,
+      {
+        id: me.id,
+        phone: me.phone,
+        full_name: me.full_name,
+        role: me.role,
+        is_consulting: me.is_consulting ?? false,
+        is_root_superadmin: me.is_root_superadmin ?? false,
+      },
+    )
+  } catch { /* ignore — token may be expiring; user will retry */ }
+}
+
 onMounted(async () => {
+  await refreshMe()
   if (!isAdmin.value) return
   try {
     const stats = await adminApi.applications.stats()
