@@ -92,7 +92,7 @@ async function remove(a: ConsultingAgency) {
     title: "O'chirish",
     message: `"${a.name}" konsalting agentligini o'chirilsinmi?`,
     confirmLabel: "O'chirish",
-    danger: true,
+    tone: 'danger',
   })
   if (!ok) return
   try {
