@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router'
 import { AxiosError } from 'axios'
 import {
   Save, User as UserIcon, IdCard, GraduationCap, ClipboardList, Check,
-  ArrowRight, ArrowLeft, AlertCircle, CheckCircle2, Loader2,
+  ArrowRight, ArrowLeft, AlertCircle, CheckCircle2, Loader2, Lock,
 } from 'lucide-vue-next'
 import FileUpload from '@/components/ui/FileUpload.vue'
 import {
@@ -49,7 +49,38 @@ const stepDefs: { key: StepKey; title: string; icon: any }[] = [
   { key: 'application', title: "Yo'nalishga ariza",              icon: ClipboardList },
 ]
 
+/**
+ * Step gating: a step is reachable only when every prior step is done.
+ * Going *back* is always allowed (no validation lost — server already
+ * has the saved data). Forward jumps require the previous step's data
+ * to be persisted.
+ */
+function isStepReachable(target: StepKey): boolean {
+  if (target === 'profile') return true
+  if (target === 'diplom') return stepStatus.value.profile
+  if (target === 'application') return stepStatus.value.profile && stepStatus.value.diplom
+  return false
+}
+
 function gotoStep(s: StepKey) {
+  // Allow stepping back (target index <= current) without checks.
+  const order: StepKey[] = ['profile', 'diplom', 'application']
+  const targetIdx = order.indexOf(s)
+  const currentIdx = order.indexOf(currentStep.value)
+  const isForward = targetIdx > currentIdx
+
+  if (isForward && !isStepReachable(s)) {
+    if (!stepStatus.value.profile) {
+      toast.error("Avval shaxsiy ma'lumotlarni to'ldirib saqlang")
+      currentStep.value = 'profile'
+    } else if (!stepStatus.value.diplom) {
+      toast.error("Avval diplom ma'lumotlarini to'ldirib saqlang")
+      currentStep.value = 'diplom'
+    }
+    scrollToTop()
+    return
+  }
+
   currentStep.value = s
   errors.value = {}
   scrollToTop()
@@ -454,8 +485,10 @@ onMounted(async () => {
         <li v-for="(s, i) in stepDefs" :key="s.key"
             class="flex-1 min-w-0">
           <button
-            class="w-full text-left group"
+            class="w-full text-left group transition-opacity"
+            :class="!isStepReachable(s.key) && currentStep !== s.key ? 'opacity-50 cursor-not-allowed' : ''"
             :disabled="initialLoading"
+            :title="!isStepReachable(s.key) && currentStep !== s.key ? 'Avval oldingi qadamlarni saqlang' : ''"
             @click="gotoStep(s.key)"
           >
             <div class="flex items-center gap-2 sm:gap-3">
@@ -465,9 +498,12 @@ onMounted(async () => {
                   ? 'bg-emerald-500 text-white'
                   : currentStep === s.key
                     ? 'bg-brand-600 text-white'
-                    : 'bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400'"
+                    : !isStepReachable(s.key)
+                      ? 'bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-500'
+                      : 'bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400'"
               >
                 <Check v-if="stepStatus[s.key]" class="w-4 h-4" />
+                <Lock v-else-if="!isStepReachable(s.key) && currentStep !== s.key" class="w-3.5 h-3.5" />
                 <component v-else :is="s.icon" class="w-4 h-4" />
               </div>
               <div class="min-w-0 flex-1">
