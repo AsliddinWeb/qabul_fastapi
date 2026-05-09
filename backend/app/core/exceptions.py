@@ -66,6 +66,111 @@ def _error_response(status_code: int, code: str, message: str, details: object |
     return JSONResponse(status_code=status_code, content=body)
 
 
+# Uzbek labels for known field paths — keeps user-facing summary readable.
+# Add entries here when adding new fields users will see.
+_FIELD_LABELS: dict[str, str] = {
+    # Auth
+    "phone": "Telefon raqam",
+    "code": "Tasdiqlash kodi",
+    "password": "Parol",
+    "email": "Email",
+    "full_name": "F.I.Sh.",
+    # Applicant profile
+    "last_name": "Familiya",
+    "first_name": "Ism",
+    "other_name": "Otasining ismi",
+    "birth_date": "Tug'ilgan sana",
+    "gender": "Jinsi",
+    "passport_series": "Pasport seriyasi va raqami",
+    "pinfl": "JSHSHIR (PINFL)",
+    "region_id": "Viloyat",
+    "district_id": "Tuman",
+    "address": "Manzil",
+    "nationality": "Millati",
+    "additional_phone": "Qo'shimcha telefon",
+    # Diplom
+    "university_name": "Muassasa nomi",
+    "diplom_series": "Diplom yoki shahodatnoma seriyasi",
+    "graduation_year": "Bitirgan yili",
+    "specialty": "Mutaxassislik",
+    # Application
+    "program_id": "Yo'nalish",
+    "branch_id": "Filial",
+    "education_form_id": "Ta'lim shakli",
+    "education_level_id": "Ta'lim darajasi",
+    "admission_type": "Qabul turi",
+    "diplom_id": "Diplom",
+    # Lead
+    "source_id": "Manba",
+    "stage_id": "Bosqich",
+    "assigned_to_id": "Operator",
+}
+
+
+def _humanize_field_path(loc: tuple) -> str:
+    """Convert pydantic loc tuple ("body", "address") to "Manzil" or fallback."""
+    # Drop the leading "body"/"query"/"path" segment if present.
+    parts = [p for p in loc if not isinstance(p, int) and p not in {"body", "query", "path", "header", "cookie"}]
+    if not parts:
+        return "Maydon"
+    leaf = str(parts[-1])
+    return _FIELD_LABELS.get(leaf, leaf.replace("_", " ").capitalize())
+
+
+def _humanize_validation_message(err: dict) -> str:
+    """Map pydantic's English error msg to a short Uzbek hint."""
+    t = err.get("type", "")
+    msg = err.get("msg", "") or ""
+    ctx = err.get("ctx") or {}
+
+    if t == "missing":
+        return "majburiy"
+    if t == "string_too_short":
+        n = ctx.get("min_length")
+        return f"juda qisqa (kamida {n} belgi)" if n else "juda qisqa"
+    if t == "string_too_long":
+        n = ctx.get("max_length")
+        return f"juda uzun (ko'pi bilan {n} belgi)" if n else "juda uzun"
+    if t == "value_error" and "email" in msg.lower():
+        return "noto'g'ri email manzili"
+    if t == "string_pattern_mismatch":
+        return "format noto'g'ri"
+    if t == "int_parsing" or t == "float_parsing":
+        return "raqam kerak"
+    if t == "date_from_datetime_parsing" or "date" in t:
+        return "sana noto'g'ri"
+    if t == "uuid_parsing" or "uuid" in t:
+        return "noto'g'ri identifikator"
+    if t == "enum":
+        return "qiymat ro'yxatda yo'q"
+    if t in {"greater_than", "greater_than_equal"}:
+        return f"kichik (≥ {ctx.get('ge') or ctx.get('gt')})"
+    if t in {"less_than", "less_than_equal"}:
+        return f"katta (≤ {ctx.get('le') or ctx.get('lt')})"
+    # Fall back to pydantic's English msg as last resort.
+    return msg or "qiymat noto'g'ri"
+
+
+def _format_validation_summary(errors: list[dict]) -> str:
+    """Build a 1-sentence Uzbek summary of all field errors.
+
+    Example: "Familiya: majburiy. Tug'ilgan sana: sana noto'g'ri. (3 ta xato)"
+    """
+    if not errors:
+        return "Validatsiya xatosi"
+
+    parts: list[str] = []
+    for err in errors[:3]:  # show up to 3 to keep toast short
+        label = _humanize_field_path(err.get("loc", ()))
+        msg = _humanize_validation_message(err)
+        parts.append(f"{label}: {msg}")
+
+    summary = ". ".join(parts)
+    if len(errors) > 3:
+        summary += f". (yana {len(errors) - 3} ta xato)"
+    return summary
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def _app_error_handler(_: Request, exc: AppError) -> JSONResponse:
@@ -73,11 +178,16 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def _validation_handler(_: Request, exc: RequestValidationError) -> JSONResponse:
+        # Build a human-readable Uzbek summary message from the first few
+        # field errors, while keeping the full structured `details` for
+        # client-side per-field highlighting.
+        errors = exc.errors()
+        summary = _format_validation_summary(errors)
         return _error_response(
             status.HTTP_422_UNPROCESSABLE_ENTITY,
             "validation_error",
-            "Request validation failed",
-            details=exc.errors(),
+            summary,
+            details=errors,
         )
 
     @app.exception_handler(IntegrityError)

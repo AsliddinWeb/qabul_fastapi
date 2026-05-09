@@ -1,12 +1,25 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import Any
 from uuid import UUID
 
-from pydantic import EmailStr, Field
+from pydantic import EmailStr, Field, field_validator
 
 from app.core.schemas import AppSchema, IdSchema, TimestampedSchema
 from app.db.enums import Gender
+
+
+def _empty_to_none(v: Any) -> Any:
+    """Coerce empty/whitespace-only strings to None.
+
+    Frontend forms commonly send '' for cleared fields, but typed fields
+    like EmailStr / pattern-validated strings reject ''. Treating it as
+    None makes the API forgiving without losing real validation.
+    """
+    if isinstance(v, str) and not v.strip():
+        return None
+    return v
 
 
 # ---------- Applicant ----------
@@ -31,6 +44,20 @@ class ApplicantBase(AppSchema):
 
     image_id: UUID | None = None
     passport_file_id: UUID | None = None
+
+    @field_validator(
+        "other_name", "passport_series", "pinfl", "address",
+        "additional_phone", "email", "telegram_username",
+        mode="before",
+    )
+    @classmethod
+    def _strip_empty(cls, v: Any) -> Any:
+        return _empty_to_none(v)
+
+    @field_validator("region_id", "district_id", "image_id", "passport_file_id", mode="before")
+    @classmethod
+    def _empty_uuid(cls, v: Any) -> Any:
+        return _empty_to_none(v)
 
 
 class ApplicantCreate(ApplicantBase):
@@ -60,6 +87,20 @@ class ApplicantUpdate(AppSchema):
     telegram_username: str | None = Field(default=None, max_length=64)
     image_id: UUID | None = None
     passport_file_id: UUID | None = None
+
+    @field_validator(
+        "last_name", "first_name", "other_name", "passport_series", "pinfl",
+        "address", "nationality", "additional_phone", "email", "telegram_username",
+        mode="before",
+    )
+    @classmethod
+    def _strip_empty(cls, v: Any) -> Any:
+        return _empty_to_none(v)
+
+    @field_validator("region_id", "district_id", "image_id", "passport_file_id", mode="before")
+    @classmethod
+    def _empty_uuid(cls, v: Any) -> Any:
+        return _empty_to_none(v)
 
 
 class ApplicantRead(IdSchema, TimestampedSchema, ApplicantBase):

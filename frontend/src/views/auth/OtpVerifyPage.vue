@@ -104,8 +104,11 @@ async function submit() {
       res.tokens.refresh_token,
       sessionToUser(res.session),
     )
+    // Applicants land on /profile (the onboarding wizard) right after SMS
+    // login — that's their primary workflow. Once steps are done, the wizard
+    // surfaces links to applications/contracts directly.
     const target =
-      res.session.role === 'applicant' ? '/applicant' :
+      res.session.role === 'applicant' ? '/applicant/profile' :
       res.session.role === 'operator'  ? '/operator'  :
       res.session.role === 'admin' || res.session.role === 'superadmin' ? '/admin' :
       res.session.role === 'director'  ? '/director'  :
