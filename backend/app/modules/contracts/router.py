@@ -324,6 +324,14 @@ async def cancel_contract(
     return ContractRead.model_validate(obj)
 
 
+def _pdf_disposition(filename: str) -> str:
+    """RFC 5987 Content-Disposition that survives non-ASCII filenames."""
+    from urllib.parse import quote
+    ascii_safe = filename.encode("ascii", errors="replace").decode("ascii").replace('"', "_")
+    encoded = quote(filename, safe="")
+    return f"inline; filename=\"{ascii_safe}\"; filename*=UTF-8''{encoded}"
+
+
 @router.get(
     "/{contract_id}/pdf",
     dependencies=[Depends(require_permission(Permission.CONTRACTS_READ))],
@@ -337,7 +345,7 @@ async def download_pdf(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f'inline; filename="{filename}"',
+            "Content-Disposition": _pdf_disposition(filename),
             "Cache-Control": "private, no-cache",
         },
     )
@@ -355,7 +363,7 @@ async def public_download_pdf(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={
-            "Content-Disposition": f'inline; filename="{filename}"',
+            "Content-Disposition": _pdf_disposition(filename),
             "Cache-Control": "public, max-age=3600",
         },
     )

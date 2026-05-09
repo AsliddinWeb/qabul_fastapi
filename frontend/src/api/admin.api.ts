@@ -309,14 +309,29 @@ export const adminApi = {
       const res = await http.get(`/contracts/${id}/pdf`, { responseType: 'blob' })
       const blob = new Blob([res.data], { type: 'application/pdf' })
       const url = URL.createObjectURL(blob)
-      const win = window.open(url, '_blank')
-      if (!win) {
-        const a = document.createElement('a')
-        a.href = url
-        a.target = '_blank'
-        a.rel = 'noopener'
-        a.click()
+
+      // Pull filename from Content-Disposition (RFC 5987) so the
+      // browser's "Save As" uses e.g. ABDUJABBOROV-ASLIDDIN.pdf
+      const cd = (res.headers as any)['content-disposition'] as string | undefined
+      let filename = `contract-${id}.pdf`
+      if (cd) {
+        const star = /filename\*\s*=\s*[^']*''([^;]+)/i.exec(cd)
+        const plain = /filename\s*=\s*"([^"]+)"|filename\s*=\s*([^;]+)/i.exec(cd)
+        if (star?.[1]) {
+          try { filename = decodeURIComponent(star[1]) } catch { /* keep default */ }
+        } else if (plain) {
+          filename = (plain[1] || plain[2] || '').trim()
+        }
       }
+
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      a.target = '_blank'
+      a.rel = 'noopener'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
       setTimeout(() => URL.revokeObjectURL(url), 60_000)
     },
   },

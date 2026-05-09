@@ -326,7 +326,42 @@ class ContractsService:
         path = await self.files.absolute_path(file)
         if not path.exists():
             raise NotFoundError("PDF file is missing on disk")
-        return path.read_bytes(), file.original_name
+
+        # Filename: applicant's last + first (UPPER) when available so the
+        # downloaded file is human-readable. Falls back to the contract
+        # number if for any reason the applicant chain isn't loadable.
+        download_name = await self._build_pdf_filename(obj) or file.original_name
+        return path.read_bytes(), download_name
+
+    async def _build_pdf_filename(self, contract) -> str | None:
+        from sqlalchemy import select as _select
+        from app.modules.applicants.models import Applicant
+        from app.modules.applications.models import Application
+
+        applicant_id = await self.session.scalar(
+            _select(Application.applicant_id).where(Application.id == contract.application_id)
+        )
+        if not applicant_id:
+            return None
+        ap = await self.session.scalar(
+            _select(Applicant).where(Applicant.id == applicant_id)
+        )
+        if not ap:
+            return None
+        parts = [
+            (ap.last_name or "").strip().upper(),
+            (ap.first_name or "").strip().upper(),
+        ]
+        joined = "-".join(p for p in parts if p)
+        if not joined:
+            return None
+        # Strip filesystem-unfriendly chars but keep Latin/Cyrillic letters,
+        # digits, dashes. Apostrophes become nothing (O' -> O), spaces -> -.
+        import re
+        joined = joined.replace("'", "").replace("`", "")
+        joined = re.sub(r"\s+", "-", joined)
+        joined = re.sub(r"[^\w\-]", "", joined, flags=re.UNICODE)
+        return f"{joined}.pdf" if joined else None
 
 
 def _make_qr_data_uri(payload: str) -> str:
