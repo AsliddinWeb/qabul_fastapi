@@ -48,9 +48,16 @@ function formatNumber(n: number | null): string {
 }
 
 function parseNumber(s: string): number | null {
-  const digits = s.replace(/\D/g, '')
-  if (!digits) return null
-  return parseInt(digits, 10)
+  // Drop everything that's not a digit/dot/comma, then take the part BEFORE
+  // the first decimal separator. Without this, server-side "9520000.00"
+  // was being parsed as "952000000" (the .00 was concatenated to the
+  // integer part), which then got re-saved on the next edit, multiplying
+  // the value by 100 each round-trip.
+  const cleaned = s.replace(/[^\d.,]/g, '')
+  if (!cleaned) return null
+  const intPart = cleaned.split(/[.,]/)[0]
+  const digits = intPart.replace(/\D/g, '')
+  return digits ? parseInt(digits, 10) : null
 }
 
 function onTuitionInput(e: Event) {
@@ -88,7 +95,7 @@ onMounted(async () => {
         education_form_id: p.education_form_id,
         name: p.name,
         code: p.code,
-        tuition_fee: typeof p.tuition_fee === 'string' ? parseNumber(p.tuition_fee) : p.tuition_fee,
+        tuition_fee: Math.floor(Number(p.tuition_fee) || 0) || null,
         study_duration_years: (p as any).study_duration_years || 4,
         contract_series: p.contract_series,
         is_active: p.is_active,

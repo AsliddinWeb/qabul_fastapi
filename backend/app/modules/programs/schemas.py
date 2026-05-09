@@ -69,7 +69,7 @@ class ProgramBase(AppSchema):
     name: str = Field(min_length=1, max_length=200)
     code: str = Field(min_length=1, max_length=100)
     image_id: UUID | None = None
-    tuition_fee: Decimal = Field(gt=0, description="Yillik to'lov, so'm")
+    tuition_fee: Decimal = Field(gt=0, le=999_999_999, description="Yillik to'lov, so'm (max ~1 mlrd)")
     study_duration_years: int = Field(ge=1, le=8)
     contract_series: str = Field(min_length=1, max_length=100)
     is_active: bool = True
@@ -86,7 +86,7 @@ class ProgramUpdate(AppSchema):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     code: str | None = Field(default=None, min_length=1, max_length=100)
     image_id: UUID | None = None
-    tuition_fee: Decimal | None = Field(default=None, gt=0)
+    tuition_fee: Decimal | None = Field(default=None, gt=0, le=999_999_999)
     study_duration_years: int | None = Field(default=None, ge=1, le=8)
     contract_series: str | None = Field(default=None, min_length=1, max_length=100)
     is_active: bool | None = None
