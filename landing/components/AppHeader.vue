@@ -52,11 +52,11 @@ function go(id: string) {
       borderBottom: scrolled ? '1px solid rgb(var(--border))' : '1px solid transparent',
     }"
   >
-    <div class="container-x flex items-center h-[68px] gap-3">
+    <div class="container-x flex items-center h-14 sm:h-[68px] gap-2 sm:gap-3">
       <!-- Brand -->
-      <a href="#home" @click.prevent="go('home')" class="flex items-center gap-3 shrink-0 group">
-        <img src="/logo.webp" alt="XIU" class="w-10 h-10 rounded-xl shadow-sm transition-transform duration-300 group-hover:scale-105 object-contain" loading="eager" />
-        <div class="hidden sm:flex flex-col leading-[1.05] tracking-tight">
+      <a href="#home" @click.prevent="go('home')" class="flex items-center gap-2.5 sm:gap-3 shrink-0 group min-w-0">
+        <img src="/logo.webp" alt="XIU" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl shadow-sm transition-transform duration-300 group-hover:scale-105 object-contain shrink-0" loading="eager" />
+        <div class="hidden md:flex flex-col leading-[1.05] tracking-tight">
           <span class="text-[13px] font-semibold" :style="{ color: 'rgb(var(--fg))' }">Xalqaro innovatsion</span>
           <span class="text-[13px] font-semibold" :style="{ color: 'rgb(var(--fg-muted))' }">Universiteti</span>
         </div>
@@ -77,10 +77,10 @@ function go(id: string) {
       </nav>
 
       <!-- Right cluster -->
-      <div class="ml-auto lg:ml-0 flex items-center gap-1.5">
+      <div class="ml-auto lg:ml-0 flex items-center gap-1 sm:gap-1.5">
         <!-- Theme toggle -->
         <button
-          class="grid place-items-center w-9 h-9 rounded-full transition-all duration-200 hover:bg-[rgb(var(--bg-soft))]"
+          class="grid place-items-center w-9 h-9 rounded-full transition-all duration-200 hover:bg-[rgb(var(--bg-soft))] shrink-0"
           :title="isDark ? 'Kunduzgi rejim' : 'Tungi rejim'"
           @click="toggle"
           :style="{ color: 'rgb(var(--fg-muted))' }"
@@ -102,15 +102,16 @@ function go(id: string) {
           </Transition>
         </button>
 
-        <a :href="loginUrl" class="btn-primary btn-sm sm:btn">
-          <span>Ariza topshirish</span>
+        <a :href="loginUrl" class="btn-primary btn-sm sm:btn shrink-0">
+          <span class="hidden xs:inline">Ariza topshirish</span>
+          <span class="xs:hidden">Ariza</span>
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M5 12h14M12 5l7 7-7 7" />
           </svg>
         </a>
 
         <button
-          class="lg:hidden grid place-items-center w-10 h-10 rounded-full transition-colors hover:bg-[rgb(var(--bg-soft))]"
+          class="lg:hidden grid place-items-center w-9 h-9 sm:w-10 sm:h-10 rounded-full transition-colors hover:bg-[rgb(var(--bg-soft))] shrink-0"
           :style="{ color: 'rgb(var(--fg-soft))' }"
           @click="mobileOpen = !mobileOpen"
         >

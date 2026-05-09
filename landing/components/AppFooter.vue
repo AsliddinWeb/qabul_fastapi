@@ -14,10 +14,10 @@ function go(id: string) {
 <template>
   <footer class="mt-auto"
           :style="{ background: 'rgb(var(--bg))', borderTop: '1px solid rgb(var(--border))' }">
-    <div class="container-x py-14">
-      <div class="grid lg:grid-cols-12 gap-10">
+    <div class="container-x py-10 sm:py-14">
+      <div class="grid sm:grid-cols-2 lg:grid-cols-12 gap-8 sm:gap-10">
         <!-- Brand block -->
-        <div class="lg:col-span-5">
+        <div class="sm:col-span-2 lg:col-span-5">
           <div class="flex items-center gap-3 mb-4">
             <img src="/logo.webp" alt="XIU" class="w-10 h-10 rounded-xl shadow-sm object-contain" loading="lazy" />
             <div class="leading-[1.05]">
@@ -55,7 +55,7 @@ function go(id: string) {
         </div>
 
         <!-- Quick links -->
-        <div class="lg:col-span-3">
+        <div class="lg:col-span-3 sm:col-span-1">
           <h4 class="text-[11px] font-bold mb-4 uppercase tracking-[0.10em]"
               :style="{ color: 'rgb(var(--fg-muted))' }">Sahifalar</h4>
           <ul class="space-y-2.5 text-sm">
@@ -67,7 +67,7 @@ function go(id: string) {
         </div>
 
         <!-- Contact -->
-        <div class="lg:col-span-4">
+        <div class="lg:col-span-4 sm:col-span-1">
           <h4 class="text-[11px] font-bold mb-4 uppercase tracking-[0.10em]"
               :style="{ color: 'rgb(var(--fg-muted))' }">Aloqa</h4>
           <ul class="space-y-3 text-sm">
@@ -96,7 +96,7 @@ function go(id: string) {
         </div>
       </div>
 
-      <div class="mt-12 pt-6 text-xs flex items-center justify-between"
+      <div class="mt-10 sm:mt-12 pt-6 text-xs flex items-center justify-between flex-wrap gap-2"
            :style="{ borderTop: '1px solid rgb(var(--border))', color: 'rgb(var(--fg-muted))' }">
         <span>© {{ year }} Xalqaro Innovatsion Universiteti</span>
       </div>

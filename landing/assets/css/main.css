@@ -243,26 +243,26 @@ html.dark {
   }
 
   /* ---------- Layout ---------- */
-  .container-x { @apply max-w-6xl mx-auto px-5 sm:px-6 lg:px-8; }
+  .container-x { @apply max-w-6xl mx-auto px-4 sm:px-6 lg:px-8; }
 
   /* ---------- Typography helpers ---------- */
   .display {
     @apply font-bold tracking-tight;
     color: rgb(var(--fg));
-    line-height: 1.04;
+    line-height: 1.05;
     letter-spacing: -0.035em;
   }
-  .display-1 { @apply display text-[44px] sm:text-6xl lg:text-[80px]; }
-  .display-2 { @apply display text-3xl sm:text-5xl lg:text-6xl; }
-  .display-3 { @apply display text-2xl sm:text-3xl lg:text-[40px]; }
+  .display-1 { @apply display text-[34px] xs:text-[40px] sm:text-5xl md:text-6xl lg:text-[80px]; }
+  .display-2 { @apply display text-2xl sm:text-4xl md:text-5xl lg:text-6xl; }
+  .display-3 { @apply display text-[22px] sm:text-3xl lg:text-[40px]; }
 
   .lead {
-    @apply text-base sm:text-lg leading-relaxed max-w-xl;
+    @apply text-[15px] sm:text-base md:text-lg leading-relaxed max-w-xl;
     color: rgb(var(--fg-soft));
   }
 
   .eyebrow {
-    @apply inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em];
+    @apply inline-flex items-center gap-2 text-[10px] sm:text-[11px] font-bold uppercase tracking-[0.16em] sm:tracking-[0.18em];
     color: rgb(var(--brand));
   }
   html.dark .eyebrow { color: rgb(var(--brand-bright)); }

@@ -126,8 +126,8 @@ const stats = [
            style="background: linear-gradient(90deg, transparent, rgb(var(--brand)) 30%, rgb(var(--accent)) 50%, rgb(var(--brand)) 70%, transparent);"></div>
     </div>
 
-    <div class="container-x relative pt-20 pb-24 lg:pt-32 lg:pb-32 text-center">
-      <span class="eyebrow mb-7 hero-fade">
+    <div class="container-x relative pt-12 pb-16 sm:pt-20 sm:pb-24 lg:pt-32 lg:pb-32 text-center">
+      <span class="eyebrow mb-5 sm:mb-7 hero-fade">
         <span class="inline-block w-1.5 h-1.5 rounded-full hero-pulse" :style="{ background: 'rgb(var(--accent))' }"></span>
         Qabul 2026 — 2027 ochiq
       </span>
@@ -137,32 +137,32 @@ const stats = [
         Universiteti
       </h1>
 
-      <p class="lead mx-auto mt-7 hero-fade" style="animation-delay: 160ms; max-width: 38rem;">
+      <p class="lead mx-auto mt-5 sm:mt-7 hero-fade" style="animation-delay: 160ms; max-width: 38rem;">
         Bakalavr va magistratura yo'nalishlari. Halqaro almashinuv dasturlari.
         Qarshi shahridagi zamonaviy xususiy universitet.
       </p>
 
-      <div class="mt-10 flex flex-wrap items-center justify-center gap-3 hero-fade" style="animation-delay: 240ms;">
-        <button class="btn-primary btn-lg" @click="openLeadModal()">
+      <div class="mt-7 sm:mt-10 flex flex-col xs:flex-row items-center justify-center gap-3 hero-fade" style="animation-delay: 240ms;">
+        <button class="btn-primary btn-lg w-full xs:w-auto" @click="openLeadModal()">
           Ariza qoldirish
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M5 12h14M12 5l7 7-7 7" />
           </svg>
         </button>
-        <a href="#programs" class="btn-secondary btn-lg">Yo'nalishlar</a>
+        <a href="#programs" class="btn-secondary btn-lg w-full xs:w-auto">Yo'nalishlar</a>
       </div>
 
       <!-- Stats — centered card grid -->
-      <div class="mt-20 lg:mt-24 grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 max-w-4xl mx-auto hero-fade"
+      <div class="mt-12 sm:mt-16 lg:mt-24 grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 max-w-4xl mx-auto hero-fade"
            style="animation-delay: 320ms;">
         <div v-for="(s, i) in stats" :key="i"
-             class="card px-5 py-6 sm:py-7 text-center transition-all duration-300 hover:-translate-y-1 hover:border-[rgb(var(--brand)/0.30)]"
+             class="card px-3 py-4 sm:px-5 sm:py-7 text-center transition-all duration-300 hover:-translate-y-1 hover:border-[rgb(var(--brand)/0.30)]"
              :style="{ boxShadow: 'var(--shadow-sm)' }">
-          <div class="text-3xl sm:text-4xl lg:text-[42px] font-bold tabular-nums tracking-tight"
+          <div class="text-2xl sm:text-4xl lg:text-[42px] font-bold tabular-nums tracking-tight"
                :style="{ color: 'rgb(var(--fg))', letterSpacing: '-0.035em' }">
             {{ s.value }}
           </div>
-          <div class="mt-2 text-[11px] uppercase tracking-[0.14em] font-bold"
+          <div class="mt-1.5 sm:mt-2 text-[10px] sm:text-[11px] uppercase tracking-[0.10em] sm:tracking-[0.14em] font-bold leading-tight"
                :style="{ color: 'rgb(var(--fg-muted))' }">
             {{ s.label }}
           </div>
@@ -174,36 +174,36 @@ const stats = [
   <!-- ============================ PROGRAMS ============================ -->
   <section id="programs" class="scroll-mt-header relative section-divider"
            :style="{ background: 'rgb(var(--bg-soft))' }">
-    <div class="container-x py-20 lg:py-28">
+    <div class="container-x py-14 sm:py-20 lg:py-28">
       <!-- Section heading -->
-      <div class="mb-10">
-        <span class="eyebrow mb-4">Yo'nalishlar</span>
+      <div class="mb-7 sm:mb-10">
+        <span class="eyebrow mb-3 sm:mb-4">Yo'nalishlar</span>
         <h2 class="display-3 mt-3">
           {{ filtered.length || 0 }} ta faol yo'nalish
         </h2>
-        <p class="lead mt-4">
+        <p class="lead mt-3 sm:mt-4">
           Bakalavr, magistratura. Kunduzgi, sirtqi va kechki ta'lim shakllari.
         </p>
       </div>
 
       <!-- Filter bar -->
-      <div class="card p-2 mb-8 flex flex-col sm:flex-row gap-2"
+      <div class="card p-2 mb-6 sm:mb-8 flex flex-col sm:flex-row gap-2"
            :style="{ boxShadow: 'var(--shadow-sm)' }">
         <div class="relative flex-1 min-w-0">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-               class="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none"
+               class="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
                :style="{ color: 'rgb(var(--fg-muted))' }">
             <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
           </svg>
           <input
             v-model="search"
-            class="w-full h-11 pl-11 pr-4 rounded-xl text-sm bg-transparent border-0 focus:outline-none"
+            class="w-full h-11 pl-10 pr-4 rounded-xl text-sm bg-transparent border-0 focus:outline-none"
             :style="{ color: 'rgb(var(--fg))' }"
             placeholder="Yo'nalish nomini kiriting..."
           />
         </div>
 
-        <!-- Level chips (desktop) -->
+        <!-- Level chips (desktop only) -->
         <div class="hidden sm:flex items-center gap-1 rounded-xl p-1"
              :style="{ background: 'rgb(var(--bg-soft))' }">
           <button
@@ -225,7 +225,7 @@ const stats = [
 
         <select
           v-model="branchFilter"
-          class="h-11 px-3 rounded-xl text-sm border-0 focus:outline-none cursor-pointer"
+          class="h-11 px-3 rounded-xl text-sm border-0 focus:outline-none cursor-pointer min-w-0"
           :style="{ color: 'rgb(var(--fg))', background: 'rgb(var(--bg-soft))' }"
         >
           <option value="">Hamma filiallar</option>
@@ -239,7 +239,7 @@ const stats = [
       </div>
 
       <!-- Mobile level pills -->
-      <div class="sm:hidden mb-6 -mx-5 px-5 overflow-x-auto">
+      <div class="sm:hidden mb-5 -mx-4 px-4 overflow-x-auto pb-1">
         <div class="flex items-center gap-2 w-max">
           <button
             class="px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all"
@@ -288,15 +288,15 @@ const stats = [
       </div>
 
       <!-- Programs grid -->
-      <div v-else class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div v-else class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         <article
           v-for="(p, idx) in visiblePrograms" :key="p.id"
-          class="card-hover p-6 cursor-pointer group reveal-card"
+          class="card-hover p-5 sm:p-6 cursor-pointer group reveal-card"
           :style="{ animationDelay: `${idx * 50}ms` }"
           @click="openLeadModal(p.id)"
         >
-          <div class="flex items-start justify-between gap-3 mb-5">
-            <div class="grid place-items-center w-12 h-12 rounded-xl shrink-0 overflow-hidden transition-transform duration-300 group-hover:scale-105"
+          <div class="flex items-start justify-between gap-3 mb-4 sm:mb-5">
+            <div class="grid place-items-center w-11 h-11 sm:w-12 sm:h-12 rounded-xl shrink-0 overflow-hidden transition-transform duration-300 group-hover:scale-105"
                  :style="{ background: tone(p.id).bg, color: tone(p.id).fg }">
               <img v-if="iconUrl(p.image_id)" :src="iconUrl(p.image_id)!" :alt="p.name"
                    class="w-full h-full object-cover" loading="lazy"
@@ -353,20 +353,20 @@ const stats = [
 
   <!-- ============================ ABOUT ============================ -->
   <section id="about" class="scroll-mt-header relative section-divider">
-    <div class="container-x py-20 lg:py-28">
-      <div class="grid lg:grid-cols-12 gap-12 lg:gap-16">
+    <div class="container-x py-14 sm:py-20 lg:py-28">
+      <div class="grid lg:grid-cols-12 gap-8 lg:gap-16">
         <div class="lg:col-span-5">
-          <span class="eyebrow mb-4">Universitet haqida</span>
+          <span class="eyebrow mb-3 sm:mb-4">Universitet haqida</span>
           <h2 class="display-3 mt-3">
             Yangi avlod<br /><span class="gradient-text">Universiteti</span>
           </h2>
-          <p class="lead mt-6">
+          <p class="lead mt-4 sm:mt-6">
             Qarshi shahridagi xususiy oliy ta'lim muassasasi. Bakalavr va magistratura
             yo'nalishlarida keng imkoniyatlar yaratuvchi zamonaviy universitet.
           </p>
-          <div class="mt-8 flex flex-wrap gap-3">
-            <a :href="`${appUrl}/auth/login`" class="btn-primary">Ariza topshirish</a>
-            <a href="#programs" class="btn-secondary">Yo'nalishlar</a>
+          <div class="mt-6 sm:mt-8 flex flex-col xs:flex-row gap-3">
+            <a :href="`${appUrl}/auth/login`" class="btn-primary w-full xs:w-auto">Ariza topshirish</a>
+            <a href="#programs" class="btn-secondary w-full xs:w-auto">Yo'nalishlar</a>
           </div>
         </div>
 
@@ -375,7 +375,7 @@ const stats = [
             { title: 'Bakalavr va magistratura', desc: 'Kunduzgi, sirtqi va kechki ta\'lim shakllari. 4 yillik bakalavr, 2 yillik magistratura dasturlari.' },
             { title: 'Xalqaro hamkorlik', desc: 'Janubiy Koreya, Yaponiya va boshqa davlatlar oliy ta\'lim muassasalari bilan ikki tomonlama almashinuv dasturlari.' },
             { title: 'Innovatsion ta\'lim', desc: 'Loyiha asosida o\'qitish, real biznes keyslar, 4 til ichida o\'qish imkoniyati.' },
-          ]" :key="i" class="group card p-6 flex items-start gap-5 transition-all duration-300 hover:border-[rgb(var(--brand)/0.3)]">
+          ]" :key="i" class="group card p-5 sm:p-6 flex items-start gap-4 sm:gap-5 transition-all duration-300 hover:border-[rgb(var(--brand)/0.3)]">
             <div class="grid place-items-center w-11 h-11 rounded-xl shrink-0 transition-transform duration-300 group-hover:scale-105"
                  :style="{ background: 'rgb(var(--brand) / 0.08)' }">
               <span class="text-sm font-bold tabular-nums tracking-tight"
@@ -396,12 +396,12 @@ const stats = [
   <!-- ============================ CONTACT ============================ -->
   <section id="contact" class="scroll-mt-header relative section-divider"
            :style="{ background: 'rgb(var(--bg-soft))' }">
-    <div class="container-x py-20 lg:py-28">
-      <div class="grid lg:grid-cols-12 gap-12 lg:gap-16">
+    <div class="container-x py-14 sm:py-20 lg:py-28">
+      <div class="grid lg:grid-cols-12 gap-8 lg:gap-16">
         <div class="lg:col-span-5">
-          <span class="eyebrow mb-4">Bog'lanish</span>
+          <span class="eyebrow mb-3 sm:mb-4">Bog'lanish</span>
           <h2 class="display-3 mt-3">Aloqa</h2>
-          <p class="lead mt-6">
+          <p class="lead mt-4 sm:mt-6">
             To'g'ridan-to'g'ri bog'laning yoki ariza qoldiring —
             qaytib o'zimiz aloqaga chiqamiz.
           </p>
@@ -411,8 +411,8 @@ const stats = [
             Du–Sh, 9:00 — 18:00
           </p>
 
-          <div class="mt-8">
-            <button class="btn-accent btn-lg" @click="openLeadModal()">
+          <div class="mt-6 sm:mt-8">
+            <button class="btn-accent btn-lg w-full xs:w-auto" @click="openLeadModal()">
               Ariza qoldirish
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M5 12h14M12 5l7 7-7 7" />
@@ -429,8 +429,8 @@ const stats = [
             { type: 'map',  href: 'https://maps.google.com/?q=Qarshi+I.Karimov+ko%27chasi+405', label: 'Manzil',    value: 'Qarshi sh., I.Karimov ko‘chasi, 405-uy',           tone: 'rose' },
           ]" :key="c.type"
             :href="c.href" :target="c.type === 'tel' || c.type === 'mail' ? '_self' : '_blank'" rel="noopener"
-            class="card-hover px-5 py-4 flex items-center gap-4 group">
-            <span class="grid place-items-center w-11 h-11 rounded-xl shrink-0 transition-transform duration-300 group-hover:scale-105"
+            class="card-hover px-4 sm:px-5 py-3.5 sm:py-4 flex items-center gap-3 sm:gap-4 group">
+            <span class="grid place-items-center w-10 h-10 sm:w-11 sm:h-11 rounded-xl shrink-0 transition-transform duration-300 group-hover:scale-105"
                   :style="{
                     background: c.tone === 'indigo' ? 'rgb(238 242 255)' :
                                 c.tone === 'amber'  ? 'rgb(255 251 235)' :
@@ -487,21 +487,26 @@ const stats = [
   will-change: transform;
 }
 .hero-blob-a {
-  top: -160px; left: -160px;
-  width: 640px; height: 640px;
+  top: -120px; left: -120px;
+  width: 360px; height: 360px;
   animation: hero-drift-a 22s ease-in-out infinite;
 }
 .hero-blob-b {
-  bottom: -200px; right: -160px;
-  width: 720px; height: 720px;
+  bottom: -120px; right: -120px;
+  width: 400px; height: 400px;
   animation: hero-drift-b 26s ease-in-out infinite;
 }
 .hero-blob-c {
   top: 30%; left: 50%;
-  width: 480px; height: 480px;
-  margin-left: -240px;
+  width: 300px; height: 300px;
+  margin-left: -150px;
   opacity: 0.7;
   animation: hero-drift-c 28s ease-in-out infinite;
+}
+@media (min-width: 640px) {
+  .hero-blob-a { top: -160px; left: -160px; width: 640px; height: 640px; }
+  .hero-blob-b { bottom: -200px; right: -160px; width: 720px; height: 720px; }
+  .hero-blob-c { width: 480px; height: 480px; margin-left: -240px; }
 }
 @keyframes hero-drift-a {
   0%, 100% { transform: translate(0, 0) scale(1); }
@@ -520,8 +525,8 @@ const stats = [
 .hero-conic {
   position: absolute;
   top: 0; left: 50%;
-  width: 1200px; height: 1200px;
-  margin-left: -600px; margin-top: -600px;
+  width: 800px; height: 800px;
+  margin-left: -400px; margin-top: -400px;
   border-radius: 9999px;
   pointer-events: none;
   z-index: -10;
@@ -538,6 +543,9 @@ const stats = [
   filter: blur(48px);
   animation: hero-spin 60s linear infinite;
   opacity: 0.65;
+}
+@media (min-width: 640px) {
+  .hero-conic { width: 1200px; height: 1200px; margin-left: -600px; margin-top: -600px; }
 }
 @keyframes hero-spin {
   from { transform: rotate(0deg); }
