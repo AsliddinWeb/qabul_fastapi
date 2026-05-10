@@ -121,6 +121,9 @@ class ContractsService:
     async def list(self, **filters) -> tuple[list[Contract], int]:
         return await self.contracts.list_filtered(**filters)
 
+    async def list_detailed(self, **filters) -> tuple[list[dict], int]:
+        return await self.contracts.list_detailed(**filters)
+
     async def get(self, contract_id: UUID) -> Contract:
         obj = await self.contracts.get(contract_id)
         if not obj:

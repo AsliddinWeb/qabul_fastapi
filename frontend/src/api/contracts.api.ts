@@ -73,6 +73,45 @@ export interface ContractDetailed {
   updated_at: string
 }
 
+export interface ContractListItem {
+  id: string
+  contract_number: string
+  application_id: string
+  template_id: string
+  type: ContractType
+  total_amount: string
+  paid_amount: string
+  currency: string
+  status: ContractStatus
+  signed_at: string | null
+  pdf_file_id: string | null
+  applicant_full_name: string | null
+  branch_name: string | null
+  program_name: string | null
+  balance: string
+  created_at: string
+  updated_at: string
+}
+
+export type PaymentStatusFilter = 'paid' | 'partial' | 'unpaid'
+
+export interface ContractListResponse {
+  items: ContractListItem[]
+  total: number
+  page: number
+  size: number
+}
+
+export interface ContractListParams {
+  status?: ContractStatus
+  type?: ContractType
+  payment_status?: PaymentStatusFilter
+  branch_id?: string
+  search?: string
+  page?: number
+  size?: number
+}
+
 export interface ContractSettings {
   id: string
   default_contract_type: ContractType
@@ -131,6 +170,9 @@ export const contractsApi = {
 
   get: (id: string) =>
     http.get<ContractDetailed>(`/contracts/${id}`).then((r) => r.data),
+
+  listDetailed: (params: ContractListParams = {}) =>
+    http.get<ContractListResponse>('/contracts/list-detailed', { params }).then(r => r.data),
 
   // Applicant self-service: own contracts (read-only)
   myList: () =>

@@ -130,3 +130,11 @@ class ContractRead(IdSchema, TimestampedSchema):
 
 class ContractDetailed(ContractRead):
     parties: list[ContractPartyRead] = Field(default_factory=list)
+
+
+class ContractListItem(ContractRead):
+    """Accountant list view: contract + applicant + branch + balance."""
+    applicant_full_name: str | None = None
+    branch_name: str | None = None
+    program_name: str | None = None
+    balance: Decimal = Decimal("0")

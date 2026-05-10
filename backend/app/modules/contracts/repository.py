@@ -85,6 +85,109 @@ class ContractRepository(BaseRepository[Contract]):
         total = await self.session.scalar(count_stmt) or 0
         return rows, total
 
+    async def list_detailed(
+        self,
+        *,
+        status: ContractStatus | None = None,
+        type: ContractType | None = None,
+        payment_status: str | None = None,  # "paid" | "partial" | "unpaid"
+        branch_id: UUID | None = None,
+        search: str | None = None,
+        limit: int = 20,
+        offset: int = 0,
+    ) -> tuple[list[dict], int]:
+        """Contracts joined with applicant + branch for the accountant list.
+
+        Returns dicts (not ORM models) including:
+          - all Contract fields
+          - applicant_full_name, branch_name, program_name
+          - balance (computed)
+        """
+        # Imports here to avoid pulling other modules at import time.
+        from app.modules.applicants.models import Applicant
+        from app.modules.applications.models import Application
+        from app.modules.programs.models import Branch, Program
+
+        balance_expr = (Contract.total_amount - Contract.paid_amount).label("balance")
+        stmt = (
+            select(
+                Contract,
+                Applicant.last_name,
+                Applicant.first_name,
+                Applicant.other_name,
+                Branch.name.label("branch_name"),
+                Program.name.label("program_name"),
+                balance_expr,
+            )
+            .join(Application, Application.id == Contract.application_id)
+            .join(Applicant, Applicant.id == Application.applicant_id)
+            .join(Branch, Branch.id == Application.branch_id)
+            .join(Program, Program.id == Application.program_id)
+        )
+        count_stmt = (
+            select(func.count(Contract.id))
+            .select_from(Contract)
+            .join(Application, Application.id == Contract.application_id)
+            .join(Applicant, Applicant.id == Application.applicant_id)
+            .join(Branch, Branch.id == Application.branch_id)
+        )
+
+        clauses = []
+        if status is not None:
+            clauses.append(Contract.status == status)
+        if type is not None:
+            clauses.append(Contract.type == type)
+        if branch_id is not None:
+            clauses.append(Application.branch_id == branch_id)
+        if payment_status == "paid":
+            clauses.append(Contract.paid_amount >= Contract.total_amount)
+        elif payment_status == "partial":
+            clauses.append(Contract.paid_amount > 0)
+            clauses.append(Contract.paid_amount < Contract.total_amount)
+        elif payment_status == "unpaid":
+            clauses.append(Contract.paid_amount == 0)
+        if search:
+            like = f"%{search}%"
+            clauses.append(or_(
+                Contract.contract_number.ilike(like),
+                Applicant.last_name.ilike(like),
+                Applicant.first_name.ilike(like),
+                Applicant.other_name.ilike(like),
+            ))
+
+        for c in clauses:
+            stmt = stmt.where(c)
+            count_stmt = count_stmt.where(c)
+
+        stmt = stmt.order_by(Contract.created_at.desc()).limit(limit).offset(offset)
+        rows = (await self.session.execute(stmt)).all()
+
+        items: list[dict] = []
+        for c, last, first, other, branch_name, program_name, balance in rows:
+            d = {
+                "id": c.id,
+                "contract_number": c.contract_number,
+                "application_id": c.application_id,
+                "template_id": c.template_id,
+                "type": c.type,
+                "total_amount": c.total_amount,
+                "paid_amount": c.paid_amount,
+                "currency": c.currency,
+                "status": c.status,
+                "signed_at": c.signed_at,
+                "pdf_file_id": c.pdf_file_id,
+                "created_at": c.created_at,
+                "updated_at": c.updated_at,
+                "applicant_full_name": " ".join(filter(None, [last, first, other])).strip() or None,
+                "branch_name": branch_name,
+                "program_name": program_name,
+                "balance": balance,
+            }
+            items.append(d)
+
+        total = await self.session.scalar(count_stmt) or 0
+        return items, total
+
 
 class ContractPartyRepository(BaseRepository[ContractParty]):
     model = ContractParty

@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import csv
+import io
+from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response, status
@@ -14,6 +18,7 @@ from app.modules.audit.service import AuditService
 from app.modules.contracts.schemas import (
     ContractCreate,
     ContractDetailed,
+    ContractListItem,
     ContractPartyRead,
     ContractRead,
     ContractSettingsRead,
@@ -205,6 +210,89 @@ async def list_contracts(
     return PageResponse[ContractRead].build(
         items=[ContractRead.model_validate(c) for c in items],
         total=total, page=page, size=size,
+    )
+
+
+@router.get(
+    "/list-detailed",
+    response_model=PageResponse[ContractListItem],
+    dependencies=[Depends(require_permission(Permission.CONTRACTS_READ))],
+)
+async def list_contracts_detailed(
+    status_filter: ContractStatus | None = Query(default=None, alias="status"),
+    type: ContractType | None = Query(default=None),
+    payment_status: Literal["paid", "partial", "unpaid"] | None = Query(default=None),
+    branch_id: UUID | None = Query(default=None),
+    search: str | None = Query(default=None, max_length=100),
+    page: int = Query(default=1, ge=1),
+    size: int = Query(default=20, ge=1, le=100),
+    svc: ContractsService = Depends(_service),
+) -> PageResponse[ContractListItem]:
+    """Accountant-facing list: contracts joined with applicant + branch + balance.
+
+    Adds `payment_status` (paid/partial/unpaid), `branch_id`, and a search that
+    matches contract_number OR any applicant name field.
+    """
+    items, total = await svc.list_detailed(
+        status=status_filter, type=type, payment_status=payment_status,
+        branch_id=branch_id, search=search,
+        limit=size, offset=(page - 1) * size,
+    )
+    return PageResponse[ContractListItem].build(
+        items=[ContractListItem.model_validate(c) for c in items],
+        total=total, page=page, size=size,
+    )
+
+
+@router.get(
+    "/export.csv",
+    dependencies=[Depends(require_permission(Permission.CONTRACTS_READ))],
+)
+async def export_contracts_csv(
+    status_filter: ContractStatus | None = Query(default=None, alias="status"),
+    type: ContractType | None = Query(default=None),
+    payment_status: Literal["paid", "partial", "unpaid"] | None = Query(default=None),
+    branch_id: UUID | None = Query(default=None),
+    search: str | None = Query(default=None, max_length=100),
+    svc: ContractsService = Depends(_service),
+) -> Response:
+    """Export filtered contracts to CSV (Accountant view)."""
+    items, _ = await svc.list_detailed(
+        status=status_filter, type=type, payment_status=payment_status,
+        branch_id=branch_id, search=search,
+        limit=10_000, offset=0,
+    )
+    buf = io.StringIO()
+    buf.write("﻿")  # UTF-8 BOM for Excel
+    w = csv.writer(buf)
+    w.writerow([
+        "Shartnoma raqami", "F.I.Sh.", "Filial", "Yo'nalish", "Turi", "Holati",
+        "Jami summa", "To'langan", "Qoldiq", "Valyuta", "Imzolangan", "Yaratilgan",
+    ])
+    for c in items:
+        st = c.get("status")
+        ct = c.get("type")
+        signed = c.get("signed_at")
+        created = c.get("created_at")
+        w.writerow([
+            c.get("contract_number") or "",
+            c.get("applicant_full_name") or "",
+            c.get("branch_name") or "",
+            c.get("program_name") or "",
+            (ct.value if hasattr(ct, "value") else (ct or "")),
+            (st.value if hasattr(st, "value") else (st or "")),
+            str(c.get("total_amount") or 0),
+            str(c.get("paid_amount") or 0),
+            str(c.get("balance") or 0),
+            c.get("currency") or "",
+            signed.strftime("%Y-%m-%d") if signed else "",
+            created.strftime("%Y-%m-%d %H:%M") if created else "",
+        ])
+    fn = f"contracts-{datetime.now().strftime('%Y%m%d-%H%M')}.csv"
+    return Response(
+        content=buf.getvalue().encode("utf-8"),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{fn}"'},
     )
 
 
