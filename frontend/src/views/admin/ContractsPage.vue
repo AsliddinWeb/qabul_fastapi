@@ -187,7 +187,7 @@ const lastPage = () => Math.max(1, Math.ceil(total.value / filters.size))
             <td><StatusBadge :status="c.status" :label="tr(CONTRACT_STATUS, c.status)" /></td>
             <td class="text-right">
               <div class="inline-flex gap-1">
-                <button v-if="c.pdf_file_id"
+                <button v-if="c.pdf_file_id && c.signed_at"
                         type="button"
                         class="p-1.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800" title="PDF yuklab olish"
                         @click="adminApi.contracts.openPdf(c.id)">

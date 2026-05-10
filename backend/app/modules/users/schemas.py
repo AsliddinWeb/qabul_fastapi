@@ -51,6 +51,7 @@ class UserUpdate(AppSchema):
     role: UserRole | None = None
     is_active: bool | None = None
     is_consulting: bool | None = None
+    permissions_revoked: list[str] | None = None
 
     @field_validator("phone", mode="before")
     @classmethod
@@ -81,6 +82,7 @@ class UserRead(IdSchema, TimestampedSchema):
     is_phone_verified: bool
     is_consulting: bool = False
     is_root_superadmin: bool = False
+    permissions_revoked: list[str] = Field(default_factory=list)
     last_login_at: datetime | None = None
 
 

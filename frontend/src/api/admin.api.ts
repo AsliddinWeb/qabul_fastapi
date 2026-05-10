@@ -8,6 +8,7 @@ export interface UserRead extends User {
   is_phone_verified: boolean
   is_consulting?: boolean
   is_root_superadmin?: boolean
+  permissions_revoked?: string[]
   last_login_at: string | null
   created_at: string
   updated_at: string
@@ -21,6 +22,16 @@ export interface UserCreatePayload {
   password?: string | null
   is_active?: boolean
   is_consulting?: boolean
+}
+
+export interface UserUpdatePayload {
+  phone?: string
+  full_name?: string | null
+  email?: string | null
+  role?: Role
+  is_active?: boolean
+  is_consulting?: boolean
+  permissions_revoked?: string[]
 }
 
 export interface DictionaryTypeRead {

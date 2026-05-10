@@ -316,6 +316,10 @@ class ContractsService:
     # ---------- File access ----------
     async def get_pdf_bytes(self, contract_id: UUID) -> tuple[bytes, str]:
         obj = await self.get(contract_id)
+        # PDF is only meaningful once both parties have signed. Before that,
+        # the document is a draft preview — no point downloading it.
+        if not obj.signed_at:
+            raise NotFoundError("Shartnoma hali imzolanmagan")
         if not obj.pdf_file_id:
             raise NotFoundError("PDF not yet generated")
         from app.modules.files.service import FileRepository

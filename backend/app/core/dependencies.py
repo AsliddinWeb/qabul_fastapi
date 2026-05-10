@@ -90,10 +90,23 @@ def require_roles(*roles: Role | Iterable[Role]):
 
 
 def require_permission(perm: Permission):
-    """Dependency factory: allow only users whose role grants `perm`."""
+    """Dependency factory: allow only users whose role grants `perm`
+    AND who have not had it explicitly revoked by an admin."""
 
-    async def _checker(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+    async def _checker(
+        user: CurrentUser = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db),
+    ) -> CurrentUser:
         if not has_permission(user.role, perm):
+            raise ForbiddenError(f"Missing permission: {perm.value}")
+        # Per-user revocation override — empty/null array means "no overrides".
+        from sqlalchemy import select
+        from app.modules.users.models import User as _UserModel
+        from uuid import UUID as _UUID
+        revoked = await db.scalar(
+            select(_UserModel.permissions_revoked).where(_UserModel.id == _UUID(user.user_id))
+        )
+        if revoked and perm.value in revoked:
             raise ForbiddenError(f"Missing permission: {perm.value}")
         return user
 

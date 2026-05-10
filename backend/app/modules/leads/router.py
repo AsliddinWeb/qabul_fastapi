@@ -310,20 +310,26 @@ async def board(
 )
 async def stats(
     pipeline_id: UUID | None = Query(default=None),
+    assigned_to_id: UUID | None = Query(default=None),
     svc: LeadService = Depends(_service),
 ) -> dict[str, Any]:
     pipeline = (await svc.pipelines.get(pipeline_id)) if pipeline_id else await svc.pipelines.get_default()
     if not pipeline:
         return {"total": 0, "open": 0, "won": 0, "lost": 0, "by_stage": []}
     base = select(func.count(Lead.id)).where(Lead.pipeline_id == pipeline.id)
+    if assigned_to_id is not None:
+        base = base.where(Lead.assigned_to_id == assigned_to_id)
     total = await svc.session.scalar(base) or 0
     won = await svc.session.scalar(base.where(Lead.status == LeadStatus.WON)) or 0
     lost = await svc.session.scalar(base.where(Lead.status == LeadStatus.LOST)) or 0
     open_ = total - won - lost
+    open_join_clauses = [Lead.stage_id == LeadStage.id, Lead.status == LeadStatus.OPEN]
+    if assigned_to_id is not None:
+        open_join_clauses.append(Lead.assigned_to_id == assigned_to_id)
     by_stage_stmt = (
         select(LeadStage.id, LeadStage.name, LeadStage.order_index, func.count(Lead.id))
         .select_from(LeadStage)
-        .outerjoin(Lead, and_(Lead.stage_id == LeadStage.id, Lead.status == LeadStatus.OPEN))
+        .outerjoin(Lead, and_(*open_join_clauses))
         .where(LeadStage.pipeline_id == pipeline.id)
         .group_by(LeadStage.id, LeadStage.name, LeadStage.order_index)
         .order_by(LeadStage.order_index)

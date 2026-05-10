@@ -198,8 +198,8 @@ export const leadsApi = {
     }>(`/leads/${id}/related-applications`).then(r => r.data),
   board: (pipeline_id?: string) =>
     http.get<LeadBoardResponse>('/leads/board', { params: { pipeline_id } }).then(r => r.data),
-  stats: (pipeline_id?: string) =>
-    http.get<LeadStats>('/leads/stats', { params: { pipeline_id } }).then(r => r.data),
+  stats: (pipeline_id?: string, assigned_to_id?: string) =>
+    http.get<LeadStats>('/leads/stats', { params: { pipeline_id, assigned_to_id } }).then(r => r.data),
   slaAlerts: (within_hours = 24) =>
     http.get<Array<Lead & { last_alert_at: string | null }>>('/leads/sla-alerts', { params: { within_hours } }).then(r => r.data),
   breakdown: () =>

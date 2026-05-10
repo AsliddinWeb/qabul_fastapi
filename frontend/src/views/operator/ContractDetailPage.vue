@@ -52,7 +52,7 @@ async function cancel() {
   }
 }
 
-const hasPdf = computed(() => !!data.value?.pdf_file_id)
+const hasPdf = computed(() => !!data.value?.pdf_file_id && !!data.value?.signed_at)
 
 async function openPdf() {
   await contractsApi.openPdf(id.value)
@@ -97,6 +97,9 @@ async function openPdf() {
         <button type="button" class="btn-primary" @click="openPdf">
           <FileText class="w-4 h-4" /> PDF ni ochish
         </button>
+      </div>
+      <div v-else-if="!data.signed_at" class="text-sm text-slate-500">
+        PDF imzolangandan so'ng yuklab olinishi mumkin. Avval shartnomani imzolang.
       </div>
       <div v-else class="text-sm text-slate-500">
         PDF generatsiya qilinmagan. Iltimos, qayta yarating yoki backend log'larini tekshiring.

@@ -109,14 +109,30 @@ const PARTY_LABELS: Record<string, string> = {
       :crumbs="[{ label: 'Bosh sahifa', to: '/applicant' }, { label: 'Shartnomalarim', to: '/applicant/contracts' }]"
     >
       <StatusBadge :status="contract.status" :label="tr(CONTRACT_STATUS, contract.status)" />
-      <button class="btn-primary" :disabled="downloading || !contract.pdf_file_id" @click="downloadPdf">
+      <button v-if="contract.signed_at" class="btn-primary" :disabled="downloading || !contract.pdf_file_id" @click="downloadPdf">
         <Download class="w-4 h-4" />
         {{ downloading ? '...' : 'PDF yuklab olish' }}
       </button>
     </PageHeader>
 
-    <!-- PDF preview -->
-    <section v-if="contract.pdf_file_id" class="card p-2 sm:p-3">
+    <!-- Awaiting signature banner -->
+    <div v-if="!contract.signed_at && contract.status !== 'cancelled'"
+         class="card p-4 border-l-4 border-amber-400 dark:border-amber-500/70 bg-amber-50/50 dark:bg-amber-500/5">
+      <div class="flex items-start gap-3">
+        <span class="grid place-items-center w-9 h-9 rounded-lg bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-300 shrink-0">
+          <Clock class="w-4 h-4" />
+        </span>
+        <div class="flex-1 text-sm">
+          <div class="font-semibold text-slate-900 dark:text-slate-100">Shartnoma hali imzolanmagan</div>
+          <p class="mt-0.5 text-slate-600 dark:text-slate-400 leading-relaxed">
+            PDF hujjat tomonlar imzolagandan so'ng tayyorlanadi. Iltimos, kuting yoki operator bilan bog'laning.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- PDF preview (signed only) -->
+    <section v-if="contract.pdf_file_id && contract.signed_at" class="card p-2 sm:p-3">
       <iframe
         :src="contractsApi.myPdfUrl(contract.id)"
         class="w-full rounded-lg border border-slate-200 dark:border-slate-800"

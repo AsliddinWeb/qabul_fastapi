@@ -4,7 +4,7 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, String
-from sqlalchemy.dialects.postgresql import CITEXT, UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import CITEXT, JSONB, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin, UUIDPKMixin
@@ -42,6 +42,13 @@ class User(UUIDPKMixin, TimestampMixin, Base):
     # in the regular user CRUD UI.
     is_root_superadmin: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
+    )
+
+    # Per-user revocation list — string permission codes (e.g. "contracts.sign")
+    # that the user's role would normally grant but have been switched off by an
+    # admin. require_permission consults this in addition to the role matrix.
+    permissions_revoked: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
     )
 
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

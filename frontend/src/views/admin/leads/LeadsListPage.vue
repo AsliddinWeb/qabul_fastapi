@@ -75,7 +75,10 @@ async function loadCatalogs() {
 }
 
 async function loadStats() {
-  try { stats.value = await leadsApi.stats(filters.pipeline_id || undefined) } catch { /* ignore */ }
+  try {
+    const meId = myOnly.value ? (auth.user?.id || undefined) : undefined
+    stats.value = await leadsApi.stats(filters.pipeline_id || undefined, meId)
+  } catch { /* ignore */ }
 }
 
 async function load() {
