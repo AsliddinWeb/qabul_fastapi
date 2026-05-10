@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { Plus, Users as UsersIcon, Pencil, Trash2, Power, PowerOff, KeyRound, MoreVertical, Eye } from 'lucide-vue-next'
+import { Plus, Users as UsersIcon, Pencil, Trash2, Power, PowerOff, KeyRound, MoreVertical, Eye, Download } from 'lucide-vue-next'
 import { AxiosError } from 'axios'
 import { adminApi, type UserRead } from '@/api/admin.api'
+import { downloadCsv } from '@/api/http'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import Dropdown from '@/components/ui/Dropdown.vue'
@@ -100,6 +101,23 @@ async function deleteUser(u: UserRead) {
 }
 
 const lastPage = () => Math.max(1, Math.ceil(total.value / filters.size))
+
+const exporting = ref(false)
+async function exportCsv() {
+  exporting.value = true
+  try {
+    await downloadCsv('/users/export.csv', {
+      role: filters.role || undefined,
+      search: filters.search || undefined,
+    })
+    toast.success("CSV yuklab olindi")
+  } catch (e) {
+    const ax = e as AxiosError<{ detail?: string }>
+    toast.error(ax.response?.data?.detail || "Eksport qilib bo'lmadi")
+  } finally {
+    exporting.value = false
+  }
+}
 </script>
 
 <template>
@@ -109,6 +127,9 @@ const lastPage = () => Math.max(1, Math.ceil(total.value / filters.size))
       :subtitle="`Tizimdagi xodim va abituriyentlar · Jami ${total}`"
       :crumbs="[{ label: 'Bosh sahifa', to: '/admin' }, { label: 'Sozlamalar' }]"
     >
+      <button class="btn-outline" :disabled="exporting" @click="exportCsv">
+        <Download class="w-4 h-4" /> {{ exporting ? '...' : 'CSV' }}
+      </button>
       <RouterLink to="/admin/users/new" class="btn-primary">
         <Plus class="w-4 h-4" /> Yangi qo'shish
       </RouterLink>

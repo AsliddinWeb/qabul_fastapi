@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { CreditCard, CheckCircle2, XCircle, RotateCcw } from 'lucide-vue-next'
+import { CreditCard, CheckCircle2, XCircle, RotateCcw, Download } from 'lucide-vue-next'
 import { AxiosError } from 'axios'
 import { adminApi } from '@/api/admin.api'
+import { downloadCsv } from '@/api/http'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { PAYMENT_STATUS, tr } from '@/utils/labels'
@@ -110,6 +111,20 @@ async function refund(p: Payment) {
 }
 
 const lastPage = () => Math.max(1, Math.ceil(total.value / filters.size))
+
+const exporting = ref(false)
+async function exportCsv() {
+  exporting.value = true
+  try {
+    await downloadCsv('/payments/export.csv', { status: filters.status || undefined })
+    toast.success("CSV yuklab olindi")
+  } catch (e) {
+    const ax = e as AxiosError<{ detail?: string }>
+    toast.error(ax.response?.data?.detail || "Eksport qilib bo'lmadi")
+  } finally {
+    exporting.value = false
+  }
+}
 </script>
 
 <template>
@@ -118,7 +133,11 @@ const lastPage = () => Math.max(1, Math.ceil(total.value / filters.size))
       title="To'lovlar"
       :subtitle="`Shartnoma bo'yicha qabul qilingan to'lovlar · Jami ${total}`"
       :crumbs="[{ label: 'Bosh sahifa', to: panelPrefix }, { label: 'Qabul jarayoni' }]"
-    />
+    >
+      <button class="btn-outline" :disabled="exporting" @click="exportCsv">
+        <Download class="w-4 h-4" /> {{ exporting ? '...' : 'CSV' }}
+      </button>
+    </PageHeader>
 
 
     <div class="filter-bar">

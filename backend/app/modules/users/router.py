@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import csv
+import io
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
@@ -55,6 +58,44 @@ async def list_users(
         total=total,
         page=page,
         size=size,
+    )
+
+
+@router.get(
+    "/export.csv",
+    dependencies=[Depends(require_permission(Permission.USERS_LIST))],
+)
+async def export_users_csv(
+    role: UserRole | None = Query(default=None),
+    is_active: bool | None = Query(default=None),
+    search: str | None = Query(default=None, max_length=100),
+    svc: UserService = Depends(_service),
+) -> Response:
+    """Export filtered users to CSV."""
+    items, _ = await svc.list(
+        role=role, is_active=is_active, search=search, page=1, size=10_000,
+    )
+    buf = io.StringIO()
+    buf.write("﻿")
+    w = csv.writer(buf)
+    w.writerow([
+        "F.I.Sh.", "Telefon", "Email", "Rol", "Faol", "Konsalting", "Yaratilgan",
+    ])
+    for u in items:
+        w.writerow([
+            u.full_name or "",
+            u.phone or "",
+            u.email or "",
+            (u.role.value if u.role else ""),
+            "ha" if u.is_active else "yo'q",
+            "ha" if getattr(u, "is_consulting", False) else "",
+            u.created_at.strftime("%Y-%m-%d %H:%M") if u.created_at else "",
+        ])
+    fn = f"users-{datetime.now().strftime('%Y%m%d-%H%M')}.csv"
+    return Response(
+        content=buf.getvalue().encode("utf-8"),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{fn}"'},
     )
 
 

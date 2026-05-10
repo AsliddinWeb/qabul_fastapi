@@ -4,8 +4,9 @@ import { useRoute, useRouter, RouterLink } from 'vue-router'
 import {
   CheckCircle2, XCircle, ClipboardList, Trash2, PlayCircle, Plus, Pencil,
   Search, Clock, Inbox, FileCheck, FileX, Eye, Filter as FilterIcon,
-  ArrowUpRight, MoreVertical, X as XIcon, ChevronDown, Check,
+  ArrowUpRight, MoreVertical, X as XIcon, ChevronDown, Check, Download,
 } from 'lucide-vue-next'
+import { downloadCsv } from '@/api/http'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import { AxiosError } from 'axios'
@@ -122,6 +123,28 @@ function clearFilters() {
 
 async function loadStats() {
   try { stats.value = await adminApi.applications.stats() } catch { /* ignore */ }
+}
+
+const exporting = ref(false)
+async function exportCsv() {
+  exporting.value = true
+  try {
+    await downloadCsv('/applications/export.csv', {
+      status: filters.status || undefined,
+      admission_type: filters.admission_type || undefined,
+      branch_id: filters.branch_id || undefined,
+      education_level_id: filters.education_level_id || undefined,
+      education_form_id: filters.education_form_id || undefined,
+      program_id: filters.program_id || undefined,
+      consulting_agency_id: canSeeConsulting.value ? (filters.consulting_agency_id || undefined) : undefined,
+    })
+    toast.success("CSV yuklab olindi")
+  } catch (e) {
+    const ax = e as AxiosError<{ detail?: string }>
+    toast.error(ax.response?.data?.detail || "Eksport qilib bo'lmadi")
+  } finally {
+    exporting.value = false
+  }
 }
 
 async function load() {
@@ -334,6 +357,9 @@ const reviewedPercent = computed(() => {
         <span>Tahlil qilingan</span>
         <strong class="text-slate-900 dark:text-slate-100">{{ reviewedPercent }}%</strong>
       </div>
+      <button class="btn-outline" :disabled="exporting" @click="exportCsv">
+        <Download class="w-4 h-4" /> {{ exporting ? '...' : 'CSV' }}
+      </button>
       <RouterLink :to="`${panelPrefix}/applications/new`" class="btn-primary">
         <Plus class="w-4 h-4" /> Yangi ariza
       </RouterLink>

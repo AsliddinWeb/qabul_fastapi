@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import csv
+import io
+from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import (
@@ -190,6 +193,63 @@ async def list_applications(
     return PageResponse[ApplicationDetailed].build(
         items=[ApplicationDetailed.model_validate(a) for a in items],
         total=total, page=page, size=size,
+    )
+
+
+@router.get(
+    "/export.csv",
+    dependencies=[Depends(require_permission(Permission.APPLICATIONS_LIST))],
+)
+async def export_applications_csv(
+    status_filter: ApplicationStatus | None = Query(default=None, alias="status"),
+    admission_type: AdmissionType | None = Query(default=None),
+    program_id: UUID | None = Query(default=None),
+    branch_id: UUID | None = Query(default=None),
+    education_level_id: UUID | None = Query(default=None),
+    education_form_id: UUID | None = Query(default=None),
+    consulting_agency_id: UUID | None = Query(default=None),
+    svc: ApplicationsService = Depends(_service),
+) -> Response:
+    """Export filtered applications to CSV."""
+    items, _ = await svc.list_detailed(
+        status=status_filter,
+        admission_type=admission_type,
+        program_id=program_id,
+        branch_id=branch_id,
+        education_level_id=education_level_id,
+        education_form_id=education_form_id,
+        consulting_agency_id=consulting_agency_id,
+        limit=10_000,
+        offset=0,
+    )
+    buf = io.StringIO()
+    buf.write("﻿")
+    w = csv.writer(buf)
+    w.writerow([
+        "Ariza raqami", "Holati", "Topshirish turi", "F.I.Sh.", "Yo'nalish",
+        "Filial", "Bosqich", "Shakl", "Konsalting", "Yaratilgan", "Topshirilgan",
+    ])
+    for a in items:
+        st = a.get("status")
+        at = a.get("admission_type")
+        w.writerow([
+            a.get("application_number") or "",
+            (st.value if hasattr(st, "value") else st or ""),
+            (at.value if hasattr(at, "value") else at or ""),
+            a.get("applicant_full_name") or "",
+            a.get("program_name") or "",
+            a.get("branch_name") or "",
+            a.get("education_level_name") or "",
+            a.get("education_form_name") or "",
+            a.get("consulting_agency_name") or "",
+            a["created_at"].strftime("%Y-%m-%d %H:%M") if a.get("created_at") else "",
+            a["submitted_at"].strftime("%Y-%m-%d %H:%M") if a.get("submitted_at") else "",
+        ])
+    fn = f"applications-{datetime.now().strftime('%Y%m%d-%H%M')}.csv"
+    return Response(
+        content=buf.getvalue().encode("utf-8"),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{fn}"'},
     )
 
 

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import csv
+import io
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response, status
@@ -202,6 +205,56 @@ async def list_applicants(
     return PageResponse[ApplicantRead].build(
         items=[ApplicantRead.model_validate(a) for a in items],
         total=total, page=page, size=size,
+    )
+
+
+@router.get(
+    "/export.csv",
+    dependencies=[Depends(require_permission(Permission.APPLICANTS_LIST))],
+)
+async def export_applicants_csv(
+    region_id: UUID | None = Query(default=None),
+    registered_by_id: UUID | None = Query(default=None),
+    search: str | None = Query(default=None, max_length=100),
+    svc: ApplicantsService = Depends(_service),
+) -> Response:
+    """Export filtered applicants to CSV (UTF-8 BOM for Excel)."""
+    items, _ = await svc.list(
+        region_id=region_id,
+        registered_by_id=registered_by_id,
+        search=search,
+        limit=10_000,
+        offset=0,
+    )
+    buf = io.StringIO()
+    buf.write("﻿")
+    w = csv.writer(buf)
+    w.writerow([
+        "Familiya", "Ism", "Otasining ismi", "Tug'ilgan sana", "Jinsi",
+        "Pasport seriyasi", "JSHSHIR", "Millati", "Email", "Qo'shimcha telefon",
+        "Telegram", "Manzil", "Yaratilgan",
+    ])
+    for a in items:
+        w.writerow([
+            a.last_name or "",
+            a.first_name or "",
+            a.other_name or "",
+            a.birth_date.strftime("%Y-%m-%d") if a.birth_date else "",
+            (a.gender.value if a.gender else ""),
+            a.passport_series or "",
+            a.pinfl or "",
+            a.nationality or "",
+            a.email or "",
+            a.additional_phone or "",
+            a.telegram_username or "",
+            (a.address or "").replace("\n", " ").strip(),
+            a.created_at.strftime("%Y-%m-%d %H:%M") if a.created_at else "",
+        ])
+    fn = f"applicants-{datetime.now().strftime('%Y%m%d-%H%M')}.csv"
+    return Response(
+        content=buf.getvalue().encode("utf-8"),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{fn}"'},
     )
 
 

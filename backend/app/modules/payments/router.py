@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import csv
+import io
+from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import CurrentUser, get_current_user, get_db, require_permission
@@ -39,6 +42,46 @@ async def list_payments(
     return PageResponse[PaymentRead].build(
         items=[PaymentRead.model_validate(p) for p in items],
         total=total, page=page, size=size,
+    )
+
+
+@router.get(
+    "/export.csv",
+    dependencies=[Depends(require_permission(Permission.PAYMENTS_READ))],
+)
+async def export_payments_csv(
+    status_filter: PaymentStatus | None = Query(default=None, alias="status"),
+    contract_id: UUID | None = Query(default=None),
+    svc: PaymentsService = Depends(_service),
+) -> Response:
+    """Export filtered payments to CSV."""
+    items, _ = await svc.list(
+        status=status_filter, contract_id=contract_id, limit=10_000, offset=0,
+    )
+    buf = io.StringIO()
+    buf.write("﻿")
+    w = csv.writer(buf)
+    w.writerow([
+        "To'lov raqami", "Shartnoma ID", "Summa", "Valyuta", "Holati",
+        "Reference", "To'langan vaqt", "Yaratilgan", "Izoh",
+    ])
+    for p in items:
+        w.writerow([
+            p.payment_number or "",
+            str(p.contract_id) if p.contract_id else "",
+            str(p.amount) if p.amount is not None else "",
+            p.currency or "",
+            (p.status.value if p.status else ""),
+            p.reference or "",
+            p.paid_at.strftime("%Y-%m-%d %H:%M") if p.paid_at else "",
+            p.created_at.strftime("%Y-%m-%d %H:%M") if p.created_at else "",
+            (p.notes or "").replace("\n", " ").strip(),
+        ])
+    fn = f"payments-{datetime.now().strftime('%Y%m%d-%H%M')}.csv"
+    return Response(
+        content=buf.getvalue().encode("utf-8"),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{fn}"'},
     )
 
 

@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
-import { Plus, Users as UsersIcon, Pencil, Trash2, Search, Phone } from 'lucide-vue-next'
+import { Plus, Users as UsersIcon, Pencil, Trash2, Search, Phone, Download } from 'lucide-vue-next'
 import { AxiosError } from 'axios'
 import { adminApi } from '@/api/admin.api'
+import { downloadCsv } from '@/api/http'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
@@ -82,6 +83,20 @@ async function remove(a: Applicant) {
 
 const lastPage = () => Math.max(1, Math.ceil(total.value / filters.size))
 
+const exporting = ref(false)
+async function exportCsv() {
+  exporting.value = true
+  try {
+    await downloadCsv('/applicants/export.csv', { search: filters.search || undefined })
+    toast.success("CSV yuklab olindi")
+  } catch (e) {
+    const ax = e as AxiosError<{ detail?: string }>
+    toast.error(ax.response?.data?.detail || "Eksport qilib bo'lmadi")
+  } finally {
+    exporting.value = false
+  }
+}
+
 // Avatar — restrained 2-stop palette (matches detail page)
 const AVATAR_COLORS = [
   'from-slate-600 to-slate-800',
@@ -111,6 +126,9 @@ function age(birth: string): number {
       :subtitle="`Tizimda ro'yxatga olingan abituriyentlar · Jami ${total}`"
       :crumbs="[{ label: 'Bosh sahifa', to: panelPrefix }, { label: 'Qabul jarayoni' }]"
     >
+      <button class="btn-outline" :disabled="exporting" @click="exportCsv">
+        <Download class="w-4 h-4" /> {{ exporting ? '...' : 'CSV' }}
+      </button>
       <RouterLink :to="`${panelPrefix}/applicants/new`" class="btn-primary">
         <Plus class="w-4 h-4" /> Qo'lda kiritish
       </RouterLink>

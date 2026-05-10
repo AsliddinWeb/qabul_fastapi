@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -19,6 +20,8 @@ class AuditRepository(BaseRepository[AuditLog]):
         entity_type: str | None = None,
         entity_id: UUID | None = None,
         action: str | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[dict], int]:
@@ -43,6 +46,13 @@ class AuditRepository(BaseRepository[AuditLog]):
             if val is not None:
                 stmt = stmt.where(col == val)
                 count_stmt = count_stmt.where(col == val)
+
+        if date_from is not None:
+            stmt = stmt.where(AuditLog.created_at >= date_from)
+            count_stmt = count_stmt.where(AuditLog.created_at >= date_from)
+        if date_to is not None:
+            stmt = stmt.where(AuditLog.created_at <= date_to)
+            count_stmt = count_stmt.where(AuditLog.created_at <= date_to)
 
         stmt = stmt.order_by(AuditLog.created_at.desc()).limit(limit).offset(offset)
         rows = (await self.session.execute(stmt)).all()

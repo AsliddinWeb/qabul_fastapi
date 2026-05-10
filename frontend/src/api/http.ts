@@ -55,6 +55,27 @@ http.interceptors.request.use((config) => {
   return config
 })
 
+/**
+ * Fetch a CSV (or any file) from the API and trigger a browser download.
+ * Reads the server's Content-Disposition for the filename when available.
+ */
+export async function downloadCsv(
+  path: string,
+  params: Record<string, any> = {},
+  fallbackName?: string,
+): Promise<void> {
+  const res = await http.get(path, { params, responseType: 'blob' })
+  const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  const cd = (res.headers as any)['content-disposition'] as string | undefined
+  const m = cd?.match(/filename="?([^";]+)"?/i)
+  a.href = url
+  a.download = m?.[1] || fallbackName || `export-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.csv`
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 30_000)
+}
+
 http.interceptors.response.use(
   (resp) => resp,
   async (error: AxiosError) => {

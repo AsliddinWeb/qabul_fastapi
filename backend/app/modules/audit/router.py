@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -28,6 +29,8 @@ async def list_logs(
     entity_type: str | None = Query(default=None, max_length=100),
     entity_id: UUID | None = Query(default=None),
     action: str | None = Query(default=None, max_length=100),
+    date_from: datetime | None = Query(default=None),
+    date_to: datetime | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=50, ge=1, le=200),
     svc: AuditService = Depends(_service),
@@ -37,6 +40,8 @@ async def list_logs(
         entity_type=entity_type,
         entity_id=entity_id,
         action=action,
+        date_from=date_from,
+        date_to=date_to,
         limit=size,
         offset=(page - 1) * size,
     )

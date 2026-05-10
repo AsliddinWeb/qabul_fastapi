@@ -36,6 +36,8 @@ const loading = ref(false)
 const filters = reactive({
   action: '',
   entity_type: '',
+  date_from: '',
+  date_to: '',
   search: '',
   page: 1,
   size: 50,
@@ -51,6 +53,8 @@ async function load() {
       params: {
         action: filters.action || undefined,
         entity_type: filters.entity_type || undefined,
+        date_from: filters.date_from ? new Date(filters.date_from).toISOString() : undefined,
+        date_to: filters.date_to ? new Date(filters.date_to).toISOString() : undefined,
         page: filters.page,
         size: filters.size,
       },
@@ -79,6 +83,8 @@ const filtered = computed(() => {
 onMounted(load)
 watch(() => filters.action, () => { filters.page = 1; load() })
 watch(() => filters.entity_type, () => { filters.page = 1; load() })
+watch(() => filters.date_from, () => { filters.page = 1; load() })
+watch(() => filters.date_to, () => { filters.page = 1; load() })
 watch(() => filters.page, load)
 
 const lastPage = () => Math.max(1, Math.ceil(total.value / filters.size))
@@ -127,6 +133,8 @@ function relativeTime(iso: string): string {
 function clearFilters() {
   filters.action = ''
   filters.entity_type = ''
+  filters.date_from = ''
+  filters.date_to = ''
   filters.search = ''
 }
 
@@ -134,6 +142,8 @@ const activeCount = computed(() => {
   let n = 0
   if (filters.action) n++
   if (filters.entity_type) n++
+  if (filters.date_from) n++
+  if (filters.date_to) n++
   return n
 })
 </script>
@@ -161,9 +171,9 @@ const activeCount = computed(() => {
           <XIcon class="w-3 h-3" /> Tozalash
         </button>
       </div>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full">
-        <div>
-          <label class="field-label">Qidirish</label>
+      <div class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-3 w-full">
+        <div class="lg:col-span-2">
+          <label class="field-label">Qidirish (joriy sahifada)</label>
           <div class="relative">
             <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
             <input v-model="filters.search" class="input pl-10" placeholder="F.I.Sh., telefon, amal, IP..." />
@@ -176,6 +186,16 @@ const activeCount = computed(() => {
         <div>
           <label class="field-label">Obyekt</label>
           <SearchSelect v-model="filters.entity_type" :options="ENTITY_OPTIONS" placeholder="— hammasi —" allow-clear />
+        </div>
+        <div class="grid grid-cols-2 gap-2 sm:col-span-3 lg:col-span-1">
+          <div>
+            <label class="field-label">Dan</label>
+            <input v-model="filters.date_from" type="date" class="input" />
+          </div>
+          <div>
+            <label class="field-label">Gacha</label>
+            <input v-model="filters.date_to" type="date" class="input" />
+          </div>
         </div>
       </div>
     </div>
