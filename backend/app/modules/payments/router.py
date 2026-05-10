@@ -32,12 +32,17 @@ def _service(session: AsyncSession = Depends(get_db)) -> PaymentsService:
 async def list_payments(
     status_filter: PaymentStatus | None = Query(default=None, alias="status"),
     contract_id: UUID | None = Query(default=None),
+    payment_method_id: UUID | None = Query(default=None),
+    date_from: datetime | None = Query(default=None),
+    date_to: datetime | None = Query(default=None),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=100),
     svc: PaymentsService = Depends(_service),
 ) -> PageResponse[PaymentRead]:
     items, total = await svc.list(
         status=status_filter, contract_id=contract_id,
+        payment_method_id=payment_method_id,
+        date_from=date_from, date_to=date_to,
         limit=size, offset=(page - 1) * size,
     )
     return PageResponse[PaymentRead].build(
@@ -53,11 +58,17 @@ async def list_payments(
 async def export_payments_csv(
     status_filter: PaymentStatus | None = Query(default=None, alias="status"),
     contract_id: UUID | None = Query(default=None),
+    payment_method_id: UUID | None = Query(default=None),
+    date_from: datetime | None = Query(default=None),
+    date_to: datetime | None = Query(default=None),
     svc: PaymentsService = Depends(_service),
 ) -> Response:
     """Export filtered payments to CSV."""
     items, _ = await svc.list(
-        status=status_filter, contract_id=contract_id, limit=10_000, offset=0,
+        status=status_filter, contract_id=contract_id,
+        payment_method_id=payment_method_id,
+        date_from=date_from, date_to=date_to,
+        limit=10_000, offset=0,
     )
     buf = io.StringIO()
     buf.write("﻿")
@@ -217,6 +228,91 @@ async def accountant_dashboard(
         "outstanding_total": str(outstanding_total),
         "monthly_trend":    trend,
         "top_debtors":      top_debtors,
+    }
+
+
+@router.get(
+    "/breakdown",
+    dependencies=[Depends(require_permission(Permission.PAYMENTS_READ))],
+)
+async def payments_breakdown(
+    date_from: datetime | None = Query(default=None),
+    date_to: datetime | None = Query(default=None),
+    session: AsyncSession = Depends(get_db),
+) -> dict:
+    """Period summary for the accountant's reports view.
+
+    For confirmed payments inside [date_from, date_to] (paid_at):
+      - period_count, period_sum: totals for the window
+      - by_method: [{ method_id, method_name, count, sum }]
+      - by_branch: [{ branch_id, branch_name, count, sum }]
+    """
+    from app.modules.applicants.models import Applicant  # noqa: F401
+    from app.modules.applications.models import Application
+    from app.modules.contracts.models import Contract
+    from app.modules.dictionaries.models import DictionaryItem
+    from app.modules.payments.models import Payment
+    from app.modules.programs.models import Branch
+
+    confirmed = Payment.status == PaymentStatus.CONFIRMED
+    clauses = [confirmed]
+    ts = func.coalesce(Payment.paid_at, Payment.created_at)
+    if date_from is not None:
+        clauses.append(ts >= date_from)
+    if date_to is not None:
+        clauses.append(ts <= date_to)
+
+    # Period totals
+    total_row = (await session.execute(
+        select(func.count(Payment.id), func.coalesce(func.sum(Payment.amount), 0))
+        .where(and_(*clauses))
+    )).one()
+
+    # Breakdown by payment method
+    by_method_stmt = (
+        select(
+            DictionaryItem.id,
+            DictionaryItem.name_uz,
+            func.count(Payment.id),
+            func.coalesce(func.sum(Payment.amount), 0),
+        )
+        .select_from(Payment)
+        .join(DictionaryItem, DictionaryItem.id == Payment.payment_method_id)
+        .where(and_(*clauses))
+        .group_by(DictionaryItem.id, DictionaryItem.name_uz)
+        .order_by(func.sum(Payment.amount).desc())
+    )
+    by_method = [
+        {"method_id": str(mid), "method_name": name, "count": int(cnt or 0), "sum": str(s or 0)}
+        for mid, name, cnt, s in (await session.execute(by_method_stmt)).all()
+    ]
+
+    # Breakdown by branch (via contract -> application -> branch)
+    by_branch_stmt = (
+        select(
+            Branch.id,
+            Branch.name,
+            func.count(Payment.id),
+            func.coalesce(func.sum(Payment.amount), 0),
+        )
+        .select_from(Payment)
+        .join(Contract, Contract.id == Payment.contract_id)
+        .join(Application, Application.id == Contract.application_id)
+        .join(Branch, Branch.id == Application.branch_id)
+        .where(and_(*clauses))
+        .group_by(Branch.id, Branch.name)
+        .order_by(func.sum(Payment.amount).desc())
+    )
+    by_branch = [
+        {"branch_id": str(bid), "branch_name": name, "count": int(cnt or 0), "sum": str(s or 0)}
+        for bid, name, cnt, s in (await session.execute(by_branch_stmt)).all()
+    ]
+
+    return {
+        "period_count": int(total_row[0] or 0),
+        "period_sum":   str(total_row[1] or 0),
+        "by_method":    by_method,
+        "by_branch":    by_branch,
     }
 
 

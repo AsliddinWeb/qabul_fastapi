@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import {
   FileText, Search, Download, Filter as FilterIcon, X as XIcon,
   CheckCircle2, Clock, AlertTriangle, ArrowRight,
@@ -23,6 +23,7 @@ import SearchSelect from '@/components/ui/SearchSelect.vue'
 import { CONTRACT_STATUS, tr } from '@/utils/labels'
 
 const router = useRouter()
+const route = useRoute()
 const toast = useToast()
 
 const items = ref<ContractListItem[]>([])
@@ -86,6 +87,15 @@ watch(() => filters.page, load)
 
 onMounted(async () => {
   branches.value = await adminApi.branches.list(false).catch(() => [])
+  // Hydrate from URL query so links like
+  // /accountant/contracts?payment_status=unpaid land on the filtered view.
+  const q = route.query
+  if (typeof q.payment_status === 'string' && ['paid', 'partial', 'unpaid'].includes(q.payment_status)) {
+    filters.payment_status = q.payment_status as PaymentStatusFilter
+  }
+  if (typeof q.status === 'string') filters.status = q.status as ContractStatus
+  if (typeof q.branch_id === 'string') filters.branch_id = q.branch_id
+  if (typeof q.search === 'string') filters.search = q.search
   await load()
 })
 

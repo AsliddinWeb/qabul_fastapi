@@ -43,6 +43,30 @@ export interface AccountantDebtor {
   balance: string
 }
 
+export interface PaymentListParams {
+  status?: PaymentStatus
+  contract_id?: string
+  payment_method_id?: string
+  date_from?: string
+  date_to?: string
+  page?: number
+  size?: number
+}
+
+export interface PaymentListResponse {
+  items: PaymentRead[]
+  total: number
+  page: number
+  size: number
+}
+
+export interface PaymentsBreakdown {
+  period_count: number
+  period_sum: string
+  by_method: Array<{ method_id: string; method_name: string; count: number; sum: string }>
+  by_branch: Array<{ branch_id: string; branch_name: string; count: number; sum: string }>
+}
+
 export interface AccountantDashboardResponse {
   today_count: number
   today_sum: string
@@ -81,4 +105,10 @@ export const paymentsApi = {
 
   dashboard: () =>
     http.get<AccountantDashboardResponse>('/payments/dashboard').then((r) => r.data),
+
+  list: (params: PaymentListParams = {}) =>
+    http.get<PaymentListResponse>('/payments', { params }).then((r) => r.data),
+
+  breakdown: (params: { date_from?: string; date_to?: string } = {}) =>
+    http.get<PaymentsBreakdown>('/payments/breakdown', { params }).then((r) => r.data),
 }
