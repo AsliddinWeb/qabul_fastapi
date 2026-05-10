@@ -8,9 +8,10 @@ What it does (idempotent — safe to re-run):
   1. Education types (Bakalavr / Magistratura / O'rta-maxsus / ... )
   2. Institution types (Universitet / Akademiya / Institut / Kollej / Litsey / Maktab)
   3. Courses (1-kurs ... 6-kurs)
-  4. Contract templates: REPLACE all existing rows with a single active
-     template populated from the legacy Django files
-     (old/qabul-sayt-main/templates/contracts/{ikki,uch}_tomonlama.html).
+  4. Contract templates: UPSERT the canonical "Standart shartnoma shabloni"
+     row from data/contract_templates/{two,three}_party.html and mark all
+     other templates inactive (FK from contracts.template_id forbids
+     deleting in-use rows). Body is refreshed in place; version bumped.
 
 The template file paths are resolved relative to /app inside the backend
 container, where the repo is mounted via the Dockerfile.
@@ -21,7 +22,7 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from sqlalchemy import delete, select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import configure_logging, get_logger
@@ -108,29 +109,56 @@ async def _ensure_named_rows(session: AsyncSession, model, names: list[str], lab
 
 
 async def _replace_contract_template(session: AsyncSession) -> None:
-    """Wipe existing templates, install a single active canonical one.
+    """Upsert the canonical "Standart shartnoma shabloni" template.
 
-    Safe because contracts already in the DB don't FK to template rows
-    (template_id is captured as a snapshot at contract creation time).
+    Existing `contracts` rows reference `contract_templates` via FK, so we
+    cannot delete old template rows. Instead we update the canonical row
+    in place (or insert it if missing), bump its version, and mark all
+    other templates inactive so the active-lookup picks ours.
+
+    Existing PDFs are unaffected (they are stored as files); only newly
+    generated contract PDFs use the refreshed body.
     """
     two_party = _read_template("two_party.html")
     three_party = _read_template("three_party.html")
+    canonical_name = "Standart shartnoma shabloni"
 
-    # Wipe all existing templates — caller asked for "delete current ones,
-    # keep one standard". This is a one-shot script so we accept the cost.
-    await session.execute(delete(ContractTemplate))
+    existing = (
+        await session.execute(
+            select(ContractTemplate).where(ContractTemplate.name == canonical_name)
+        )
+    ).scalar_one_or_none()
 
-    template = ContractTemplate(
-        name="Standart shartnoma shabloni",
-        body_two_party=two_party,
-        body_three_party=three_party,
-        version=1,
-        is_active=True,
-    )
-    session.add(template)
+    if existing is not None:
+        existing.body_two_party = two_party
+        existing.body_three_party = three_party
+        existing.version = (existing.version or 0) + 1
+        existing.is_active = True
+        action = "updated"
+    else:
+        existing = ContractTemplate(
+            name=canonical_name,
+            body_two_party=two_party,
+            body_three_party=three_party,
+            version=1,
+            is_active=True,
+        )
+        session.add(existing)
+        action = "inserted"
     await session.flush()
+
+    # Make sure no other template is active — there should be a single
+    # canonical one driving new contracts.
+    await session.execute(
+        update(ContractTemplate)
+        .where(ContractTemplate.id != existing.id)
+        .values(is_active=False)
+    )
+
     logger.info(
         "seed.contract_template.installed",
+        action=action,
+        version=existing.version,
         two_party_chars=len(two_party),
         three_party_chars=len(three_party),
     )
@@ -149,7 +177,7 @@ async def main() -> None:
     print(f"  education types:    +{ed_created}  / total {len(EDUCATION_TYPES)}")
     print(f"  institution types:  +{in_created}  / total {len(INSTITUTION_TYPES)}")
     print(f"  courses:            +{crs_created} / total {len(COURSES)}")
-    print(f"  contract template:  replaced (1 active row)")
+    print(f"  contract template:  upserted (canonical row refreshed)")
 
 
 if __name__ == "__main__":
