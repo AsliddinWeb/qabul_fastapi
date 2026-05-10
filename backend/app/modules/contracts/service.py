@@ -4,6 +4,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from uuid import UUID, uuid4
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -260,6 +261,21 @@ class ContractsService:
             course = await CourseRepository(self.session).get(application.course_id)
         user = await UserRepository(self.session).get(applicant.user_id)
 
+        # Resolve region/district names so the contract PDF shows
+        # "Toshkent viloyati, Yunusobod tumani, ..." instead of just the raw
+        # street address. Falls back gracefully if either link is missing.
+        from app.modules.regions.models import District, Region
+        region_name = None
+        district_name = None
+        if applicant.region_id:
+            region_name = await self.session.scalar(
+                select(Region.name).where(Region.id == applicant.region_id)
+            )
+        if applicant.district_id:
+            district_name = await self.session.scalar(
+                select(District.name).where(District.id == applicant.district_id)
+            )
+
         try:
             html = render_html(
                 body,
@@ -275,6 +291,8 @@ class ContractsService:
                     user=user,
                     parties=parties,
                     cfg=cfg,
+                    region_name=region_name,
+                    district_name=district_name,
                     base_url=base_url,
                 ),
             )
@@ -383,7 +401,9 @@ def _make_qr_data_uri(payload: str) -> str:
 
 def _build_context(
     *, contract, applicant, application, program, branch, edu_level, edu_form, parties,
-    course=None, user=None, cfg=None, base_url: str | None = None,
+    course=None, user=None, cfg=None,
+    region_name: str | None = None, district_name: str | None = None,
+    base_url: str | None = None,
 ) -> dict:
     today = date.today()
 
@@ -418,6 +438,18 @@ def _build_context(
     # which is what they signed up with. additional_phone is a backup-only
     # contact and shouldn't be the one stamped on contracts.
     phone = (user.phone if user else "") or applicant.additional_phone or ""
+
+    # Compose the student address: "<viloyat> viloyati, <tuman> tumani, <manzil>"
+    # so the contract shows full geographic context, not just a street line.
+    # Drops any segment that's missing.
+    _addr_parts: list[str] = []
+    if region_name:
+        _addr_parts.append(f"{region_name} viloyati")
+    if district_name:
+        _addr_parts.append(f"{district_name} tumani")
+    if applicant.address:
+        _addr_parts.append(applicant.address.strip())
+    composed_address = ", ".join(_addr_parts)
 
     # === QR code: encode public PDF URL → scannable PNG data URI ===
     # Prefer base_url derived from the request (works in any environment),
@@ -459,13 +491,15 @@ def _build_context(
         "OQUV_KURSI": course_label,
         "PASSPORT_SERIYA": applicant.passport_series or "",
         "PINFL": applicant.pinfl or "",
-        "YASHASH_MANZILI": applicant.address or "",
+        "YASHASH_MANZILI": composed_address or applicant.address or "",
         "SHARTNOMA_SERIYASI": yonalish_seriya,
         # Old Django-style aliases (kept for 1:1 reuse of legacy templates)
         "ID": short_id,
         "YONALISH_SERIYA": yonalish_seriya,
         "KONTRAKT_SUMMASI": yillik_tolov,
-        "TALABA_MANZILI": applicant.address or "",
+        "TALABA_MANZILI": composed_address or applicant.address or "",
+        "TALABA_VILOYATI": region_name or "",
+        "TALABA_TUMANI": district_name or "",
         "BITIRUV_YILI": bitiruv_yili,
         # QR code (use either case)
         "QR_CODE": qr_data_uri,
@@ -486,6 +520,9 @@ def _build_context(
             "other_name": applicant.other_name or "",
             "birth_date": applicant.birth_date.strftime("%d.%m.%Y") if applicant.birth_date else "",
             "address": applicant.address or "",
+            "full_address": composed_address or applicant.address or "",
+            "region_name": region_name or "",
+            "district_name": district_name or "",
             "passport_series": applicant.passport_series or "",
             "pinfl": applicant.pinfl or "",
         },
