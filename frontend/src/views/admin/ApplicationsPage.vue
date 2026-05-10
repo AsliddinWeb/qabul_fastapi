@@ -44,8 +44,13 @@ const canSeeConsulting = computed(() => auth.isConsulting)
 const { ask } = useConfirm()
 const router = useRouter()
 const route = useRoute()
-const panelPrefix = computed(() => route.path.startsWith('/operator/') ? '/operator' : '/admin')
+const panelPrefix = computed(() => {
+  if (route.path.startsWith('/operator/')) return '/operator'
+  if (route.path.startsWith('/accountant/')) return '/accountant'
+  return '/admin'
+})
 const isOperatorPanel = computed(() => panelPrefix.value === '/operator')
+const isAccountantPanel = computed(() => panelPrefix.value === '/accountant')
 
 const items = ref<Application[]>([])
 const total = ref(0)
@@ -360,7 +365,7 @@ const reviewedPercent = computed(() => {
       <button class="btn-outline" :disabled="exporting" @click="exportCsv">
         <Download class="w-4 h-4" /> {{ exporting ? '...' : 'CSV' }}
       </button>
-      <RouterLink :to="`${panelPrefix}/applications/new`" class="btn-primary">
+      <RouterLink v-if="!isAccountantPanel" :to="`${panelPrefix}/applications/new`" class="btn-primary">
         <Plus class="w-4 h-4" /> Yangi ariza
       </RouterLink>
     </PageHeader>
@@ -534,7 +539,7 @@ const reviewedPercent = computed(() => {
       <EmptyState :icon="ClipboardList"
                   title="Arizalar topilmadi"
                   :subtitle="filters.search || filters.status ? 'Filterlarni tozalab ko\'ring' : 'Birinchi arizani yarating'">
-        <RouterLink :to="`${panelPrefix}/applications/new`" class="btn-primary mt-4 inline-flex">
+        <RouterLink v-if="!isAccountantPanel" :to="`${panelPrefix}/applications/new`" class="btn-primary mt-4 inline-flex">
           <Plus class="w-4 h-4" /> Yangi ariza
         </RouterLink>
       </EmptyState>
@@ -640,20 +645,22 @@ const reviewedPercent = computed(() => {
                     <RouterLink :to="`${panelPrefix}/applications/${a.id}`" class="menu-item">
                       <Eye class="w-4 h-4 text-slate-500" /> Batafsil
                     </RouterLink>
-                    <RouterLink :to="`${panelPrefix}/applications/${a.id}/edit`" class="menu-item">
+                    <RouterLink v-if="!isAccountantPanel" :to="`${panelPrefix}/applications/${a.id}/edit`" class="menu-item">
                       <Pencil class="w-4 h-4 text-slate-500" /> Tahrirlash
                     </RouterLink>
-                    <div v-if="a.status === 'topshirildi' || a.status === 'korib_chiqilmoqda'" class="menu-divider"></div>
-                    <button v-if="a.status === 'topshirildi'" class="menu-item" @click="startReview(a)">
-                      <PlayCircle class="w-4 h-4 text-sky-500" /> Ko'rib chiqishga olish
-                    </button>
-                    <button v-if="a.status === 'topshirildi' || a.status === 'korib_chiqilmoqda'" class="menu-item" @click="approve(a)">
-                      <CheckCircle2 class="w-4 h-4 text-emerald-500" /> Qabul qilish
-                    </button>
-                    <button v-if="a.status === 'topshirildi' || a.status === 'korib_chiqilmoqda'" class="menu-item" @click="reject(a)">
-                      <XCircle class="w-4 h-4 text-rose-500" /> Rad etish
-                    </button>
-                    <template v-if="!isOperatorPanel">
+                    <template v-if="!isAccountantPanel">
+                      <div v-if="a.status === 'topshirildi' || a.status === 'korib_chiqilmoqda'" class="menu-divider"></div>
+                      <button v-if="a.status === 'topshirildi'" class="menu-item" @click="startReview(a)">
+                        <PlayCircle class="w-4 h-4 text-sky-500" /> Ko'rib chiqishga olish
+                      </button>
+                      <button v-if="a.status === 'topshirildi' || a.status === 'korib_chiqilmoqda'" class="menu-item" @click="approve(a)">
+                        <CheckCircle2 class="w-4 h-4 text-emerald-500" /> Qabul qilish
+                      </button>
+                      <button v-if="a.status === 'topshirildi' || a.status === 'korib_chiqilmoqda'" class="menu-item" @click="reject(a)">
+                        <XCircle class="w-4 h-4 text-rose-500" /> Rad etish
+                      </button>
+                    </template>
+                    <template v-if="!isOperatorPanel && !isAccountantPanel">
                       <div class="menu-divider"></div>
                       <button class="menu-item !text-rose-600 dark:!text-rose-400 hover:!bg-rose-50 dark:hover:!bg-rose-900/30"
                               @click="remove(a)">

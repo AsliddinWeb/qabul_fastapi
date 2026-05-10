@@ -12,6 +12,9 @@ const route = useRoute()
 const router = useRouter()
 const id = computed(() => route.params.id as string)
 
+// Accountants share this page (read-only) — hide action buttons.
+const isReadOnly = computed(() => route.path.startsWith('/accountant/'))
+
 const data = ref<ContractDetailed | null>(null)
 const loading = ref(true)
 const busy = ref(false)
@@ -106,7 +109,7 @@ async function openPdf() {
       </div>
     </div>
 
-    <div class="card p-6 space-y-3">
+    <div v-if="!isReadOnly" class="card p-6 space-y-3">
       <h2 class="font-semibold">Amallar</h2>
       <div class="flex flex-wrap gap-3">
         <button v-if="data.status === 'draft'" class="btn-primary" :disabled="busy" @click="sign">

@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import {
   FileText, Search, Download, Filter as FilterIcon, X as XIcon,
-  CheckCircle2, Clock, AlertTriangle, ArrowRight,
+  CheckCircle2, Clock, AlertTriangle, ArrowRight, Eye, CreditCard,
 } from 'lucide-vue-next'
 import { AxiosError } from 'axios'
 import {
@@ -241,9 +241,7 @@ async function exportCsv() {
 
     <!-- Mobile card list (< md) -->
     <ul v-else class="md:hidden space-y-2.5">
-      <li v-for="c in items" :key="c.id"
-          class="card p-4 active:bg-slate-50 dark:active:bg-slate-800/40 cursor-pointer"
-          @click="router.push(`/accountant/contracts/${c.id}/payments`)">
+      <li v-for="c in items" :key="c.id" class="card p-4">
         <div class="flex items-start justify-between gap-2 mb-2">
           <div class="min-w-0">
             <div class="font-semibold text-slate-900 dark:text-slate-100 break-words">{{ c.applicant_full_name || '—' }}</div>
@@ -269,6 +267,16 @@ async function exportCsv() {
                      : paymentTone(c) === 'partial' ? 'bg-amber-500'
                      : 'bg-rose-500'"
                :style="{ width: progressPercent(c) + '%' }"></div>
+        </div>
+        <div class="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2">
+          <RouterLink :to="`/accountant/contracts/${c.id}`"
+                      class="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200">
+            <Eye class="w-3.5 h-3.5" /> Shartnoma
+          </RouterLink>
+          <RouterLink :to="`/accountant/contracts/${c.id}/payments`"
+                      class="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-brand-600 text-white">
+            <CreditCard class="w-3.5 h-3.5" /> To'lovlar
+          </RouterLink>
         </div>
       </li>
     </ul>
@@ -340,9 +348,14 @@ async function exportCsv() {
                 <StatusBadge :status="c.status" :label="tr(CONTRACT_STATUS, c.status)" />
               </td>
               <td class="px-5 py-4 text-right" @click.stop>
-                <RouterLink :to="`/accountant/contracts/${c.id}/payments`" class="btn-outline btn-sm">
-                  <ArrowRight class="w-3.5 h-3.5" /> To'lovlar
-                </RouterLink>
+                <div class="inline-flex items-center gap-1.5">
+                  <RouterLink :to="`/accountant/contracts/${c.id}`" class="btn-outline btn-sm" title="Shartnoma + PDF">
+                    <Eye class="w-3.5 h-3.5" /> Ko'rish
+                  </RouterLink>
+                  <RouterLink :to="`/accountant/contracts/${c.id}/payments`" class="btn-outline btn-sm">
+                    <ArrowRight class="w-3.5 h-3.5" /> To'lovlar
+                  </RouterLink>
+                </div>
               </td>
             </tr>
           </tbody>

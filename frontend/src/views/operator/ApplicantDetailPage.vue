@@ -26,7 +26,12 @@ const router = useRouter()
 const toast = useToast()
 
 const id = computed(() => route.params.id as string)
-const panelPrefix = computed(() => (route.path.startsWith('/admin/') ? '/admin' : '/operator'))
+const panelPrefix = computed(() => {
+  if (route.path.startsWith('/admin/')) return '/admin'
+  if (route.path.startsWith('/accountant/')) return '/accountant'
+  return '/operator'
+})
+const isAccountantPanel = computed(() => panelPrefix.value === '/accountant')
 
 const data = ref<ApplicantDetailed | null>(null)
 const loading = ref(true)
@@ -171,7 +176,7 @@ async function generateContract() {
       <button type="button" class="btn-ghost" @click="router.back()">
         <ArrowLeft class="w-4 h-4" /> Ortga
       </button>
-      <button class="btn-primary" @click="generateContract">
+      <button v-if="!isAccountantPanel" class="btn-primary" @click="generateContract">
         <FileText class="w-4 h-4" /> Shartnoma yaratish
       </button>
     </PageHeader>
@@ -273,7 +278,7 @@ async function generateContract() {
           <input v-model="personal.address" class="input" placeholder="Toshkent shahri, Mirzo Ulug'bek tumani, ..." />
         </div>
       </div>
-      <button class="btn-primary" :disabled="saving" @click="saveInfo">
+      <button v-if="!isAccountantPanel" class="btn-primary" :disabled="saving" @click="saveInfo">
         <Save class="w-4 h-4" /> {{ saving ? 'Saqlanmoqda...' : 'Saqlash' }}
       </button>
     </section>

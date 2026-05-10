@@ -160,9 +160,14 @@ const routes: RouteRecordRaw[] = [
     children: [
       { path: '',                                name: 'accountant-home',     component: () => import('@/views/accountant/DashboardPage.vue') },
       { path: 'profile',                         name: 'accountant-profile',  component: ProfilePage },
-      { path: 'contracts',                       name: 'accountant-contracts',component: () => import('@/views/accountant/ContractsListPage.vue') },
+      { path: 'contracts',                       name: 'accountant-contracts',         component: () => import('@/views/accountant/ContractsListPage.vue') },
+      { path: 'contracts/:id',                   name: 'accountant-contract-detail',   component: () => import('@/views/operator/ContractDetailPage.vue') },
       { path: 'contracts/:contractId/payments',  name: 'accountant-payments-contract', component: () => import('@/views/accountant/PaymentsPage.vue') },
       { path: 'payments',                        name: 'accountant-payments-list',     component: () => import('@/views/accountant/PaymentsListPage.vue') },
+      { path: 'applications',                    name: 'accountant-applications',       component: () => import('@/views/admin/ApplicationsPage.vue') },
+      { path: 'applications/:id',                name: 'accountant-application-detail', component: () => import('@/views/admin/ApplicationDetailPage.vue') },
+      { path: 'applicants',                      name: 'accountant-applicants',         component: () => import('@/views/admin/ApplicantsPage.vue') },
+      { path: 'applicants/:id',                  name: 'accountant-applicant-detail',   component: () => import('@/views/operator/ApplicantDetailPage.vue') },
     ],
   },
 

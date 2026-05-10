@@ -27,8 +27,13 @@ interface Applicant {
 
 const router = useRouter()
 const route = useRoute()
-const panelPrefix = computed(() => route.path.startsWith('/operator/') ? '/operator' : '/admin')
+const panelPrefix = computed(() => {
+  if (route.path.startsWith('/operator/')) return '/operator'
+  if (route.path.startsWith('/accountant/')) return '/accountant'
+  return '/admin'
+})
 const isOperatorPanel = computed(() => panelPrefix.value === '/operator')
+const isAccountantPanel = computed(() => panelPrefix.value === '/accountant')
 const toast = useToast()
 const { ask } = useConfirm()
 
@@ -129,7 +134,7 @@ function age(birth: string): number {
       <button class="btn-outline" :disabled="exporting" @click="exportCsv">
         <Download class="w-4 h-4" /> {{ exporting ? '...' : 'CSV' }}
       </button>
-      <RouterLink :to="`${panelPrefix}/applicants/new`" class="btn-primary">
+      <RouterLink v-if="!isAccountantPanel" :to="`${panelPrefix}/applicants/new`" class="btn-primary">
         <Plus class="w-4 h-4" /> Qo'lda kiritish
       </RouterLink>
     </PageHeader>
@@ -206,7 +211,7 @@ function age(birth: string): number {
                 <RouterLink :to="`${panelPrefix}/applicants/${a.id}`" class="btn-outline btn-sm">
                   <Pencil class="w-3.5 h-3.5" /> Ko'rish
                 </RouterLink>
-                <button v-if="!isOperatorPanel" class="icon-btn-danger" title="O'chirish" @click="remove(a)">
+                <button v-if="!isOperatorPanel && !isAccountantPanel" class="icon-btn-danger" title="O'chirish" @click="remove(a)">
                   <Trash2 class="w-4 h-4" />
                 </button>
               </div>

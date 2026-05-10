@@ -29,8 +29,13 @@ const { ask } = useConfirm()
 const canSeeConsulting = computed(() => auth.isConsulting)
 
 const id = computed(() => route.params.id as string)
-const panelPrefix = computed(() => route.path.startsWith('/operator/') ? '/operator' : '/admin')
+const panelPrefix = computed(() => {
+  if (route.path.startsWith('/operator/')) return '/operator'
+  if (route.path.startsWith('/accountant/')) return '/accountant'
+  return '/admin'
+})
 const isOperatorPanel = computed(() => panelPrefix.value === '/operator')
+const isAccountantPanel = computed(() => panelPrefix.value === '/accountant')
 
 const loading = ref(true)
 const application = ref<any>(null)
@@ -590,7 +595,7 @@ function applicantInitials(): string {
             </div>
           </div>
 
-          <div class="flex flex-wrap items-center gap-1.5">
+          <div v-if="!isAccountantPanel" class="flex flex-wrap items-center gap-1.5">
             <button v-if="application.status === 'topshirildi'"
                     class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-white/15 hover:bg-white/25 ring-1 ring-white/20 text-white text-sm font-medium transition"
                     @click="startReview">
