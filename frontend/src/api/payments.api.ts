@@ -33,6 +33,27 @@ export interface PaymentConfirmPayload {
   reference?: string | null
 }
 
+export interface AccountantDebtor {
+  contract_id: string
+  contract_number: string
+  applicant_full_name: string
+  total_amount: string
+  paid_amount: string
+  balance: string
+}
+
+export interface AccountantDashboardResponse {
+  today_count: number
+  today_sum: string
+  month_count: number
+  month_sum: string
+  pending_count: number
+  pending_sum: string
+  outstanding_total: string
+  monthly_trend: Array<{ month: string; count: number; sum: string }>
+  top_debtors: AccountantDebtor[]
+}
+
 export const paymentsApi = {
   forContract: (contractId: string) =>
     http.get<PaymentRead[]>(`/payments/contracts/${contractId}`).then((r) => r.data),
@@ -56,4 +77,7 @@ export const paymentsApi = {
   // Applicant self-service: own payments (read-only)
   myList: () =>
     http.get<PaymentRead[]>('/payments/me').then((r) => r.data),
+
+  dashboard: () =>
+    http.get<AccountantDashboardResponse>('/payments/dashboard').then((r) => r.data),
 }
