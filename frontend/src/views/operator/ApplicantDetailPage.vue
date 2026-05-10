@@ -176,7 +176,7 @@ async function generateContract() {
       </button>
     </PageHeader>
 
-    <section class="card p-6 space-y-4">
+    <section class="card p-4 sm:p-6 space-y-4">
       <h3 class="font-semibold text-slate-900 dark:text-slate-100">Shaxsiy ma'lumotlar</h3>
       <div class="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         <div>
@@ -281,7 +281,7 @@ async function generateContract() {
     <!-- Login info card -->
     <LoginInfoCard v-if="data?.user_id" :user-id="data.user_id" />
 
-    <section class="card p-6">
+    <section class="card p-4 sm:p-6">
       <h3 class="font-semibold text-slate-900 dark:text-slate-100 mb-2">Diplom va arizalar</h3>
       <p class="text-sm text-slate-500 dark:text-slate-400">
         Diplom (1-kurs) yoki perevod diplomi alohida sahifalarda boshqariladi.

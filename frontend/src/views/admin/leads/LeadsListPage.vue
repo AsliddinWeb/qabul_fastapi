@@ -372,8 +372,79 @@ function opAvatarTone(name: string | null): string {
       </EmptyState>
     </div>
 
-    <!-- Table -->
-    <div v-else class="card">
+    <!-- Mobile card list (< md) -->
+    <ul v-else-if="!loading" class="md:hidden space-y-2.5">
+      <li v-for="l in items" :key="l.id"
+          class="card p-4 active:bg-slate-50 dark:active:bg-slate-800/40 cursor-pointer"
+          @click="router.push(`${panelPrefix}/leads/${l.id}`)">
+        <div class="flex items-start gap-3">
+          <div class="grid place-items-center w-11 h-11 rounded-full bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300 text-sm font-bold shrink-0">
+            {{ avatarInitials(l.full_name) }}
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-start justify-between gap-2">
+              <div class="font-semibold text-slate-900 dark:text-slate-100 break-words">{{ l.full_name }}</div>
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ring-1 shrink-0"
+                    :class="statusPill(l.status)">
+                <span class="w-1.5 h-1.5 rounded-full" :class="statusDot(l.status)"></span>
+                {{ statusLabel(l.status) }}
+              </span>
+            </div>
+            <div class="mt-0.5 text-xs text-slate-500 dark:text-slate-400 inline-flex items-center gap-1 font-mono">
+              <Phone class="w-3 h-3" /> {{ formatPhone(l.phone) }}
+            </div>
+            <div class="mt-2 flex flex-wrap items-center gap-1.5">
+              <span v-if="l.stage_name"
+                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                    :style="{
+                      backgroundColor: hexToRgba(l.stage_color, 0.15),
+                      color: l.stage_color || '#475569',
+                    }">
+                <span class="w-1.5 h-1.5 rounded-full" :style="{ backgroundColor: l.stage_color || '#94a3b8' }"></span>
+                {{ l.stage_name }}
+              </span>
+              <span v-if="l.source_name"
+                    class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ring-1"
+                    :class="sourceTone(l.source_code)">
+                {{ l.source_name }}
+              </span>
+            </div>
+            <div v-if="l.program_name || l.branch_name" class="mt-1.5 text-xs text-slate-700 dark:text-slate-300 truncate">
+              {{ l.program_name || '—' }}<span v-if="l.branch_name" class="text-slate-400 dark:text-slate-500"> · {{ l.branch_name }}</span>
+            </div>
+            <div class="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-slate-400 dark:text-slate-500">
+              <span class="inline-flex items-center gap-1 truncate">
+                <span v-if="l.assigned_to_name" class="truncate">{{ l.assigned_to_name }}</span>
+                <span v-else class="italic">Biriktirilmagan</span>
+              </span>
+              <span class="shrink-0">{{ relTime(l.created_at) }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2" @click.stop>
+          <a :href="`tel:${l.phone}`"
+             class="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 active:bg-emerald-100 dark:active:bg-emerald-500/25">
+            <Phone class="w-3.5 h-3.5" /> Qo'ng'iroq
+          </a>
+          <RouterLink :to="`${panelPrefix}/leads/${l.id}`"
+                      class="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-brand-600 text-white">
+            <Eye class="w-3.5 h-3.5" /> Ochish
+          </RouterLink>
+        </div>
+      </li>
+    </ul>
+
+    <!-- Mobile pagination -->
+    <div v-if="items.length" class="md:hidden mt-3 flex items-center justify-between text-xs">
+      <span class="text-slate-500">{{ filters.page }} / {{ lastPage() }} · jami {{ total }}</span>
+      <div class="flex gap-2">
+        <button class="btn-outline btn-sm" :disabled="filters.page <= 1" @click="filters.page--">‹</button>
+        <button class="btn-outline btn-sm" :disabled="filters.page >= lastPage()" @click="filters.page++">›</button>
+      </div>
+    </div>
+
+    <!-- Table (>= md) -->
+    <div v-if="items.length" class="card hidden md:block">
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
           <thead>

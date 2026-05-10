@@ -289,6 +289,23 @@ class LeadService:
             comment=payload.comment.strip(),
         )
 
+    async def log_call(
+        self, lead_id: UUID, payload: LeadCommentCreate, *, actor_id: UUID | None,
+    ) -> LeadActivity:
+        """Record a phone-call activity. Same shape as add_comment but with
+        action='call' so the timeline can render it with a phone icon and
+        operators can filter their call history.
+        """
+        lead = await self.leads.get(lead_id)
+        if not lead:
+            raise NotFoundError("Lead not found")
+        lead.last_contact_at = _utcnow()
+        await self.session.flush()
+        return await self._activity(
+            lead_id=lead.id, user_id=actor_id, action="call",
+            comment=(payload.comment or "").strip() or None,
+        )
+
     # ------------------------------------------------------------------ #
     #  Schedule next contact (operator-side reminder / task)
     # ------------------------------------------------------------------ #

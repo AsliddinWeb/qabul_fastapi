@@ -291,7 +291,7 @@ void _unused
 
       <!-- Featured hero gradient + sparkline -->
       <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="relative overflow-hidden rounded-2xl p-5 text-white shadow-card md:col-span-2"
+        <div class="relative overflow-hidden rounded-2xl p-4 sm:p-5 text-white shadow-card md:col-span-2"
              style="background: linear-gradient(135deg, #3f56ef 0%, #5b6cf5 50%, #8b5cf6 100%);">
           <div class="absolute inset-0 opacity-30"
                style="background-image: radial-gradient(circle at 20% 100%, rgba(255,255,255,0.2) 0%, transparent 50%), radial-gradient(circle at 80% 0%, rgba(255,255,255,0.15) 0%, transparent 60%);"></div>
@@ -339,7 +339,7 @@ void _unused
         </div>
 
         <!-- Won this month with sparkline -->
-        <div class="card p-5 flex flex-col justify-between">
+        <div class="card p-4 sm:p-5 flex flex-col justify-between">
           <div>
             <div class="flex items-start justify-between gap-3 mb-1">
               <div class="text-sm font-medium text-slate-500 dark:text-slate-400">Bu oy yutilgan</div>

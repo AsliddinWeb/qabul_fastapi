@@ -144,8 +144,20 @@ export const contractsApi = {
 
   pdfUrl: (id: string) => `/api/v1/contracts/${id}/pdf`,
 
+  // Applicant-only PDF URL — works with `?token=<jwt>` so the same link
+  // can be used inside an <iframe> (no Authorization header path).
+  myPdfUrl: (id: string): string => {
+    const t = (typeof localStorage !== 'undefined' ? localStorage.getItem('access_token') : null) || ''
+    return `/api/v1/contracts/me/${id}/pdf${t ? `?token=${encodeURIComponent(t)}` : ''}`
+  },
+
   openPdf: async (id: string) => {
-    const res = await http.get(`/contracts/${id}/pdf`, { responseType: 'blob' })
+    // Applicant-self for /applicant/contracts pages, fall back to staff
+    // endpoint for admin pages. Detect by trying /me first.
+    const path = window.location.pathname.startsWith('/app/applicant/')
+      ? `/contracts/me/${id}/pdf`
+      : `/contracts/${id}/pdf`
+    const res = await http.get(path, { responseType: 'blob' })
     const blob = new Blob([res.data], { type: 'application/pdf' })
     const url = URL.createObjectURL(blob)
 

@@ -201,6 +201,22 @@ async function addComment() {
   finally { sending.value = false }
 }
 
+const loggingCall = ref(false)
+async function logCall() {
+  loggingCall.value = true
+  try {
+    await leadsApi.logCall(id.value, newComment.value.trim() || undefined)
+    newComment.value = ''
+    toast.success("Qo'ng'iroq qayd etildi")
+    await loadAll()
+  } catch (e) {
+    const ax = e as AxiosError<{ detail?: string }>
+    toast.error(ax.response?.data?.detail || "Xatolik")
+  } finally {
+    loggingCall.value = false
+  }
+}
+
 const showLose = ref(false)
 const loseForm = ref({ reason_id: '', comment: '' })
 async function loseLead() {
@@ -368,15 +384,15 @@ function statusPill(s: string): string {
 
     <!-- Hero — bigger, cleaner -->
     <section class="card overflow-hidden">
-      <div class="p-6 sm:p-7">
+      <div class="p-4 sm:p-7">
         <div class="flex flex-wrap items-start justify-between gap-5">
-          <div class="flex items-start gap-5 min-w-0">
-            <div class="grid place-items-center w-20 h-20 rounded-2xl bg-brand-600 text-white text-2xl font-bold shadow-md shrink-0">
+          <div class="flex items-start gap-3 sm:gap-5 min-w-0">
+            <div class="grid place-items-center w-14 h-14 sm:w-20 sm:h-20 rounded-xl sm:rounded-2xl bg-brand-600 text-white text-lg sm:text-2xl font-bold shadow-md shrink-0">
               {{ (lead.full_name.split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase()) }}
             </div>
             <div class="min-w-0">
-              <div class="flex flex-wrap items-center gap-2 mb-1.5">
-                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ring-1" :class="statusPill(lead.status)">
+              <div class="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1.5">
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full text-[11px] sm:text-xs font-semibold ring-1" :class="statusPill(lead.status)">
                   <span class="w-1.5 h-1.5 rounded-full"
                         :class="lead.status === 'open' ? 'bg-brand-500' : lead.status === 'won' ? 'bg-emerald-500' : 'bg-rose-500'"></span>
                   {{ lead.status === 'open' ? 'Faol lead' : lead.status === 'won' ? 'Yutilgan' : "Yo'qotilgan" }}
@@ -384,8 +400,8 @@ function statusPill(s: string): string {
                 <span v-if="lead.pipeline_name" class="pill">{{ lead.pipeline_name }}</span>
                 <span v-if="lead.stage_name" class="pill text-brand-700 bg-brand-50 dark:text-brand-300 dark:bg-brand-500/15">{{ lead.stage_name }}</span>
               </div>
-              <h1 class="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 break-words">{{ lead.full_name }}</h1>
-              <div v-if="lead.source_name" class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              <h1 class="text-xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 break-words leading-tight">{{ lead.full_name }}</h1>
+              <div v-if="lead.source_name" class="mt-1 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
                 Manba: <strong class="text-slate-700 dark:text-slate-300">{{ lead.source_name }}</strong>
               </div>
             </div>
@@ -467,7 +483,7 @@ function statusPill(s: string): string {
 
       <!-- Won banner -->
       <div v-if="lead.status === 'won' && lead.application_id"
-           class="px-6 py-4 bg-emerald-50 dark:bg-emerald-900/20 border-t border-emerald-200/70 dark:border-emerald-700/30 text-sm text-emerald-800 dark:text-emerald-300 flex items-center justify-between gap-3">
+           class="px-4 sm:px-6 py-3 sm:py-4 bg-emerald-50 dark:bg-emerald-900/20 border-t border-emerald-200/70 dark:border-emerald-700/30 text-sm text-emerald-800 dark:text-emerald-300 flex flex-wrap items-center justify-between gap-2 sm:gap-3">
         <span class="inline-flex items-center gap-2">
           <CheckCircle2 class="w-4 h-4 shrink-0" />
           Bu lead arizaga aylantirilgan.
@@ -480,7 +496,7 @@ function statusPill(s: string): string {
 
       <!-- Lost banner -->
       <div v-if="lead.status === 'lost'"
-           class="px-6 py-4 bg-rose-50 dark:bg-rose-900/20 border-t border-rose-200/70 dark:border-rose-700/30 text-sm text-rose-800 dark:text-rose-300">
+           class="px-4 sm:px-6 py-3 sm:py-4 bg-rose-50 dark:bg-rose-900/20 border-t border-rose-200/70 dark:border-rose-700/30 text-sm text-rose-800 dark:text-rose-300">
         <strong>Yo'qotildi.</strong> <span v-if="lead.lost_comment" class="opacity-90">Sabab: {{ lead.lost_comment }}</span>
       </div>
     </section>
@@ -507,7 +523,7 @@ function statusPill(s: string): string {
     </div>
 
     <!-- Existing applications for this phone (cross-reference card) -->
-    <section v-if="relatedApps.length > 0" class="card p-5 sm:p-6 mb-5 border-l-4 border-amber-400 dark:border-amber-500/70">
+    <section v-if="relatedApps.length > 0" class="card p-4 sm:p-6 border-l-4 border-amber-400 dark:border-amber-500/70">
       <div class="flex items-start gap-3 mb-4">
         <span class="grid place-items-center w-9 h-9 rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300 shrink-0">
           <FileText class="w-4 h-4" />
@@ -557,10 +573,10 @@ function statusPill(s: string): string {
       </ul>
     </section>
 
-    <div class="grid lg:grid-cols-3 gap-5">
+    <div class="grid lg:grid-cols-3 gap-4 sm:gap-5">
       <!-- LEFT: timeline + comment -->
-      <div class="lg:col-span-2 space-y-5">
-        <section class="card p-5 sm:p-6">
+      <div class="lg:col-span-2 space-y-4 sm:space-y-5">
+        <section class="card p-4 sm:p-6">
           <h2 class="font-semibold text-slate-900 dark:text-slate-100 mb-4 inline-flex items-center gap-2">
             <span class="grid place-items-center w-7 h-7 rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
               <Activity class="w-3.5 h-3.5" />
@@ -569,14 +585,23 @@ function statusPill(s: string): string {
             <span class="text-xs font-normal text-slate-400">({{ activities.length }})</span>
           </h2>
 
-          <!-- Add comment -->
+          <!-- Add comment / log call -->
           <div v-if="lead.status === 'open'" class="mb-5">
-            <div class="flex items-start gap-2">
-              <textarea v-model="newComment" rows="2" class="input flex-1 resize-none" placeholder="Izoh qoldiring — qo'ng'iroq, suhbat, kelishuvlar..."></textarea>
-              <button class="inline-flex items-center justify-center w-12 self-stretch rounded-lg bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:hover:bg-brand-600 text-white transition-colors"
-                      :disabled="sending || !newComment.trim()" @click="addComment" :title="'Yuborish'">
-                <Send class="w-4 h-4" />
+            <textarea v-model="newComment" rows="2" class="input w-full resize-none" placeholder="Izoh qoldiring — suhbat tafsilotlari, kelishuvlar..."></textarea>
+            <div class="mt-2 flex flex-wrap gap-2">
+              <button class="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:hover:bg-emerald-600 text-white shadow-sm transition-colors"
+                      :disabled="loggingCall" @click="logCall" title="Qo'ng'iroq qilganligingizni qayd etish">
+                <Phone class="w-4 h-4" />
+                {{ loggingCall ? 'Qayd etilmoqda...' : "Qo'ng'iroq qildim" }}
               </button>
+              <button class="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:hover:bg-brand-600 text-white shadow-sm transition-colors"
+                      :disabled="sending || !newComment.trim()" @click="addComment">
+                <Send class="w-4 h-4" />
+                {{ sending ? 'Yuborilmoqda...' : 'Izoh saqlash' }}
+              </button>
+              <span class="ml-auto self-center text-[11px] text-slate-400 dark:text-slate-500">
+                Izoh ixtiyoriy — bo'sh qoldirilsa ham qo'ng'iroq qayd etiladi
+              </span>
             </div>
           </div>
 
@@ -588,11 +613,13 @@ function statusPill(s: string): string {
                           : a.action === 'lose' ? 'ring-rose-500'
                           : a.action === 'sla_alert' ? 'ring-amber-500'
                           : a.action === 'stage_move' ? 'ring-brand-500'
+                          : a.action === 'call' ? 'ring-emerald-500'
                           : 'ring-slate-300 dark:ring-slate-700'">
                 <component :is="a.action === 'convert' ? CheckCircle2
                               : a.action === 'lose' ? XCircle
                               : a.action === 'sla_alert' ? Clock
                               : a.action === 'comment' ? MessageCircle
+                              : a.action === 'call' ? Phone
                               : a.action === 'stage_move' ? ArrowRight
                               : a.action === 'assign' ? UserIcon
                               : Activity"
@@ -601,6 +628,7 @@ function statusPill(s: string): string {
                                  : a.action === 'lose' ? 'text-rose-600'
                                  : a.action === 'sla_alert' ? 'text-amber-600'
                                  : a.action === 'stage_move' ? 'text-brand-600'
+                                 : a.action === 'call' ? 'text-emerald-600'
                                  : 'text-slate-500'" />
               </span>
               <div class="text-xs text-slate-500 dark:text-slate-400 inline-flex items-center gap-1.5 flex-wrap">
@@ -627,8 +655,8 @@ function statusPill(s: string): string {
       </div>
 
       <!-- RIGHT: actions + meta -->
-      <div class="space-y-5">
-        <section v-if="lead.status === 'open'" class="card p-5">
+      <div class="space-y-4 sm:space-y-5">
+        <section v-if="lead.status === 'open'" class="card p-4 sm:p-5">
           <div class="space-y-4">
             <div>
               <label class="field-label inline-flex items-center gap-1.5">
@@ -655,7 +683,7 @@ function statusPill(s: string): string {
         </section>
 
         <!-- Schedule next callback (operator + admin) -->
-        <section v-if="lead.status === 'open'" class="card p-5">
+        <section v-if="lead.status === 'open'" class="card p-4 sm:p-5">
           <div class="flex items-center justify-between mb-3">
             <h2 class="font-semibold text-slate-900 dark:text-slate-100 inline-flex items-center gap-2">
               <span class="grid place-items-center w-7 h-7 rounded-lg"
@@ -727,7 +755,7 @@ function statusPill(s: string): string {
           </div>
         </section>
 
-        <section class="card p-5">
+        <section class="card p-4 sm:p-5">
           <div class="flex items-center justify-between mb-4">
             <h2 class="font-semibold text-slate-900 dark:text-slate-100 inline-flex items-center gap-2">
               <span class="grid place-items-center w-7 h-7 rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">

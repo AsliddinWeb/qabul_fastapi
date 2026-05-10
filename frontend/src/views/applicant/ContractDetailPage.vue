@@ -115,6 +115,16 @@ const PARTY_LABELS: Record<string, string> = {
       </button>
     </PageHeader>
 
+    <!-- PDF preview -->
+    <section v-if="contract.pdf_file_id" class="card p-2 sm:p-3">
+      <iframe
+        :src="contractsApi.myPdfUrl(contract.id)"
+        class="w-full rounded-lg border border-slate-200 dark:border-slate-800"
+        style="height: 720px;"
+        title="Shartnoma PDF"
+      />
+    </section>
+
     <!-- Cancelled banner -->
     <div v-if="contract.status === 'cancelled'"
          class="card p-5 bg-rose-50 dark:bg-rose-500/10 border-rose-200 dark:border-rose-700/30 flex items-start gap-3">

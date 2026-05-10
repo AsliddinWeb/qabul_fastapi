@@ -591,6 +591,25 @@ async def add_comment(
 
 
 @router.post(
+    "/{lead_id}/call",
+    response_model=LeadActivityRead,
+    dependencies=[Depends(require_permission(Permission.LEADS_UPDATE))],
+)
+async def log_call(
+    lead_id: UUID,
+    payload: LeadCommentCreate,
+    current: CurrentUser = Depends(get_current_user),
+    svc: LeadService = Depends(_service),
+) -> LeadActivityRead:
+    """Log a phone-call activity. Operator clicks 'Qo'ng'iroq qildim' on the
+    lead card and optionally adds a note about the conversation."""
+    await svc.log_call(lead_id, payload, actor_id=UUID(current.user_id))
+    await svc.session.commit()
+    rows = await svc.activities.list_for_lead(lead_id)
+    return LeadActivityRead.model_validate(rows[-1])
+
+
+@router.post(
     "/{lead_id}/schedule",
     response_model=LeadRead,
     dependencies=[Depends(require_permission(Permission.LEADS_UPDATE))],

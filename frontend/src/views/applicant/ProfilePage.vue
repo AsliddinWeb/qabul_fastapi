@@ -7,6 +7,7 @@ import {
   ArrowRight, ArrowLeft, AlertCircle, CheckCircle2, Loader2, Lock,
 } from 'lucide-vue-next'
 import FileUpload from '@/components/ui/FileUpload.vue'
+import { fileUrl } from '@/utils/files'
 import {
   applicantsApi,
   type ApplicantBase,
@@ -99,6 +100,7 @@ const personal = reactive<ApplicantBase>({
   region_id: null, district_id: null,
   address: '', nationality: "O'zbek",
   additional_phone: '', email: null,
+  image_id: null as string | null,
 })
 const errors = ref<Record<string, string>>({})
 const savingProfile = ref(false)
@@ -403,6 +405,7 @@ async function loadInitial() {
       nationality: profile.value.nationality || "O'zbek",
       additional_phone: profile.value.additional_phone || '',
       email: profile.value.email || '',
+      image_id: profile.value.image_id || null,
     })
     if (profile.value.diplom) {
       Object.assign(diplom, {
@@ -541,6 +544,22 @@ onMounted(async () => {
         <UserIcon class="w-5 h-5 text-brand-600" />
         <h2 class="font-semibold text-slate-900 dark:text-slate-100">Shaxsiy ma'lumotlar va pasport</h2>
       </header>
+
+      <!-- Profile photo -->
+      <div class="flex items-start gap-4 pb-2 border-b border-slate-100 dark:border-slate-800">
+        <div class="grid place-items-center w-20 h-20 rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-800 ring-1 ring-slate-200/60 dark:ring-slate-700/40 shrink-0">
+          <img v-if="personal.image_id" :src="fileUrl(personal.image_id)!"
+               class="w-full h-full object-cover" alt="Profil rasmi" />
+          <UserIcon v-else class="w-8 h-8 text-slate-400" />
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Profil rasmi</div>
+          <FileUpload :model-value="personal.image_id ?? null"
+                      @update:model-value="(v: string | null) => personal.image_id = v"
+                      subdir="applicant-photos"
+                      hint="Ixtiyoriy. Rasm 3x4 yoki shunchaki yuz ko'rinishi (PDF emas)." />
+        </div>
+      </div>
 
       <div class="grid sm:grid-cols-2 gap-4">
         <div>

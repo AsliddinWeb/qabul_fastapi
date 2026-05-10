@@ -333,6 +333,65 @@ def _pdf_disposition(filename: str) -> str:
 
 
 @router.get(
+    "/me/{contract_id}/pdf",
+)
+async def my_contract_pdf(
+    contract_id: UUID,
+    request: Request,
+    token: str | None = None,
+    session: AsyncSession = Depends(get_db),
+) -> Response:
+    """Stream PDF of an applicant's own contract.
+
+    Auth: Authorization header OR `?token=<jwt>` (so the URL works inside
+    a plain <iframe> / new tab). Ownership is enforced by walking
+    contract -> application -> applicant -> user.
+    """
+    from sqlalchemy import select as _select
+    from app.modules.applicants.models import Applicant
+    from app.modules.applications.models import Application
+    from app.modules.contracts.models import Contract
+    from app.core.security import decode_token
+    from app.core.exceptions import UnauthorizedError, ForbiddenError
+
+    auth_header = request.headers.get("authorization") or request.headers.get("Authorization")
+    jwt_str: str | None = None
+    if auth_header and auth_header.lower().startswith("bearer "):
+        jwt_str = auth_header.split(" ", 1)[1].strip()
+    elif token:
+        jwt_str = token
+    if not jwt_str:
+        raise UnauthorizedError("Missing authorization (header or ?token=)")
+    try:
+        payload = decode_token(jwt_str)
+    except ValueError as exc:
+        raise UnauthorizedError("Invalid or expired token") from exc
+    if payload.get("type") != "access":
+        raise UnauthorizedError("Wrong token type")
+    user_id = UUID(payload["sub"])
+
+    owns = await session.scalar(
+        _select(Contract.id)
+        .join(Application, Application.id == Contract.application_id)
+        .join(Applicant, Applicant.id == Application.applicant_id)
+        .where(Contract.id == contract_id, Applicant.user_id == user_id)
+    )
+    if not owns:
+        raise ForbiddenError("Bu shartnoma sizniki emas")
+
+    svc = ContractsService(session)
+    pdf_bytes, filename = await svc.get_pdf_bytes(contract_id)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": _pdf_disposition(filename),
+            "Cache-Control": "private, no-cache",
+        },
+    )
+
+
+@router.get(
     "/{contract_id}/pdf",
     dependencies=[Depends(require_permission(Permission.CONTRACTS_READ))],
 )
