@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import {
   CreditCard, Search, Download, Filter as FilterIcon, X as XIcon,
   TrendingUp, Building2, Calendar, AlertTriangle, Wallet,
@@ -20,6 +20,7 @@ import SearchSelect from '@/components/ui/SearchSelect.vue'
 import { PAYMENT_STATUS, tr } from '@/utils/labels'
 
 const router = useRouter()
+const route = useRoute()
 const toast = useToast()
 
 const items = ref<PaymentRead[]>([])
@@ -105,7 +106,24 @@ watch(() => [filters.status, filters.payment_method_id, filters.date_from, filte
 watch(() => filters.page, loadList)
 
 onMounted(async () => {
-  thisMonthRange()
+  // Allow deep-linking from the dashboard:
+  //   ?preset=today          → today only
+  //   ?preset=month          → current month (default)
+  //   ?status=pending        → status filter
+  //   ?date_from=&date_to=   → explicit range (yyyy-mm-dd)
+  const q = route.query
+  if (typeof q.preset === 'string') {
+    if (q.preset === 'today') presetToday()
+    else if (q.preset === '30d') presetLast30()
+    else thisMonthRange()
+  } else if (typeof q.date_from === 'string' || typeof q.date_to === 'string') {
+    if (typeof q.date_from === 'string') filters.date_from = q.date_from
+    if (typeof q.date_to === 'string') filters.date_to = q.date_to
+  } else {
+    thisMonthRange()
+  }
+  if (typeof q.status === 'string') filters.status = q.status as PaymentStatus
+  if (typeof q.payment_method_id === 'string') filters.payment_method_id = q.payment_method_id
   methods.value = await dictionariesApi.items('payment_methods').catch(() => [])
   await loadAll()
 })

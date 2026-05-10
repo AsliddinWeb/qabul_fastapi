@@ -230,7 +230,7 @@ function statusTone(s: PaymentStatus): string {
     </PageHeader>
 
     <!-- Contract balance summary -->
-    <section class="card p-5 sm:p-6">
+    <section class="card p-4 sm:p-6">
       <div class="flex flex-wrap items-start justify-between gap-4 mb-4">
         <div>
           <h2 class="font-semibold text-slate-900 dark:text-slate-100 inline-flex items-center gap-2">
@@ -286,7 +286,7 @@ function statusTone(s: PaymentStatus): string {
     </section>
 
     <!-- New payment form -->
-    <section v-if="contract.status !== 'cancelled'" class="card p-5 sm:p-6">
+    <section v-if="contract.status !== 'cancelled'" class="card p-4 sm:p-6">
       <div class="flex items-center gap-2 mb-4">
         <span class="grid place-items-center w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
           <Plus class="w-4 h-4" />
@@ -349,7 +349,7 @@ function statusTone(s: PaymentStatus): string {
 
     <!-- Payments list -->
     <section class="card overflow-hidden">
-      <div class="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+      <div class="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
         <div class="flex items-center gap-3">
           <span class="grid place-items-center w-8 h-8 rounded-lg bg-violet-50 text-violet-600 dark:bg-violet-500/15 dark:text-violet-300">
             <Receipt class="w-4 h-4" />
@@ -366,7 +366,7 @@ function statusTone(s: PaymentStatus): string {
       </div>
 
       <ul v-else class="divide-y divide-slate-100 dark:divide-slate-800/60">
-        <li v-for="p in payments" :key="p.id" class="p-4 sm:p-5 flex flex-wrap items-start gap-4">
+        <li v-for="p in payments" :key="p.id" class="p-3 sm:p-5 flex flex-wrap items-start gap-3 sm:gap-4">
           <span class="grid place-items-center w-10 h-10 rounded-xl shrink-0 ring-1"
                 :class="statusTone(p.status)">
             <CheckCircle2 v-if="p.status === 'confirmed'" class="w-4 h-4" />

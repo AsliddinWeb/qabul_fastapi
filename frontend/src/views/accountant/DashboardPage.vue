@@ -135,24 +135,28 @@ const greetName = computed(() => {
 
     <template v-else-if="data">
       <!-- KPI tiles -->
-      <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard
-          label="Bugun qabul qilingan"
-          :value="`${fmtMoney(data.today_sum)} so'm`"
-          :icon="CreditCard"
-          tone="emerald"
-          :hint="`${data.today_count} ta tasdiqlangan to'lov`"
-        />
-        <StatCard
-          label="Bu oy aylanma"
-          :value="`${fmtMoney(data.month_sum)} so'm`"
-          :icon="Wallet"
-          tone="brand"
-          :trend="monthDelta"
-          trend-hint="vs o'tgan oy"
-          :hint="`${data.month_count} ta to'lov`"
-        />
-        <RouterLink to="/accountant/contracts" class="block">
+      <section class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
+        <RouterLink to="/accountant/payments?preset=today&status=confirmed" class="block">
+          <StatCard
+            label="Bugun qabul qilingan"
+            :value="`${fmtMoney(data.today_sum)} so'm`"
+            :icon="CreditCard"
+            tone="emerald"
+            :hint="`${data.today_count} ta tasdiqlangan to'lov`"
+          />
+        </RouterLink>
+        <RouterLink to="/accountant/payments?preset=month&status=confirmed" class="block">
+          <StatCard
+            label="Bu oy aylanma"
+            :value="`${fmtMoney(data.month_sum)} so'm`"
+            :icon="Wallet"
+            tone="brand"
+            :trend="monthDelta"
+            trend-hint="vs o'tgan oy"
+            :hint="`${data.month_count} ta to'lov`"
+          />
+        </RouterLink>
+        <RouterLink to="/accountant/payments?status=pending" class="block">
           <StatCard
             label="Kutilayotgan to'lovlar"
             :value="data.pending_count"
@@ -161,17 +165,19 @@ const greetName = computed(() => {
             :hint="`${fmtMoney(data.pending_sum)} so'm tasdiqlash kutmoqda`"
           />
         </RouterLink>
-        <StatCard
-          label="Umumiy qarz"
-          :value="`${fmtMoney(data.outstanding_total)} so'm`"
-          :icon="AlertTriangle"
-          :tone="Number(data.outstanding_total) > 0 ? 'rose' : 'slate'"
-          hint="Barcha shartnomalar bo'yicha qoldiq"
-        />
+        <RouterLink to="/accountant/contracts?payment_status=unpaid" class="block">
+          <StatCard
+            label="Umumiy qarz"
+            :value="`${fmtMoney(data.outstanding_total)} so'm`"
+            :icon="AlertTriangle"
+            :tone="Number(data.outstanding_total) > 0 ? 'rose' : 'slate'"
+            hint="To'lanmagan shartnomalarni ko'rish"
+          />
+        </RouterLink>
       </section>
 
       <!-- Monthly trend chart -->
-      <section class="card p-5 sm:p-6">
+      <section class="card p-4 sm:p-6">
         <div class="flex items-center justify-between mb-4">
           <div>
             <h2 class="font-semibold text-slate-900 dark:text-slate-100">6 oylik aylanma trendi</h2>
@@ -192,7 +198,7 @@ const greetName = computed(() => {
 
       <!-- Top debtors -->
       <section class="card overflow-hidden">
-        <div class="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800">
+        <div class="flex items-center justify-between p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800">
           <div class="flex items-center gap-3 min-w-0">
             <span class="grid place-items-center w-9 h-9 rounded-xl bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-300 shrink-0">
               <AlertTriangle class="w-4 h-4" />
