@@ -95,7 +95,7 @@ const monthlyChart = computed(() => {
           },
         },
       },
-    },
+    } as any,
   }
 })
 
