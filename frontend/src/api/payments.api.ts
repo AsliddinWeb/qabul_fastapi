@@ -26,6 +26,7 @@ export interface PaymentCreatePayload {
   payment_method_id: string
   reference?: string | null
   notes?: string | null
+  receipt_file_id?: string | null
 }
 
 export interface PaymentConfirmPayload {

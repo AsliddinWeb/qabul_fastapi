@@ -1,182 +1,424 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { AxiosError } from 'axios'
-import { CreditCard } from 'lucide-vue-next'
+import {
+  ArrowLeft, CreditCard, FileText, CheckCircle2, XCircle, RotateCcw,
+  Plus, Receipt, Wallet, AlertTriangle, Paperclip, Calendar,
+} from 'lucide-vue-next'
 import { contractsApi, type ContractDetailed } from '@/api/contracts.api'
-import { paymentsApi, type PaymentRead } from '@/api/payments.api'
-import { staffApi } from '@/api/staff.api'
+import { paymentsApi, type PaymentRead, type PaymentStatus } from '@/api/payments.api'
 import { dictionariesApi, type DictionaryItem } from '@/api/dictionaries.api'
+import { useToast } from '@/composables/useToast'
+import { useConfirm } from '@/composables/useConfirm'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
+import PageHeader from '@/components/ui/PageHeader.vue'
+import FileUpload from '@/components/ui/FileUpload.vue'
+import { fileUrl } from '@/utils/files'
+import { PAYMENT_STATUS, CONTRACT_STATUS, tr } from '@/utils/labels'
 
 const route = useRoute()
 const router = useRouter()
-const applicationId = computed(() => route.params.id as string)
+const toast = useToast()
+const { ask } = useConfirm()
+
+const contractId = computed(() => route.params.contractId as string)
 
 const contract = ref<ContractDetailed | null>(null)
 const payments = ref<PaymentRead[]>([])
 const methods = ref<DictionaryItem[]>([])
 const loading = ref(true)
-const error = ref<string | null>(null)
 
 const newPayment = reactive({
-  amount: '',
-  payment_method_id: '',
-  reference: '',
-  notes: '',
+  amount: '' as string,
+  payment_method_id: '' as string,
+  reference: '' as string,
+  notes: '' as string,
+  paid_at: '' as string,
+  receipt_file_id: null as string | null,
 })
+const formError = ref<string | null>(null)
+const submitting = ref(false)
 
-async function load() {
+async function loadAll() {
   loading.value = true
   try {
-    methods.value = await dictionariesApi.items('payment_methods')
-    const application = await staffApi.applications.get(applicationId.value)
-
-    // Backend doesn't expose "contract by application" directly — try to get one
-    // by listing payments via contract id stored on the application's contract.
-    // Since we don't have that endpoint, we rely on the operator having created
-    // a contract; we can list payments only if we know contract_id. For demo
-    // purposes, attempt to find a contract via the staff applications API.
-    // (Phase 12 may add /contracts?application_id= filter.)
-    void application
-    error.value = "Ushbu ariza uchun shartnoma bog'lanmagan yoki API filterlash hali yo'q. Operator ko'rinishidan shartnomani oching va u yerdan to'lov yarating."
+    const [c, ps, ms] = await Promise.all([
+      contractsApi.get(contractId.value),
+      paymentsApi.forContract(contractId.value),
+      dictionariesApi.items('payment_methods').catch(() => []),
+    ])
+    contract.value = c
+    payments.value = ps
+    methods.value = ms
+    // Pre-fill amount with the remaining balance for convenience
+    const balance = Number(c.total_amount) - Number(c.paid_amount)
+    newPayment.amount = balance > 0 ? String(balance) : ''
   } catch (e) {
-    const ax = e as AxiosError<{ error?: { message?: string } }>
-    error.value = ax.response?.data?.error?.message || "Yuklashda xatolik"
+    const ax = e as AxiosError<{ detail?: string }>
+    toast.error(ax.response?.data?.detail || "Yuklab bo'lmadi")
   } finally {
     loading.value = false
   }
 }
 
-async function loadFromContract(contractId: string) {
-  contract.value = await contractsApi.get(contractId)
-  payments.value = await paymentsApi.forContract(contractId)
-}
+onMounted(loadAll)
 
+// === Derived ===
+const balance = computed(() => {
+  if (!contract.value) return 0
+  return Number(contract.value.total_amount) - Number(contract.value.paid_amount)
+})
+const progressPercent = computed(() => {
+  if (!contract.value) return 0
+  const total = Number(contract.value.total_amount) || 0
+  if (total <= 0) return 0
+  return Math.min(100, Math.round((Number(contract.value.paid_amount) / total) * 100))
+})
+const paymentTone = computed<'paid' | 'partial' | 'unpaid'>(() => {
+  if (!contract.value) return 'unpaid'
+  const total = Number(contract.value.total_amount) || 0
+  const paid = Number(contract.value.paid_amount) || 0
+  if (paid >= total && total > 0) return 'paid'
+  if (paid > 0) return 'partial'
+  return 'unpaid'
+})
+
+// === Actions ===
 async function submitPayment() {
+  formError.value = null
   if (!contract.value) return
-  if (!newPayment.amount || !newPayment.payment_method_id) {
-    error.value = "Summa va to'lov turini kiriting"
+  const amount = Number(newPayment.amount)
+  if (!amount || amount <= 0) {
+    formError.value = "Summa noto'g'ri yoki bo'sh"
     return
   }
+  if (!newPayment.payment_method_id) {
+    formError.value = "To'lov turini tanlang"
+    return
+  }
+  submitting.value = true
   try {
     await paymentsApi.create({
       contract_id: contract.value.id,
       amount: newPayment.amount,
       payment_method_id: newPayment.payment_method_id,
-      reference: newPayment.reference || null,
-      notes: newPayment.notes || null,
+      reference: newPayment.reference.trim() || null,
+      notes: newPayment.notes.trim() || null,
+      receipt_file_id: newPayment.receipt_file_id,
     })
-    Object.assign(newPayment, { amount: '', payment_method_id: '', reference: '', notes: '' })
-    payments.value = await paymentsApi.forContract(contract.value.id)
+    toast.success("To'lov yaratildi (kutilayotgan holatda). Tasdiqlash kerak.")
+    Object.assign(newPayment, {
+      amount: '', payment_method_id: '', reference: '', notes: '',
+      paid_at: '', receipt_file_id: null,
+    })
+    await loadAll()
   } catch (e) {
-    const ax = e as AxiosError<{ error?: { message?: string } }>
-    error.value = ax.response?.data?.error?.message || 'Xatolik'
+    const ax = e as AxiosError<{ detail?: string; error?: { message?: string } }>
+    formError.value = ax.response?.data?.detail
+      || ax.response?.data?.error?.message
+      || "Saqlab bo'lmadi"
+  } finally {
+    submitting.value = false
   }
+}
+
+function fillBalance() {
+  newPayment.amount = balance.value > 0 ? String(balance.value) : '0'
 }
 
 async function confirmPayment(p: PaymentRead) {
-  await paymentsApi.confirm(p.id)
-  if (contract.value) payments.value = await paymentsApi.forContract(contract.value.id)
+  const ok = await ask({
+    title: "To'lovni tasdiqlash",
+    message: `${fmtMoney(p.amount)} ${p.currency} miqdoridagi to'lov tasdiqlansinmi?`,
+    confirmLabel: "Tasdiqlash",
+    tone: 'primary',
+  })
+  if (!ok) return
+  try {
+    await paymentsApi.confirm(p.id)
+    toast.success("Tasdiqlandi")
+    await loadAll()
+  } catch (e) {
+    const ax = e as AxiosError<{ detail?: string }>
+    toast.error(ax.response?.data?.detail || "Xatolik")
+  }
 }
 
 async function failPayment(p: PaymentRead) {
-  const r = prompt('Sabab (ixtiyoriy):')
-  if (r === null) return
-  await paymentsApi.fail(p.id, r || undefined)
-  if (contract.value) payments.value = await paymentsApi.forContract(contract.value.id)
+  const reason = window.prompt("Sabab (ixtiyoriy):") || ''
+  const ok = await ask({
+    title: "Bajarilmagan deb belgilash",
+    message: `${fmtMoney(p.amount)} ${p.currency} bajarilmagan deb belgilansinmi?`,
+    confirmLabel: "Tasdiqlash",
+    tone: 'danger',
+  })
+  if (!ok) return
+  try {
+    await paymentsApi.fail(p.id, reason || undefined)
+    toast.success("Belgilandi")
+    await loadAll()
+  } catch (e) {
+    const ax = e as AxiosError<{ detail?: string }>
+    toast.error(ax.response?.data?.detail || "Xatolik")
+  }
 }
 
 async function refundPayment(p: PaymentRead) {
-  const r = prompt('Sabab (ixtiyoriy):')
-  if (r === null) return
-  await paymentsApi.refund(p.id, r || undefined)
-  if (contract.value) payments.value = await paymentsApi.forContract(contract.value.id)
+  const reason = window.prompt("Qaytarish sababi:") || ''
+  const ok = await ask({
+    title: "Qaytarish",
+    message: `${fmtMoney(p.amount)} ${p.currency} qaytarilsinmi?`,
+    confirmLabel: "Qaytarish",
+    tone: 'danger',
+  })
+  if (!ok) return
+  try {
+    await paymentsApi.refund(p.id, reason || undefined)
+    toast.success("Qaytarildi")
+    await loadAll()
+  } catch (e) {
+    const ax = e as AxiosError<{ detail?: string }>
+    toast.error(ax.response?.data?.detail || "Xatolik")
+  }
 }
 
-onMounted(async () => {
-  // Direct mode: if route is /accountant/contracts/:contractId/payments, load by contract.
-  if (route.params.contractId) {
-    loading.value = true
-    try {
-      await loadFromContract(route.params.contractId as string)
-    } finally {
-      loading.value = false
-    }
-  } else {
-    await load()
-  }
-})
+// === Helpers ===
+function fmtMoney(v: string | number): string {
+  const n = typeof v === 'string' ? Number(v) : v
+  if (!Number.isFinite(n)) return '0'
+  return Math.round(n).toLocaleString('uz-UZ')
+}
+function fmtDate(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleString('uz-UZ', {
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  })
+}
+function methodName(id: string): string {
+  return methods.value.find(m => m.id === id)?.name_uz || '—'
+}
+function statusTone(s: PaymentStatus): string {
+  return s === 'confirmed'
+    ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300'
+    : s === 'pending'
+      ? 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300'
+      : s === 'refunded'
+        ? 'bg-violet-50 text-violet-700 ring-violet-200 dark:bg-violet-500/10 dark:text-violet-300'
+        : 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-500/10 dark:text-rose-300'
+}
 </script>
 
 <template>
-  <div class="space-y-6">
-    <button class="text-sm text-brand-600 hover:underline" @click="router.back()">‹ Ortga</button>
+  <Skeleton v-if="loading" type="detail" />
 
-    <Skeleton v-if="loading" type="list" />
+  <div v-else-if="contract" class="space-y-5">
+    <PageHeader
+      :title="`Shartnoma ${contract.contract_number}`"
+      :subtitle="`Turi: ${contract.type === 'three_party' ? 'Uch tomonlama' : 'Ikki tomonlama'} · ${tr(CONTRACT_STATUS, contract.status)}`"
+      :crumbs="[
+        { label: 'Bosh sahifa', to: '/accountant' },
+        { label: 'Shartnomalar', to: '/accountant/contracts' },
+        { label: contract.contract_number },
+      ]"
+    >
+      <button class="btn-ghost" @click="router.back()">
+        <ArrowLeft class="w-4 h-4" /> Ortga
+      </button>
+    </PageHeader>
 
-    <template v-else-if="contract">
-      <div>
-        <h1 class="text-2xl font-bold">Shartnoma {{ contract.contract_number }}</h1>
-        <p class="text-sm text-slate-500">
-          Jami: {{ Number(contract.total_amount).toLocaleString('uz-UZ') }} {{ contract.currency }} ·
-          To'langan: {{ Number(contract.paid_amount).toLocaleString('uz-UZ') }} {{ contract.currency }}
-        </p>
+    <!-- Contract balance summary -->
+    <section class="card p-5 sm:p-6">
+      <div class="flex flex-wrap items-start justify-between gap-4 mb-4">
+        <div>
+          <h2 class="font-semibold text-slate-900 dark:text-slate-100 inline-flex items-center gap-2">
+            <span class="grid place-items-center w-8 h-8 rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
+              <Wallet class="w-4 h-4" />
+            </span>
+            To'lov holati
+          </h2>
+        </div>
+        <StatusBadge :status="contract.status" :label="tr(CONTRACT_STATUS, contract.status)" />
       </div>
 
-      <div v-if="error" class="text-sm rounded-lg p-3 bg-red-50 text-red-700">{{ error }}</div>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+        <div class="rounded-xl p-3 ring-1 ring-slate-200/70 dark:ring-slate-700/40 bg-slate-50/50 dark:bg-slate-800/30">
+          <div class="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">Jami summa</div>
+          <div class="mt-1 text-xl font-bold tabular-nums text-slate-900 dark:text-slate-100">{{ fmtMoney(contract.total_amount) }} <span class="text-sm font-normal text-slate-500">{{ contract.currency }}</span></div>
+        </div>
+        <div class="rounded-xl p-3 ring-1 ring-emerald-200/70 dark:ring-emerald-700/40 bg-emerald-50/50 dark:bg-emerald-500/10">
+          <div class="text-[10px] uppercase tracking-wider text-emerald-700 dark:text-emerald-300 font-semibold">To'langan</div>
+          <div class="mt-1 text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-300">{{ fmtMoney(contract.paid_amount) }} <span class="text-sm font-normal opacity-70">{{ contract.currency }}</span></div>
+        </div>
+        <div class="rounded-xl p-3 ring-1"
+             :class="paymentTone === 'paid'
+               ? 'ring-emerald-200/70 dark:ring-emerald-700/40 bg-emerald-50/50 dark:bg-emerald-500/10'
+               : 'ring-rose-200/70 dark:ring-rose-700/40 bg-rose-50/50 dark:bg-rose-500/10'">
+          <div class="text-[10px] uppercase tracking-wider font-semibold"
+               :class="paymentTone === 'paid' ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'">
+            Qoldiq
+          </div>
+          <div class="mt-1 text-xl font-bold tabular-nums"
+               :class="paymentTone === 'paid' ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'">
+            {{ fmtMoney(balance) }} <span class="text-sm font-normal opacity-70">{{ contract.currency }}</span>
+          </div>
+        </div>
+      </div>
 
-      <section class="card p-5">
-        <h2 class="font-semibold mb-3">Yangi to'lov qo'shish</h2>
-        <div class="grid sm:grid-cols-5 gap-2">
-          <input v-model="newPayment.amount" type="number" step="0.01" class="input" placeholder="Summa *" />
+      <!-- Progress bar -->
+      <div class="flex items-center gap-3">
+        <div class="flex-1 h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+          <div class="h-full transition-all"
+               :class="paymentTone === 'paid' ? 'bg-emerald-500'
+                     : paymentTone === 'partial' ? 'bg-amber-500'
+                     : 'bg-rose-500'"
+               :style="{ width: progressPercent + '%' }"></div>
+        </div>
+        <span class="text-sm font-bold tabular-nums shrink-0"
+              :class="paymentTone === 'paid' ? 'text-emerald-600 dark:text-emerald-400'
+                    : paymentTone === 'partial' ? 'text-amber-600 dark:text-amber-400'
+                    : 'text-rose-600 dark:text-rose-400'">
+          {{ progressPercent }}%
+        </span>
+      </div>
+    </section>
+
+    <!-- New payment form -->
+    <section v-if="contract.status !== 'cancelled'" class="card p-5 sm:p-6">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="grid place-items-center w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
+          <Plus class="w-4 h-4" />
+        </span>
+        <h2 class="font-semibold text-slate-900 dark:text-slate-100">Yangi to'lov qo'shish</h2>
+      </div>
+
+      <div v-if="formError" class="mb-3 text-sm rounded-lg p-3 bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300 inline-flex items-center gap-2">
+        <AlertTriangle class="w-4 h-4 shrink-0" /> {{ formError }}
+      </div>
+
+      <div class="grid sm:grid-cols-2 gap-3">
+        <div>
+          <label class="field-label">Summa <span class="text-rose-500">*</span></label>
+          <div class="relative">
+            <input v-model="newPayment.amount" type="number" min="0" step="0.01"
+                   class="input pr-24 font-mono" placeholder="0" />
+            <button v-if="balance > 0" type="button"
+                    class="absolute right-1.5 top-1/2 -translate-y-1/2 text-[11px] font-semibold px-2 py-1 rounded-md bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-500/25 transition"
+                    @click="fillBalance">
+              Qoldiq: {{ fmtMoney(balance) }}
+            </button>
+          </div>
+          <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+            Joriy qoldiq <strong>{{ fmtMoney(balance) }} {{ contract.currency }}</strong>. Bosib avto-to'ldirish.
+          </p>
+        </div>
+        <div>
+          <label class="field-label">To'lov turi <span class="text-rose-500">*</span></label>
           <select v-model="newPayment.payment_method_id" class="input">
-            <option value="">To'lov turi *</option>
+            <option value="">— tanlang —</option>
             <option v-for="m in methods" :key="m.id" :value="m.id">{{ m.name_uz }}</option>
           </select>
-          <input v-model="newPayment.reference" class="input" placeholder="Tranzaksiya №" />
-          <input v-model="newPayment.notes" class="input" placeholder="Izoh" />
-          <button class="btn-primary" @click="submitPayment">Qo'shish</button>
         </div>
-      </section>
+        <div>
+          <label class="field-label">Tranzaksiya / chek raqami</label>
+          <input v-model="newPayment.reference" class="input font-mono" placeholder="Masalan: TR-2026-001234" />
+        </div>
+        <div>
+          <label class="field-label">Izoh</label>
+          <input v-model="newPayment.notes" class="input" placeholder="Qo'shimcha izoh..." />
+        </div>
+        <div class="sm:col-span-2">
+          <label class="field-label inline-flex items-center gap-1">
+            <Paperclip class="w-3 h-3" /> Chek (rasm yoki PDF, ixtiyoriy)
+          </label>
+          <FileUpload :model-value="newPayment.receipt_file_id"
+                      @update:model-value="(v: string | null) => newPayment.receipt_file_id = v"
+                      subdir="payment-receipts"
+                      hint="To'lov chekining nusxasini yuklang." />
+        </div>
+      </div>
 
-      <section class="card overflow-hidden">
-        <table class="w-full text-sm">
-          <thead class="bg-slate-50 text-left">
-            <tr>
-              <th class="px-4 py-3">Raqam</th>
-              <th class="px-4 py-3">Summa</th>
-              <th class="px-4 py-3">Status</th>
-              <th class="px-4 py-3">Tranzaksiya</th>
-              <th class="px-4 py-3"></th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-slate-100">
-            <tr v-for="p in payments" :key="p.id">
-              <td class="px-4 py-2 font-mono text-xs">{{ p.payment_number }}</td>
-              <td class="px-4 py-2">{{ Number(p.amount).toLocaleString('uz-UZ') }}</td>
-              <td class="px-4 py-2"><StatusBadge :status="p.status" /></td>
-              <td class="px-4 py-2 text-xs text-slate-500">{{ p.reference || '—' }}</td>
-              <td class="px-4 py-2 text-right space-x-3">
-                <button v-if="p.status === 'pending'" class="text-xs text-green-600 hover:underline" @click="confirmPayment(p)">
-                  Tasdiqlash
-                </button>
-                <button v-if="p.status === 'pending'" class="text-xs text-red-600 hover:underline" @click="failPayment(p)">
-                  Rad
-                </button>
-                <button v-if="p.status === 'confirmed'" class="text-xs text-amber-600 hover:underline" @click="refundPayment(p)">
-                  Qaytarish
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <EmptyState v-if="!payments.length" :icon="CreditCard" title="To'lovlar yo'q" />
-      </section>
-    </template>
+      <div class="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
+        <button class="btn-primary" :disabled="submitting" @click="submitPayment">
+          <Plus class="w-4 h-4" /> {{ submitting ? 'Saqlanmoqda...' : "To'lov qo'shish" }}
+        </button>
+      </div>
+    </section>
 
-    <div v-else-if="error" class="card p-6 text-sm text-slate-600">{{ error }}</div>
+    <!-- Payments list -->
+    <section class="card overflow-hidden">
+      <div class="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <span class="grid place-items-center w-8 h-8 rounded-lg bg-violet-50 text-violet-600 dark:bg-violet-500/15 dark:text-violet-300">
+            <Receipt class="w-4 h-4" />
+          </span>
+          <div>
+            <h2 class="font-semibold text-slate-900 dark:text-slate-100">To'lov tarixi</h2>
+            <p class="text-xs text-slate-500 dark:text-slate-400">{{ payments.length }} ta yozuv</p>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="!payments.length" class="p-12">
+        <EmptyState :icon="CreditCard" title="Hali to'lovlar yo'q" subtitle="Yuqoridagi formani to'ldiring" />
+      </div>
+
+      <ul v-else class="divide-y divide-slate-100 dark:divide-slate-800/60">
+        <li v-for="p in payments" :key="p.id" class="p-4 sm:p-5 flex flex-wrap items-start gap-4">
+          <span class="grid place-items-center w-10 h-10 rounded-xl shrink-0 ring-1"
+                :class="statusTone(p.status)">
+            <CheckCircle2 v-if="p.status === 'confirmed'" class="w-4 h-4" />
+            <Calendar v-else-if="p.status === 'pending'" class="w-4 h-4" />
+            <RotateCcw v-else-if="p.status === 'refunded'" class="w-4 h-4" />
+            <XCircle v-else class="w-4 h-4" />
+          </span>
+          <div class="flex-1 min-w-0">
+            <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <span class="font-semibold text-slate-900 dark:text-slate-100 text-base tabular-nums">
+                {{ fmtMoney(p.amount) }} <span class="text-xs font-normal text-slate-500">{{ p.currency }}</span>
+              </span>
+              <span class="font-mono text-[11px] text-slate-400 dark:text-slate-500">{{ p.payment_number }}</span>
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ring-1"
+                    :class="statusTone(p.status)">
+                {{ tr(PAYMENT_STATUS, p.status) }}
+              </span>
+            </div>
+            <div class="mt-1 text-xs text-slate-600 dark:text-slate-400 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+              <span class="inline-flex items-center gap-1">
+                <CreditCard class="w-3 h-3" /> {{ methodName(p.payment_method_id) }}
+              </span>
+              <span v-if="p.reference" class="font-mono">№ {{ p.reference }}</span>
+              <span class="text-slate-400 dark:text-slate-500">·</span>
+              <span class="inline-flex items-center gap-1">
+                <Calendar class="w-3 h-3" /> {{ p.paid_at ? fmtDate(p.paid_at) : `Yaratilgan: ${fmtDate(p.created_at)}` }}
+              </span>
+            </div>
+            <p v-if="p.notes" class="mt-2 text-xs text-slate-500 dark:text-slate-400 italic">{{ p.notes }}</p>
+            <a v-if="p.receipt_file_id" :href="fileUrl(p.receipt_file_id) || '#'" target="_blank" rel="noopener"
+               class="mt-2 inline-flex items-center gap-1.5 text-[11px] font-medium text-brand-600 dark:text-brand-300 hover:underline">
+              <FileText class="w-3 h-3" /> Chekni ochish
+            </a>
+          </div>
+          <div class="flex items-center gap-2 shrink-0">
+            <button v-if="p.status === 'pending'" class="btn-outline btn-sm text-emerald-600" @click="confirmPayment(p)">
+              <CheckCircle2 class="w-3.5 h-3.5" /> Tasdiqlash
+            </button>
+            <button v-if="p.status === 'pending'" class="btn-outline btn-sm text-rose-600" @click="failPayment(p)">
+              <XCircle class="w-3.5 h-3.5" /> Rad
+            </button>
+            <button v-if="p.status === 'confirmed'" class="btn-outline btn-sm text-amber-600" @click="refundPayment(p)">
+              <RotateCcw class="w-3.5 h-3.5" /> Qaytarish
+            </button>
+          </div>
+        </li>
+      </ul>
+    </section>
+  </div>
+
+  <div v-else class="card p-12 text-center text-slate-500">
+    Shartnoma topilmadi.
+    <RouterLink to="/accountant/contracts" class="block mt-3 text-brand-600 hover:underline">Shartnomalarga qaytish</RouterLink>
   </div>
 </template>
