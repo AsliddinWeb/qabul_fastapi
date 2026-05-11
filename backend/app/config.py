@@ -41,8 +41,11 @@ class Settings(BaseSettings):
 
     # --- JWT ---
     jwt_algorithm: str = "HS256"
-    jwt_access_ttl_min: int = 30
-    jwt_refresh_ttl_days: int = 14
+    # 8 hours covers a normal working day so operators don't get bounced
+    # mid-shift if a refresh-rotation race or a flaky network swallows the
+    # background refresh. Refresh tokens stay long (30d) for stale tabs.
+    jwt_access_ttl_min: int = 480
+    jwt_refresh_ttl_days: int = 30
 
     # --- OTP ---
     otp_ttl_seconds: int = 120

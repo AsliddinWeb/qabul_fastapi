@@ -93,13 +93,31 @@ http.interceptors.response.use(
     ) {
       original._retry = true
 
-      refreshInFlight ??= performRefresh(auth.refreshToken).finally(() => {
+      // Multi-tab race: another tab may have just rotated the refresh token
+      // while ours was mid-flight. Re-read localStorage so we use the freshest
+      // value before calling /auth/refresh.
+      const lsRefresh = localStorage.getItem('refresh_token')
+      if (lsRefresh && lsRefresh !== auth.refreshToken) {
+        auth.refreshToken = lsRefresh
+      }
+
+      refreshInFlight ??= performRefresh(auth.refreshToken || lsRefresh || '').finally(() => {
         refreshInFlight = null
       })
 
       const newToken = await refreshInFlight
       if (newToken) {
         original.headers.Authorization = `Bearer ${newToken}`
+        return http.request(original as AxiosRequestConfig)
+      }
+
+      // Refresh failed — but before logging out, re-check localStorage one
+      // more time in case a parallel tab just refreshed. If it did, retry
+      // the request with the fresher token instead of bouncing the user.
+      const fresh = localStorage.getItem('access_token')
+      if (fresh && fresh !== auth.accessToken) {
+        auth.accessToken = fresh
+        original.headers.Authorization = `Bearer ${fresh}`
         return http.request(original as AxiosRequestConfig)
       }
 

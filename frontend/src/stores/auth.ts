@@ -14,6 +14,23 @@ export const useAuthStore = defineStore('auth', {
     user: JSON.parse(localStorage.getItem('user') || 'null'),
   }),
 
+  hydrate(state) {
+    // Pinia calls hydrate after state init; we use it to subscribe to the
+    // browser's `storage` event so a token refresh in tab A propagates into
+    // tab B (otherwise tab B keeps using the rotated-out refresh token and
+    // the server eventually flags reuse and revokes every session).
+    if (typeof window !== 'undefined' && !(window as any).__authStorageBound) {
+      ;(window as any).__authStorageBound = true
+      window.addEventListener('storage', (e) => {
+        if (e.key === 'access_token') state.accessToken = e.newValue
+        if (e.key === 'refresh_token') state.refreshToken = e.newValue
+        if (e.key === 'user') {
+          try { state.user = e.newValue ? JSON.parse(e.newValue) : null } catch { /* ignore */ }
+        }
+      })
+    }
+  },
+
   getters: {
     isAuthenticated: (s) => !!s.accessToken,
     role: (s): Role | null => s.user?.role ?? null,
