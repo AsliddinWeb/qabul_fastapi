@@ -83,6 +83,7 @@ class UserRead(IdSchema, TimestampedSchema):
     is_consulting: bool = False
     is_root_superadmin: bool = False
     permissions_revoked: list[str] = Field(default_factory=list)
+    referral_code: str | None = None
     last_login_at: datetime | None = None
 
 

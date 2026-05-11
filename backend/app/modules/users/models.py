@@ -51,6 +51,11 @@ class User(UUIDPKMixin, TimestampMixin, Base):
         JSONB, nullable=False, default=list, server_default="[]"
     )
 
+    # Public referral code (6-8 chars, uppercased) — printed on the user's
+    # shareable invite link. Backfilled by migration 05_referrals.sql; new
+    # users get one assigned by the user service on creation.
+    referral_code: Mapped[str | None] = mapped_column(String(8), unique=True, nullable=True, index=True)
+
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     created_by_id: Mapped[UUID | None] = mapped_column(
