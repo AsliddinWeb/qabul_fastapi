@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.v1.router import api_router
 from app.config import settings
+from app.core.audit_middleware import audit_writes_middleware
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging
 from app.core.redis import close_redis
@@ -51,6 +52,10 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # Generic audit trail for every successful write — catches the DELETEs and
+    # PATCHes that don't have explicit AuditService.log() calls in services.
+    app.middleware("http")(audit_writes_middleware)
 
     register_exception_handlers(app)
 

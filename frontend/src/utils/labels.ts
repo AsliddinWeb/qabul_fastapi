@@ -88,6 +88,33 @@ export const AUDIT_ACTIONS: Record<string, string> = {
   'lead.delete':           "Lead o'chirildi",
   'lead.schedule':         'Keyingi aloqa rejalashtirildi',
   'lead.schedule_clear':   "Keyingi aloqa eslatmasi o'chirildi",
+  // ===== Middleware-emitted generic actions =====
+  // The audit middleware writes one row per successful 2xx mutation using
+  // "{entity_type}.{verb}" with the URL segment (plural) as entity_type.
+  'applications.create':   'Ariza yaratildi',
+  'applications.update':   'Ariza tahrirlandi',
+  'applications.delete':   "Ariza o'chirildi",
+  'applicants.create':     'Abituriyent yaratildi',
+  'applicants.update':     'Abituriyent tahrirlandi',
+  'applicants.delete':     "Abituriyent o'chirildi",
+  'contracts.create':      'Shartnoma yaratildi',
+  'contracts.update':      'Shartnoma tahrirlandi',
+  'contracts.delete':      "Shartnoma o'chirildi",
+  'payments.create':       "To'lov qo'shildi",
+  'payments.update':       "To'lov yangilandi",
+  'payments.delete':       "To'lov o'chirildi",
+  'leads.create':          'Lead yaratildi',
+  'leads.update':          'Lead tahrirlandi',
+  'leads.delete':          "Lead o'chirildi",
+  'users.create':          'Foydalanuvchi yaratildi',
+  'users.update':          'Foydalanuvchi tahrirlandi',
+  'users.delete':          "Foydalanuvchi o'chirildi",
+  'programs.create':       "Yo'nalish yaratildi",
+  'programs.update':       "Yo'nalish tahrirlandi",
+  'programs.delete':       "Yo'nalish o'chirildi",
+  'auth.login.post':       'Tizimga kirildi',
+  'auth.logout.post':      'Tizimdan chiqildi',
+  'auth.refresh.post':     'Sessiya yangilandi',
 }
 
 export const AUDIT_ENTITY_TYPES: Record<string, string> = {
