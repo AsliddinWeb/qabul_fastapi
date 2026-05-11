@@ -162,6 +162,7 @@ const routes: RouteRecordRaw[] = [
       { path: '',                                name: 'accountant-home',     component: () => import('@/views/accountant/DashboardPage.vue') },
       { path: 'profile',                         name: 'accountant-profile',  component: ProfilePage },
       { path: 'contracts',                       name: 'accountant-contracts',         component: () => import('@/views/accountant/ContractsListPage.vue') },
+      { path: 'referral-payouts',                name: 'accountant-referral-payouts',  component: () => import('@/views/accountant/ReferralPayoutsPage.vue') },
       { path: 'contracts/:id',                   name: 'accountant-contract-detail',   component: () => import('@/views/operator/ContractDetailPage.vue') },
       { path: 'contracts/:contractId/payments',  name: 'accountant-payments-contract', component: () => import('@/views/accountant/PaymentsPage.vue') },
       { path: 'payments',                        name: 'accountant-payments-list',     component: () => import('@/views/accountant/PaymentsListPage.vue') },

@@ -2,36 +2,108 @@
 import { computed, onMounted, ref } from 'vue'
 import {
   Gift, Copy, Check, Users, Send, Phone, Share2, AlertTriangle, CheckCircle2, Wallet, Clock,
+  HandCoins, XCircle,
 } from 'lucide-vue-next'
 import { AxiosError } from 'axios'
-import { referralsApi, type ReferralRead, type ReferralStatus, type ReferralCode } from '@/api/referrals.api'
+import {
+  referralsApi,
+  type ReferralRead, type ReferralStatus, type ReferralCode,
+  type ReferralAvailableBalance, type ReferralPayoutRead,
+} from '@/api/referrals.api'
 import { useToast } from '@/composables/useToast'
+import { useConfirm } from '@/composables/useConfirm'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 
 const toast = useToast()
+const { ask } = useConfirm()
 
 const loading = ref(true)
 const code = ref<ReferralCode | null>(null)
 const refs = ref<ReferralRead[]>([])
+const balance = ref<ReferralAvailableBalance | null>(null)
+const payouts = ref<ReferralPayoutRead[]>([])
 const copied = ref(false)
+const cashOpen = ref(false)
+const cashCount = ref(1)
+const cashNotes = ref('')
+const cashSubmitting = ref(false)
 
-onMounted(async () => {
+async function loadAll() {
+  loading.value = true
   try {
-    const [c, r] = await Promise.all([
+    const [c, r, b, p] = await Promise.all([
       referralsApi.myCode(),
       referralsApi.mine(),
+      referralsApi.available(),
+      referralsApi.myPayouts(),
     ])
     code.value = c
     refs.value = r
+    balance.value = b
+    payouts.value = p
   } catch (e) {
     const ax = e as AxiosError<{ detail?: string }>
     toast.error(ax.response?.data?.detail || "Yuklab bo'lmadi")
   } finally {
     loading.value = false
   }
+}
+
+onMounted(loadAll)
+
+function openCashModal() {
+  if (!balance.value || balance.value.available_count <= 0) {
+    toast.error("Naqd olish uchun faol referal yo'q")
+    return
+  }
+  cashCount.value = balance.value.available_count
+  cashNotes.value = ''
+  cashOpen.value = true
+}
+
+async function submitCashRequest() {
+  if (!balance.value) return
+  const n = Math.max(1, Math.min(cashCount.value, balance.value.available_count))
+  cashSubmitting.value = true
+  try {
+    await referralsApi.requestCash(n, cashNotes.value.trim() || undefined)
+    toast.success(`${n} ta referal uchun naqd to'lov so'rovi yuborildi`)
+    cashOpen.value = false
+    await loadAll()
+  } catch (e) {
+    const ax = e as AxiosError<{ detail?: string }>
+    toast.error(ax.response?.data?.detail || "So'rov yuborib bo'lmadi")
+  } finally {
+    cashSubmitting.value = false
+  }
+}
+
+const cashAmountPreview = computed(() => {
+  if (!balance.value || !balance.value.available_count) return 0
+  const perRef = Number(balance.value.available_amount) / balance.value.available_count
+  return Math.round(perRef * Math.max(1, Math.min(cashCount.value, balance.value.available_count)))
 })
+
+const PAYOUT_STATUS_LABEL: Record<ReferralPayoutRead['status'], string> = {
+  requested: 'Kutilmoqda',
+  approved:  'Tasdiqlangan',
+  paid:      "To'langan",
+  rejected:  'Rad etilgan',
+}
+function payoutTone(s: ReferralPayoutRead['status']): string {
+  switch (s) {
+    case 'requested':
+      return 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300'
+    case 'approved':
+      return 'bg-sky-50 text-sky-700 ring-sky-200 dark:bg-sky-500/10 dark:text-sky-300'
+    case 'paid':
+      return 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300'
+    case 'rejected':
+      return 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-500/15 dark:text-rose-300'
+  }
+}
 
 async function copyLink() {
   if (!code.value) return
@@ -211,6 +283,92 @@ function statusTone(s: ReferralStatus): string {
           <div class="mt-1 text-xl font-bold tabular-nums text-brand-700 dark:text-brand-300">{{ fmtMoney(stats.activeAmount) }}<span class="text-xs font-normal ml-1">so'm</span></div>
         </div>
       </section>
+
+      <!-- Cash payout call-to-action -->
+      <section v-if="balance && balance.available_count > 0" class="card p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 border-l-4 border-emerald-400 dark:border-emerald-500/70">
+        <div class="flex items-center gap-3 min-w-0">
+          <span class="grid place-items-center w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 shrink-0">
+            <HandCoins class="w-5 h-5" />
+          </span>
+          <div class="min-w-0">
+            <div class="font-semibold text-slate-900 dark:text-slate-100">
+              {{ balance.available_count }} ta faol bonusingiz bor
+              <span class="text-emerald-700 dark:text-emerald-300">({{ fmtMoney(balance.available_amount) }} so'm)</span>
+            </div>
+            <div class="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+              O'z shartnomangizdan chegirma sifatida yoki naqd pul shaklida olishingiz mumkin.
+            </div>
+          </div>
+        </div>
+        <button class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition"
+                @click="openCashModal">
+          <HandCoins class="w-4 h-4" /> Naqd pul olishni so'rash
+        </button>
+      </section>
+
+      <!-- My payout requests -->
+      <section v-if="payouts.length" class="card overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <h2 class="font-semibold text-slate-900 dark:text-slate-100 inline-flex items-center gap-2">
+            <Wallet class="w-4 h-4 text-slate-500" /> Naqd to'lov so'rovlarim
+          </h2>
+          <span class="text-xs text-slate-500">{{ payouts.length }}</span>
+        </div>
+        <ul class="divide-y divide-slate-100 dark:divide-slate-800/60">
+          <li v-for="p in payouts" :key="p.id" class="p-4 flex items-center gap-3">
+            <span class="grid place-items-center w-9 h-9 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0">
+              <HandCoins v-if="p.status === 'paid'" class="w-4 h-4 text-emerald-600" />
+              <Clock v-else-if="p.status === 'requested'" class="w-4 h-4 text-amber-600" />
+              <CheckCircle2 v-else-if="p.status === 'approved'" class="w-4 h-4 text-sky-600" />
+              <XCircle v-else class="w-4 h-4 text-rose-600" />
+            </span>
+            <div class="flex-1 min-w-0">
+              <div class="font-semibold text-slate-900 dark:text-slate-100 tabular-nums">
+                {{ fmtMoney(p.amount) }} <span class="text-xs font-normal text-slate-500">so'm</span>
+                <span class="text-xs text-slate-500 dark:text-slate-400 ml-2">({{ p.referral_count }} ta bonus)</span>
+              </div>
+              <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                {{ fmtDate(p.created_at) }}<span v-if="p.paid_at"> · To'langan: {{ fmtDate(p.paid_at) }}</span>
+              </div>
+              <p v-if="p.rejected_reason" class="text-[11px] text-rose-600 dark:text-rose-400 mt-1">
+                Sabab: {{ p.rejected_reason }}
+              </p>
+            </div>
+            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ring-1 shrink-0"
+                  :class="payoutTone(p.status)">
+              {{ PAYOUT_STATUS_LABEL[p.status] }}
+            </span>
+          </li>
+        </ul>
+      </section>
+
+      <!-- Cash request modal -->
+      <div v-if="cashOpen" class="modal-backdrop" @click.self="cashOpen = false">
+        <div class="modal-panel max-w-md">
+          <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100">Naqd pul olish</h3>
+          <p class="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            Faol bonuslaringiz: <strong>{{ balance?.available_count }} ta</strong>. So'rov yuborganingizdan keyin buxgalter tasdiqlaydi va to'lov amalga oshiriladi.
+          </p>
+          <div>
+            <label class="field-label">Necha tani naqd olasiz?</label>
+            <input v-model.number="cashCount" type="number" min="1" :max="balance?.available_count || 1" class="input" />
+            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+              Taxminiy summa: <strong class="text-emerald-700 dark:text-emerald-300">{{ fmtMoney(cashAmountPreview) }} so'm</strong>
+            </p>
+          </div>
+          <div>
+            <label class="field-label">Izoh (ixtiyoriy)</label>
+            <textarea v-model="cashNotes" rows="2" class="input" placeholder="Karta raqami, bank, qarindosh ismi va h.k."></textarea>
+          </div>
+          <div class="flex justify-end gap-2 pt-2">
+            <button class="btn-ghost" @click="cashOpen = false">Bekor</button>
+            <button class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white"
+                    :disabled="cashSubmitting" @click="submitCashRequest">
+              <HandCoins class="w-4 h-4" /> {{ cashSubmitting ? "Yuborilmoqda..." : "Yuborish" }}
+            </button>
+          </div>
+        </div>
+      </div>
 
       <!-- Status help -->
       <div class="card p-4 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">

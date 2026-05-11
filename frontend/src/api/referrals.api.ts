@@ -41,6 +41,31 @@ export interface ReferralSettings {
   updated_at: string
 }
 
+export interface ReferralAvailableBalance {
+  active_count: number
+  earmarked_count: number
+  available_count: number
+  available_amount: string
+}
+
+export interface ReferralPayoutRead {
+  id: string
+  referrer_user_id: string
+  amount: string
+  referral_count: number
+  status: 'requested' | 'approved' | 'paid' | 'rejected'
+  requested_at: string
+  approved_by_user_id: string | null
+  approved_at: string | null
+  paid_at: string | null
+  rejected_reason: string | null
+  notes: string | null
+  referrer_full_name: string | null
+  referrer_phone: string | null
+  created_at: string
+  updated_at: string
+}
+
 export const referralsApi = {
   // Current user
   myCode: () => http.get<ReferralCode>('/referrals/me/code').then(r => r.data),
@@ -64,4 +89,35 @@ export const referralsApi = {
 
   // Admin
   settings: () => http.get<ReferralSettings>('/referrals/settings').then(r => r.data),
+
+  // Phase 4 — redemption
+  available: () =>
+    http.get<ReferralAvailableBalance>('/referrals/me/available').then(r => r.data),
+
+  applyToContract: (contractId: string, count: number) =>
+    http.post<{
+      count: number
+      discount: string
+      contract_id: string
+      new_total_amount: string
+    }>('/referrals/apply-to-contract', { contract_id: contractId, count }).then(r => r.data),
+
+  requestCash: (count: number, notes?: string) =>
+    http.post<ReferralPayoutRead>('/referrals/me/cash-payout', { count, notes: notes || null })
+      .then(r => r.data),
+
+  myPayouts: () => http.get<ReferralPayoutRead[]>('/referrals/me/payouts').then(r => r.data),
+
+  // Accountant / admin
+  payouts: (statusFilter?: ReferralPayoutRead['status']) =>
+    http.get<ReferralPayoutRead[]>('/referrals/payouts', {
+      params: statusFilter ? { status_filter: statusFilter } : undefined,
+    }).then(r => r.data),
+
+  approvePayout: (id: string) =>
+    http.post<ReferralPayoutRead>(`/referrals/payouts/${id}/approve`).then(r => r.data),
+  payPayout: (id: string) =>
+    http.post<ReferralPayoutRead>(`/referrals/payouts/${id}/pay`).then(r => r.data),
+  rejectPayout: (id: string, reason: string) =>
+    http.post<ReferralPayoutRead>(`/referrals/payouts/${id}/reject`, { reason }).then(r => r.data),
 }

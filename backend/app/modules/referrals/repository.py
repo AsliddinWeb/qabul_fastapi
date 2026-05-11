@@ -57,6 +57,41 @@ class ReferralRepository(BaseRepository[Referral]):
         )
         return await self.session.scalar(stmt) or 0
 
+    async def available_for_referrer(
+        self, referrer_user_id: UUID, *, limit: int | None = None,
+    ) -> list[Referral]:
+        """`active` rows not yet earmarked for a cash payout.
+
+        Oldest-first so spending feels fair (FIFO).
+        """
+        stmt = (
+            select(Referral)
+            .where(
+                Referral.referrer_user_id == referrer_user_id,
+                Referral.status == "active",
+                Referral.cash_payout_id.is_(None),
+            )
+            .order_by(Referral.activated_at.asc().nullsfirst(), Referral.created_at.asc())
+        )
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        return list((await self.session.scalars(stmt)).all())
+
+    async def count_available_for_referrer(self, referrer_user_id: UUID) -> int:
+        stmt = (
+            select(func.count(Referral.id))
+            .where(
+                Referral.referrer_user_id == referrer_user_id,
+                Referral.status == "active",
+                Referral.cash_payout_id.is_(None),
+            )
+        )
+        return await self.session.scalar(stmt) or 0
+
+    async def list_for_payout(self, cash_payout_id: UUID) -> list[Referral]:
+        stmt = select(Referral).where(Referral.cash_payout_id == cash_payout_id)
+        return list((await self.session.scalars(stmt)).all())
+
 
 class ReferralPayoutRepository(BaseRepository[ReferralPayout]):
     model = ReferralPayout

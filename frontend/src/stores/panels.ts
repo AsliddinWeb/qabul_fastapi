@@ -144,11 +144,12 @@ const DIRECTOR_NAV: NavEntry[] = [
 ]
 
 const ACCOUNTANT_NAV: NavEntry[] = [
-  leaf('/accountant',              'Bosh sahifa',     LayoutDashboard, 'violet'),
-  leaf('/accountant/contracts',    'Shartnomalar',    FileText,        'teal'),
-  leaf('/accountant/payments',     "To'lovlar",       CreditCard,      'emerald'),
-  leaf('/accountant/applications', 'Arizalar',        ClipboardList,   'amber'),
-  leaf('/accountant/applicants',   'Abituriyentlar',  UsersIcon,       'sky'),
+  leaf('/accountant',                 'Bosh sahifa',     LayoutDashboard, 'violet'),
+  leaf('/accountant/contracts',       'Shartnomalar',    FileText,        'teal'),
+  leaf('/accountant/payments',        "To'lovlar",       CreditCard,      'emerald'),
+  leaf('/accountant/referral-payouts', "Referal naqd",   Gift,            'rose'),
+  leaf('/accountant/applications',    'Arizalar',        ClipboardList,   'amber'),
+  leaf('/accountant/applicants',      'Abituriyentlar',  UsersIcon,       'sky'),
 ]
 
 const APPLICANT_NAV: NavEntry[] = [

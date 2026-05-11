@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { FileText, FileCheck2, X } from 'lucide-vue-next'
+import { FileText, FileCheck2, X, Gift } from 'lucide-vue-next'
+import { AxiosError } from 'axios'
 import { contractsApi, type ContractDetailed } from '@/api/contracts.api'
+import { referralsApi } from '@/api/referrals.api'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import { CONTRACT_STATUS, CONTRACT_TYPE, tr } from '@/utils/labels'
+import { useToast } from '@/composables/useToast'
+import { useConfirm } from '@/composables/useConfirm'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 
@@ -60,6 +64,41 @@ const hasPdf = computed(() => !!data.value?.pdf_file_id && !!data.value?.signed_
 async function openPdf() {
   await contractsApi.openPdf(id.value)
 }
+
+// === Apply referral bonuses as discount ===
+const toast = useToast()
+const { ask } = useConfirm()
+const applyCount = ref(1)
+const applying = ref(false)
+const applyError = ref<string | null>(null)
+const canApply = computed(() =>
+  !isReadOnly.value &&
+  !!data.value &&
+  data.value.status === 'draft',
+)
+async function applyReferralDiscount() {
+  if (!data.value || applyCount.value < 1) return
+  applyError.value = null
+  const ok = await ask({
+    title: 'Referal chegirma',
+    message: `${applyCount.value} ta faol bonus shu shartnoma summasidan chegirib qo'shiladi. Davom etamizmi?`,
+    confirmLabel: "Qo'llash",
+    tone: 'primary',
+  })
+  if (!ok) return
+  applying.value = true
+  try {
+    const res = await referralsApi.applyToContract(data.value.id, applyCount.value)
+    toast.success(`-${Number(res.discount).toLocaleString('uz-UZ')} so'm chegirildi`)
+    applyCount.value = 1
+    await load()
+  } catch (e) {
+    const ax = e as AxiosError<{ detail?: string }>
+    applyError.value = ax.response?.data?.detail || "Qo'llab bo'lmadi"
+  } finally {
+    applying.value = false
+  }
+}
 </script>
 
 <template>
@@ -107,6 +146,34 @@ async function openPdf() {
       <div v-else class="text-sm text-slate-500">
         PDF generatsiya qilinmagan. Iltimos, qayta yarating yoki backend log'larini tekshiring.
       </div>
+    </div>
+
+    <!-- Referral bonus discount (draft contracts only) -->
+    <div v-if="canApply" class="card p-5 sm:p-6 space-y-3 border-l-4 border-rose-400 dark:border-rose-500/70">
+      <div class="flex items-start gap-3">
+        <span class="grid place-items-center w-9 h-9 rounded-lg bg-rose-50 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300 shrink-0">
+          <Gift class="w-4 h-4" />
+        </span>
+        <div class="flex-1">
+          <h2 class="font-semibold text-slate-900 dark:text-slate-100">Referal bonusni qo'llash</h2>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+            Agar bu abituriyent kimnidir taklif qilgan bo'lib, bonuslari faol bo'lsa — shartnoma summasidan chegirib qo'shing.
+            Har bir bonus <strong>500,000 so'm</strong>ga teng (sozlamalardan o'zgartiriladi).
+          </p>
+        </div>
+      </div>
+      <div v-if="applyError" class="text-xs rounded-lg p-2 bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-300">
+        {{ applyError }}
+      </div>
+      <div class="flex items-center gap-2">
+        <input v-model.number="applyCount" type="number" min="1" max="100" class="input w-24" />
+        <button class="btn-primary text-sm" :disabled="applying" @click="applyReferralDiscount">
+          <Gift class="w-4 h-4" /> {{ applying ? "Qo'llanmoqda..." : "Qo'llash" }}
+        </button>
+      </div>
+      <p class="text-[11px] text-slate-500 dark:text-slate-400 italic">
+        Eslatma: faqat shartnoma <strong>draft</strong> holatda bo'lsa ishlaydi va abituriyent <strong>faol</strong> bonuslariga qarab tekshiriladi.
+      </p>
     </div>
 
     <div v-if="!isReadOnly" class="card p-6 space-y-3">

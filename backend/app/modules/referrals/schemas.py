@@ -52,3 +52,51 @@ class AttachReferrerPayload(AppSchema):
     """Admin/operator attaches a referrer to an existing applicant."""
 
     referrer_code: str = Field(min_length=4, max_length=8)
+
+
+# ---------- Phase 4: redemption ----------
+class ApplyToContractPayload(AppSchema):
+    contract_id: UUID
+    count: int = Field(ge=1, le=100)
+
+
+class ApplyToContractResponse(AppSchema):
+    count: int
+    discount: Decimal
+    contract_id: UUID
+    new_total_amount: Decimal
+
+
+class CashPayoutRequestPayload(AppSchema):
+    count: int = Field(ge=1, le=100)
+    notes: str | None = Field(default=None, max_length=1000)
+
+
+class RejectPayoutPayload(AppSchema):
+    reason: str = Field(min_length=2, max_length=500)
+
+
+class ReferralPayoutRead(IdSchema, TimestampedSchema):
+    referrer_user_id: UUID
+    amount: Decimal
+    referral_count: int
+    status: str
+    requested_at: datetime
+    approved_by_user_id: UUID | None = None
+    approved_at: datetime | None = None
+    paid_at: datetime | None = None
+    rejected_reason: str | None = None
+    notes: str | None = None
+
+    # Filled by the router for nicer UI: who is the inviter
+    referrer_full_name: str | None = None
+    referrer_phone: str | None = None
+
+
+class ReferralAvailableBalance(AppSchema):
+    """`GET /referrals/me/available` — what the user can still spend."""
+
+    active_count:        int
+    earmarked_count:     int      # tied up in a pending payout
+    available_count:     int      # truly spendable right now
+    available_amount:    Decimal  # available_count * reward_amount
