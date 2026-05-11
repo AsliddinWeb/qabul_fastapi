@@ -264,7 +264,7 @@ function opAvatarTone(name: string | null): string {
         <Download class="w-4 h-4" /> {{ exporting ? '...' : 'CSV' }}
       </button>
       <RouterLink :to="`${panelPrefix}/leads/board`" class="btn-outline">
-        <LayoutGrid class="w-4 h-4" /> Kanban
+        <LayoutGrid class="w-4 h-4" /> Varonka
       </RouterLink>
       <RouterLink :to="`${panelPrefix}/leads/new`" class="btn-primary">
         <Plus class="w-4 h-4" /> Yangi lead

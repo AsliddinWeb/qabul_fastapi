@@ -69,6 +69,10 @@ const applicantResults = ref<any[]>([])
 const selectedApplicantLabel = ref('')
 const showInlineCreate = ref(false)
 const creatingApplicant = ref(false)
+// In edit mode the operator can toggle this on to expose the same applicant
+// fields inline and save personal-info changes alongside the application update.
+const applicantEditOpen = ref(false)
+const applicantSaving = ref(false)
 
 const inlineApplicant = reactive({
   phone: '+998',
@@ -90,6 +94,7 @@ const inlineErrors = ref<Record<string, string>>({})
 const inlineDistricts = ref<DistrictRead[]>([])
 
 watch(() => inlineApplicant.region_id, async (rid) => {
+  if (prefilling.value) return  // preserve district_id while we hydrate
   inlineApplicant.district_id = ''
   inlineDistricts.value = rid ? await adminApi.districts.list(rid) : []
 })
@@ -469,6 +474,27 @@ onMounted(async () => {
       const ap = await adminApi.applicants.get(a.applicant_id)
       form.applicant_user_id = ap.user_id
       selectedApplicantLabel.value = formatApplicant(ap)
+      // Populate the inline applicant form so the operator can edit personal
+      // info from this same page without navigating away.
+      Object.assign(inlineApplicant, {
+        phone: '+998',
+        additional_phone: ap.additional_phone ? formatPhone(ap.additional_phone) : '',
+        telegram_username: ap.telegram_username || '',
+        last_name: ap.last_name || '',
+        first_name: ap.first_name || '',
+        other_name: ap.other_name || '',
+        birth_date: ap.birth_date || '',
+        gender: ap.gender || 'male',
+        passport_series: ap.passport_series || '',
+        pinfl: ap.pinfl || '',
+        region_id: ap.region_id || '',
+        district_id: ap.district_id || '',
+        address: ap.address || '',
+        nationality: ap.nationality || "O'zbek",
+      })
+      if (ap.region_id) {
+        inlineDistricts.value = await adminApi.districts.list(ap.region_id).catch(() => [])
+      }
       await loadDiplomsForUser(ap.user_id)
       // Release the prefill gate after Vue's reactive watchers have flushed.
       await nextTick()
@@ -577,8 +603,40 @@ async function submit() {
     if (isEdit.value && id.value) {
       delete payload.applicant_id
       delete payload.admission_type
+      // If the operator opened the inline applicant editor, validate and persist
+      // those changes against the applicant record before updating the application.
+      if (applicantEditOpen.value && form.applicant_id) {
+        ;['last_name', 'first_name', 'birth_date', 'passport_series', 'pinfl'].forEach(validateInlineField)
+        if (Object.keys(inlineErrors.value).length) {
+          toast.error("Abituriyent ma'lumotlarini to'g'ri to'ldiring")
+          saving.value = false
+          return
+        }
+        applicantSaving.value = true
+        try {
+          await adminApi.applicants.update(form.applicant_id, {
+            last_name: inlineApplicant.last_name,
+            first_name: inlineApplicant.first_name,
+            other_name: inlineApplicant.other_name || null,
+            birth_date: inlineApplicant.birth_date,
+            gender: inlineApplicant.gender,
+            passport_series: inlineApplicant.passport_series ? inlineApplicant.passport_series.toUpperCase() : null,
+            pinfl: inlineApplicant.pinfl || null,
+            additional_phone: inlineApplicant.additional_phone ? compactPhone(inlineApplicant.additional_phone) : null,
+            telegram_username: inlineApplicant.telegram_username
+              ? inlineApplicant.telegram_username.trim().replace(/^@/, '')
+              : null,
+            region_id: inlineApplicant.region_id || null,
+            district_id: inlineApplicant.district_id || null,
+            address: inlineApplicant.address.trim() || null,
+            nationality: inlineApplicant.nationality || "O'zbek",
+          })
+        } finally {
+          applicantSaving.value = false
+        }
+      }
       await adminApi.applications.update(id.value, payload)
-      toast.success("Ariza yangilandi")
+      toast.success("Saqlandi")
     } else {
       // If we're converting a Lead, include lead_id so the backend marks it as won.
       if (leadId.value) payload.lead_id = leadId.value
@@ -623,9 +681,110 @@ async function submit() {
             <Check class="w-4 h-4 text-green-600" />
             <span class="font-medium text-slate-900 dark:text-slate-100">{{ selectedApplicantLabel }}</span>
           </div>
-          <button v-if="!isEdit" type="button" class="text-xs text-red-600 hover:underline" @click="clearApplicant">
-            <X class="w-3.5 h-3.5 inline" /> O'zgartirish
-          </button>
+          <div class="flex items-center gap-2">
+            <button v-if="isEdit" type="button"
+                    class="text-xs font-medium px-2.5 py-1 rounded-md bg-white dark:bg-slate-800 text-brand-700 dark:text-brand-300 ring-1 ring-brand-200 dark:ring-brand-700/40 hover:bg-brand-50 dark:hover:bg-brand-900/30"
+                    @click="applicantEditOpen = !applicantEditOpen">
+              {{ applicantEditOpen ? 'Yopish' : "Ma'lumotlarni tahrirlash" }}
+            </button>
+            <button v-if="!isEdit" type="button" class="text-xs text-red-600 hover:underline" @click="clearApplicant">
+              <X class="w-3.5 h-3.5 inline" /> O'zgartirish
+            </button>
+          </div>
+        </div>
+
+        <!-- Inline applicant editor (edit mode only) — same fields as inline create -->
+        <div v-if="isEdit && applicantEditOpen" class="border-t border-slate-200 dark:border-slate-800 pt-4 space-y-3">
+          <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Abituriyent ma'lumotlarini tahrirlash</h3>
+          <div class="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Familiya *</label>
+              <input :value="inlineApplicant.last_name" class="input"
+                     :class="inlineErrors.last_name ? 'border-red-500' : ''"
+                     placeholder="VALIYEV" @input="onInlineLast" @blur="validateInlineField('last_name')" />
+              <p v-if="inlineErrors.last_name" class="mt-1 text-xs text-red-600">{{ inlineErrors.last_name }}</p>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Ism *</label>
+              <input :value="inlineApplicant.first_name" class="input"
+                     :class="inlineErrors.first_name ? 'border-red-500' : ''"
+                     placeholder="ALI" @input="onInlineFirst" @blur="validateInlineField('first_name')" />
+              <p v-if="inlineErrors.first_name" class="mt-1 text-xs text-red-600">{{ inlineErrors.first_name }}</p>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Otasining ismi</label>
+              <input :value="inlineApplicant.other_name" class="input" placeholder="AKBAR O'G'LI" @input="onInlineOther" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Tug'ilgan sana *</label>
+              <input v-model="inlineApplicant.birth_date" type="date" class="input"
+                     :class="inlineErrors.birth_date ? 'border-red-500' : ''"
+                     :max="new Date().toISOString().slice(0,10)"
+                     @blur="validateInlineField('birth_date')" />
+              <p v-if="inlineErrors.birth_date" class="mt-1 text-xs text-red-600">{{ inlineErrors.birth_date }}</p>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Jinsi *</label>
+              <select v-model="inlineApplicant.gender" class="input">
+                <option value="male">Erkak</option>
+                <option value="female">Ayol</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Pasport</label>
+              <input :value="inlineApplicant.passport_series" maxlength="9" class="input font-mono"
+                     :class="inlineErrors.passport_series ? 'border-red-500' : ''"
+                     :placeholder="PLACEHOLDERS.passport"
+                     @input="onInlinePassport" @blur="validateInlineField('passport_series')" />
+              <p v-if="inlineErrors.passport_series" class="mt-1 text-xs text-red-600">{{ inlineErrors.passport_series }}</p>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">PINFL</label>
+              <input :value="inlineApplicant.pinfl" inputmode="numeric" maxlength="14" class="input font-mono"
+                     :class="inlineErrors.pinfl ? 'border-red-500' : ''"
+                     :placeholder="PLACEHOLDERS.pinfl"
+                     @input="onInlinePinfl" @blur="validateInlineField('pinfl')" />
+              <p v-if="inlineErrors.pinfl" class="mt-1 text-xs text-red-600">{{ inlineErrors.pinfl }}</p>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Qo'shimcha telefon</label>
+              <input :value="inlineApplicant.additional_phone" type="tel" inputmode="tel" class="input font-mono"
+                     :placeholder="PLACEHOLDERS.phoneUz" @input="onInlineAddPhone" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Telegram username</label>
+              <div class="relative">
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-mono pointer-events-none">@</span>
+                <input v-model="inlineApplicant.telegram_username" class="input pl-7 font-mono" placeholder="username" />
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Millati</label>
+              <input v-model="inlineApplicant.nationality" class="input" placeholder="O'zbek" />
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Viloyat</label>
+              <select v-model="inlineApplicant.region_id" class="input">
+                <option value="">— tanlang —</option>
+                <option v-for="r in regions" :key="r.id" :value="r.id">{{ r.name }}</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Tuman</label>
+              <select v-model="inlineApplicant.district_id" class="input" :disabled="!inlineApplicant.region_id">
+                <option value="">— tanlang —</option>
+                <option v-for="d in inlineDistricts" :key="d.id" :value="d.id">{{ d.name }}</option>
+              </select>
+            </div>
+            <div class="sm:col-span-2">
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Yashash manzili</label>
+              <textarea v-model="inlineApplicant.address" rows="2" class="input"
+                        placeholder="Toshkent shahri, Mirzo Ulug'bek tumani, ..."></textarea>
+            </div>
+          </div>
+          <p class="text-[11px] text-slate-500 dark:text-slate-400">
+            O'zgarishlar pastdagi <strong>"Saqlash"</strong> tugmasini bosganingizda ariza bilan birga saqlanadi.
+          </p>
         </div>
 
         <template v-else-if="!isEdit">

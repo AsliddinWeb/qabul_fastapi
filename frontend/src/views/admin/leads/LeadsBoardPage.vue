@@ -134,7 +134,7 @@ async function convertLead(lead: Lead) {
 <template>
   <div>
     <PageHeader
-      :title="myOnly ? `Mening kanban` : 'Kanban (varonka)'"
+      :title="myOnly ? `Mening varonkam` : 'Varonka'"
       :subtitle="`Bosqichma-bosqich varonka. Lead'larni sudrab keyingi bosqichga o'tkazing${board ? ' · Jami ' + totalLeads + ' ta' : ''}`"
       :crumbs="[{ label: 'Bosh sahifa', to: panelPrefix }, { label: 'CRM', to: `${panelPrefix}/leads` }]"
     >

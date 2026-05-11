@@ -432,9 +432,17 @@ def _build_context(
     else:
         course_label = "1-kurs"
 
-    # Format tuition fee with thousand separators ("12 000 000")
+    # Format the contract amount with thousand separators ("12 000 000").
+    # Use the contract's total_amount — the operator may have overridden the
+    # program's default tuition_fee when creating the contract, and the PDF
+    # must reflect what the parties actually signed.
     yillik_tolov = ""
-    if program and program.tuition_fee is not None:
+    if contract and contract.total_amount is not None:
+        try:
+            yillik_tolov = f"{int(contract.total_amount):,}".replace(",", " ")
+        except (TypeError, ValueError):
+            yillik_tolov = ""
+    if not yillik_tolov and program and program.tuition_fee is not None:
         yillik_tolov = f"{int(program.tuition_fee):,}".replace(",", " ")
 
     # Phone: use the applicant's primary registration number (users.phone),

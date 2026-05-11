@@ -76,7 +76,7 @@ const ADMIN_NAV: NavEntry[] = [
 
   group('crm', 'CRM — Leadlar', Inbox, [
     leaf('/admin/leads',                'Lead\'lar ro\'yxati',   Inbox,          'amber'),
-    leaf('/admin/leads/board',          'Kanban (varonka)',       LayoutGrid,     'indigo'),
+    leaf('/admin/leads/board',          'Varonka',                LayoutGrid,     'indigo'),
     leaf('/admin/leads/new',            'Yangi lead',             FilePlus2,      'emerald'),
     leaf('/admin/lead-settings',        'Sozlamalar',             Settings,       'slate'),
   ]),
@@ -125,7 +125,7 @@ const OPERATOR_NAV: NavEntry[] = [
   leaf('/operator', 'Bosh sahifa', LayoutDashboard, 'violet'),
   group('crm', 'CRM', UsersIcon, [
     leaf('/operator/leads',          "Mening lead'larim", UsersIcon,     'violet'),
-    leaf('/operator/leads/board',    'Kanban',             LayoutDashboard, 'sky'),
+    leaf('/operator/leads/board',    'Varonka',            LayoutDashboard, 'sky'),
     leaf('/operator/stats',          'Mening statistikam', BarChart3,     'amber'),
   ]),
   group('admission', 'Qabul', ClipboardList, [

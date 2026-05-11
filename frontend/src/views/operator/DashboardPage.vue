@@ -242,7 +242,7 @@ void _unused
         <Plus class="w-4 h-4" /> Yangi lead
       </RouterLink>
       <RouterLink to="/operator/leads/board" class="btn-primary">
-        <LayoutDashboard class="w-4 h-4" /> Kanban
+        <LayoutDashboard class="w-4 h-4" /> Varonka
       </RouterLink>
     </PageHeader>
 
