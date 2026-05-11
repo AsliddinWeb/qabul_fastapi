@@ -93,3 +93,17 @@ class PaymentsService:
         total: Decimal = await self.repo.confirmed_total_for_contract(contract_id)
         contract.paid_amount = Decimal(total)
         await self.session.flush()
+        # Referral qualification: once confirmed payments cross the 25%
+        # threshold, the inviter's bonus flips from pending → active.
+        # Same hook reverts active → pending if a refund drops the
+        # ratio back below the threshold. Best-effort: a failure here
+        # must not roll back the payment update.
+        try:
+            from app.modules.referrals.service import ReferralService
+            await ReferralService(self.session).check_qualification(contract_id)
+        except Exception as exc:  # pragma: no cover — defensive only
+            from app.core.logging import get_logger
+            get_logger("payments").error(
+                "referrals.qualification_hook_failed",
+                contract_id=str(contract_id), error=str(exc),
+            )

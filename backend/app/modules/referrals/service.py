@@ -1,27 +1,21 @@
-"""Referral business logic — kept thin in phase 1.
+"""Referral business logic.
 
-Surface area today:
-  - settings get/update (admin-facing later)
-  - referral_code generation for users that don't have one
-  - lookup helpers (find_referrer_by_code, list_for_referrer)
-
-Phase-2+ will extend this with:
-  - register_referral(referrer_code, applicant_id, source)
-  - check_qualification(contract_id)              ← payment-confirmed hook
-  - spend_on_contract(referrals, contract_id)
-  - request_cash_payout(referrer_user_id, count)
-  - approve_payout / mark_paid / reject_payout
+Phase 1 — settings, code generation, lookups
+Phase 2 — applicant.register hook records `pending` rows
+Phase 3 — check_qualification(contract_id) activates / reverts based on 25%
 """
 from __future__ import annotations
 
 import secrets
 import string
+from datetime import datetime, timezone
 from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundError
+from app.core.logging import get_logger
 from app.modules.referrals.models import Referral, ReferralPayout, ReferralSettings
 from app.modules.referrals.repository import (
     ReferralPayoutRepository,
@@ -29,6 +23,8 @@ from app.modules.referrals.repository import (
     ReferralSettingsRepository,
 )
 from app.modules.users.repository import UserRepository
+
+logger = get_logger("referrals")
 
 
 _ALPHABET = string.ascii_uppercase + string.digits  # 26 + 10 = 36 chars
@@ -99,3 +95,110 @@ class ReferralService:
 
     async def list_payouts_for_referrer(self, referrer_user_id: UUID) -> list[ReferralPayout]:
         return await self.payouts.list_for_referrer(referrer_user_id)
+
+    # ---------- qualification hook (Phase 3) ----------
+    async def check_qualification(self, contract_id: UUID) -> None:
+        """Activate or revert referrals tied to this contract.
+
+        Called by PaymentsService after every confirm / refund so the
+        referrer's bonus state stays in sync with the actual money in.
+
+        Rules:
+          - `paid_amount / total_amount >= qualification_percent`:
+              any `pending` referral on the contract's applicant becomes
+              `active`. We also stamp `contract_id` and `activated_at` so
+              the dashboard can show which contract earned each bonus.
+          - Below the threshold (e.g. payment was refunded back down):
+              `active` rows we previously stamped revert to `pending`.
+              `spent_on_contract` / `paid_cash` / `cancelled` are NEVER
+              touched here — those are terminal from the referrer's
+              perspective and must be reversed by the payout/discount
+              workflow instead.
+        """
+        # Local import keeps the dependency cycle (referrals → contracts → ...)
+        # from blowing up at module load.
+        from app.modules.contracts.models import Contract
+        from app.modules.applications.models import Application
+
+        contract = await self.session.get(Contract, contract_id)
+        if contract is None:
+            return
+        if not contract.total_amount or contract.total_amount == 0:
+            return
+
+        # Walk contract → application → applicant to find which applicant
+        # this contract belongs to.
+        application = await self.session.get(Application, contract.application_id)
+        if application is None:
+            return
+        applicant_id = application.applicant_id
+
+        settings = await self.get_settings()
+        threshold = Decimal(settings.qualification_percent) / Decimal("100")
+        paid_ratio = Decimal(contract.paid_amount or 0) / Decimal(contract.total_amount)
+
+        # One referral row per applicant (unique constraint), so just fetch it.
+        ref = await self.referrals.get_by_applicant(applicant_id)
+        if ref is None:
+            return
+
+        now = datetime.now(timezone.utc)
+
+        if paid_ratio >= threshold:
+            # Activation path
+            if ref.status == "pending":
+                ref.status = "active"
+                ref.activated_at = now
+                if ref.contract_id is None:
+                    ref.contract_id = contract_id
+                await self.session.flush()
+                logger.info(
+                    "referrals.activated",
+                    referral_id=str(ref.id),
+                    referrer_user_id=str(ref.referrer_user_id),
+                    applicant_id=str(applicant_id),
+                    contract_id=str(contract_id),
+                    paid_ratio=str(paid_ratio),
+                )
+            elif ref.status == "active" and ref.contract_id is None:
+                # Backfill the contract pointer for older active rows.
+                ref.contract_id = contract_id
+                await self.session.flush()
+        else:
+            # Reversion path — only undo what WE earlier auto-activated for
+            # THIS contract. Don't touch other states.
+            if ref.status == "active" and ref.contract_id == contract_id:
+                ref.status = "pending"
+                ref.activated_at = None
+                await self.session.flush()
+                logger.info(
+                    "referrals.reverted",
+                    referral_id=str(ref.id),
+                    referrer_user_id=str(ref.referrer_user_id),
+                    contract_id=str(contract_id),
+                    paid_ratio=str(paid_ratio),
+                )
+
+    async def cancel_for_applicant(self, applicant_id: UUID, *, reason: str) -> None:
+        """Mark the applicant's referral row as cancelled.
+
+        Used by contract/application cancellation flows so a bonus that
+        never qualifies is removed from the referrer's dashboard. Only
+        pending / active rows can be cancelled here — once a bonus has
+        been spent or paid out we keep the audit trail intact.
+        """
+        ref = await self.referrals.get_by_applicant(applicant_id)
+        if ref is None:
+            return
+        if ref.status in ("spent_on_contract", "paid_cash", "cancelled"):
+            return
+        ref.status = "cancelled"
+        ref.cancelled_at = datetime.now(timezone.utc)
+        ref.cancelled_reason = reason[:500] if reason else None
+        await self.session.flush()
+        logger.info(
+            "referrals.cancelled",
+            referral_id=str(ref.id),
+            applicant_id=str(applicant_id),
+            reason=reason,
+        )

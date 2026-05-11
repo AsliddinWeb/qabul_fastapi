@@ -332,6 +332,26 @@ class ContractsService:
             raise ValidationError("Completed contracts cannot be cancelled")
         obj.status = ContractStatus.CANCELLED
         await self.session.flush()
+        # Referral side-effect: if this contract was driving an inviter's
+        # bonus, the bonus no longer qualifies. Cancel pending/active
+        # rows so they fall off the referrer's dashboard. Spent/paid
+        # rows are left alone (those represent money already moved).
+        try:
+            from app.modules.applications.models import Application
+            from app.modules.referrals.service import ReferralService
+            from sqlalchemy import select as _select
+            applicant_id = await self.session.scalar(
+                _select(Application.applicant_id).where(Application.id == obj.application_id)
+            )
+            if applicant_id is not None:
+                await ReferralService(self.session).cancel_for_applicant(
+                    applicant_id, reason=f"Shartnoma bekor qilindi: {obj.contract_number}",
+                )
+        except Exception as exc:  # pragma: no cover
+            logger.error(
+                "referrals.cancel_hook_failed",
+                contract_id=str(contract_id), error=str(exc),
+            )
         return obj
 
     # ---------- File access ----------
