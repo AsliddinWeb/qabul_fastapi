@@ -106,6 +106,7 @@ class ApplicantsService:
         if await self.applicants.get_by_user_id(user_id):
             raise ConflictError("Applicant profile already exists for this user")
         data = _normalize_applicant(payload.model_dump())
+        referrer_code = data.pop("referrer_code", None)
         if data.get("pinfl") and await self.applicants.get_by_pinfl(data["pinfl"]):
             raise ConflictError("Applicant with this PINFL already exists")
         applicant = await self.applicants.create(
@@ -114,6 +115,10 @@ class ApplicantsService:
             **data,
         )
         await self._sync_user_full_name(user_id, applicant)
+        await self._record_referral_if_any(
+            applicant_id=applicant.id, applicant_user_id=user_id,
+            referrer_code=referrer_code, source="link",
+        )
         return applicant
 
     async def create_by_operator(
@@ -124,6 +129,7 @@ class ApplicantsService:
     ) -> tuple[Applicant, User]:
         phone = normalize_phone(payload.phone)
         data = _normalize_applicant(payload.model_dump(exclude={"phone"}))
+        referrer_code = data.pop("referrer_code", None)
 
         user = await self.users.get_by_phone(phone)
         if user is None:
@@ -151,7 +157,49 @@ class ApplicantsService:
             **data,
         )
         await self._sync_user_full_name(user.id, applicant)
+        await self._record_referral_if_any(
+            applicant_id=applicant.id, applicant_user_id=user.id,
+            referrer_code=referrer_code, source="manual",
+        )
         return applicant, user
+
+    async def _record_referral_if_any(
+        self,
+        *,
+        applicant_id: UUID,
+        applicant_user_id: UUID,
+        referrer_code: str | None,
+        source: str,
+    ) -> None:
+        """Best-effort: register a pending referral row from a code.
+
+        Silent on missing/invalid/self-referral so a stale ?ref= link can
+        never block a real signup. The row starts as `pending` and stays
+        there until the referee's contract clears the 25% payment
+        threshold (Phase 3).
+        """
+        if not referrer_code:
+            return
+        # Local import — avoids a circular dep at module load time and
+        # keeps the referrals module optional for places that don't need it.
+        from app.modules.referrals.service import ReferralService
+        from app.modules.referrals.models import Referral
+
+        svc = ReferralService(self.session)
+        referrer_user_id = await svc.find_referrer_by_code(referrer_code)
+        if referrer_user_id is None or referrer_user_id == applicant_user_id:
+            # Unknown code OR self-referral guard. Both cases: skip silently.
+            return
+        existing = await svc.referrals.get_by_applicant(applicant_id)
+        if existing is not None:
+            return  # already attached — unique constraint, defensive check
+        self.session.add(Referral(
+            referrer_user_id=referrer_user_id,
+            referred_applicant_id=applicant_id,
+            status="pending",
+            source=source,
+        ))
+        await self.session.flush()
 
     async def update(self, applicant_id: UUID, payload: ApplicantUpdate) -> Applicant:
         obj = await self.get(applicant_id)

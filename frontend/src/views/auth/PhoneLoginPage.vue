@@ -1,16 +1,35 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useRouter, RouterLink } from 'vue-router'
+import { ref, computed, onMounted } from 'vue'
+import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { Phone, ArrowRight, AlertCircle, CheckCircle2, ShieldCheck } from 'lucide-vue-next'
 import { authApi } from '@/api/auth.api'
 import { AxiosError } from 'axios'
 import { formatPhone, compactPhone, PLACEHOLDERS } from '@/utils/validators'
 
 const router = useRouter()
+const route = useRoute()
 const phone = ref('')
 const loading = ref(false)
 const error = ref<string | null>(null)
 const errorCode = ref<string | null>(null)
+const refCode = ref<string | null>(null)
+
+onMounted(() => {
+  // Capture ?ref=CODE so the new applicant gets attached to the inviter once
+  // they complete the OTP + onboarding wizard. We stash it on sessionStorage
+  // so the value survives the OTP redirect; the ProfilePage onboarding step
+  // reads it back when calling POST /applicants/me.
+  const q = (route.query.ref || route.query.referral_code) as string | undefined
+  if (q && typeof q === 'string') {
+    const cleaned = q.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8)
+    if (cleaned.length >= 4) {
+      sessionStorage.setItem('referrer_code', cleaned)
+      refCode.value = cleaned
+    }
+  } else {
+    refCode.value = sessionStorage.getItem('referrer_code')
+  }
+})
 
 function onPhoneInput(e: Event) {
   phone.value = formatPhone((e.target as HTMLInputElement).value)
@@ -68,6 +87,11 @@ async function submit() {
       <p class="mt-2 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
         Telefon raqamingizni kiriting — SMS-kod yuboramiz.
       </p>
+
+      <div v-if="refCode" class="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-xs">
+        <CheckCircle2 class="w-3.5 h-3.5 shrink-0" />
+        <span>Sizni tavsiya qilgan kod: <strong class="font-mono">{{ refCode }}</strong></span>
+      </div>
     </div>
 
     <form class="space-y-4" @submit.prevent="submit" novalidate>

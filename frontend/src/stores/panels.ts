@@ -24,6 +24,7 @@ import {
   Library,
   Inbox,
   LayoutGrid,
+  Gift,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 
@@ -156,6 +157,7 @@ const APPLICANT_NAV: NavEntry[] = [
   leaf('/applicant/programs',     "Yo'nalishlar",      GraduationCap,   'emerald'),
   leaf('/applicant/applications', 'Arizalarim',        ClipboardList,   'amber'),
   leaf('/applicant/contracts',    'Shartnomalarim',    FileText,        'teal'),
+  leaf('/applicant/referrals',    'Referal dasturi',   Gift,            'rose'),
 ]
 
 export const PANELS: Record<string, PanelDef> = {

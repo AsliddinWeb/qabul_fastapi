@@ -33,6 +33,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'applications/:id',  name: 'applicant-application-id', component: () => import('@/views/applicant/ApplicationDetailPage.vue'),meta: { title: 'Ariza tafsiloti' } },
       { path: 'contracts',         name: 'applicant-contracts',      component: () => import('@/views/applicant/ContractsPage.vue'),        meta: { title: 'Shartnomalarim' } },
       { path: 'contracts/:id',     name: 'applicant-contract-id',    component: () => import('@/views/applicant/ContractDetailPage.vue'),   meta: { title: 'Shartnoma' } },
+      { path: 'referrals',         name: 'applicant-referrals',      component: () => import('@/views/applicant/ReferralsPage.vue'),        meta: { title: 'Referal dasturi' } },
     ],
   },
 

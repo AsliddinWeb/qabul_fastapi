@@ -63,11 +63,16 @@ class ApplicantBase(AppSchema):
 class ApplicantCreate(ApplicantBase):
     """Self-registration: user_id is taken from the authenticated user."""
 
+    # Optional invite code (the public referral_code of another user). When
+    # set, the applicants service registers a `pending` referral row.
+    referrer_code: str | None = Field(default=None, max_length=8)
+
 
 class ApplicantCreateForOperator(ApplicantBase):
     """Operator manually creates an applicant — no auth flow on applicant side."""
 
     phone: str = Field(min_length=4, max_length=20)
+    referrer_code: str | None = Field(default=None, max_length=8)
 
 
 class ApplicantUpdate(AppSchema):

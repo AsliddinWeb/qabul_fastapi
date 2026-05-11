@@ -20,6 +20,9 @@ export interface ApplicantBase {
   telegram_username?: string | null
   image_id?: string | null
   passport_file_id?: string | null
+  // Optional invite code captured from the ?ref=CODE link at sign-in;
+  // server records a pending referral row when present.
+  referrer_code?: string | null
 }
 
 export interface ApplicantRead extends ApplicantBase {

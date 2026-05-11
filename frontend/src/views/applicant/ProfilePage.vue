@@ -167,15 +167,24 @@ async function saveProfile() {
   }
   savingProfile.value = true
   try {
-    const payload = {
+    const payload: Record<string, any> = {
       ...personal,
       passport_series: (personal.passport_series || '').toUpperCase().trim(),
       pinfl: (personal.pinfl || '').trim(),
       additional_phone: personal.additional_phone?.replace(/\s|-/g, '') || null,
       email: personal.email?.trim() || null,
     }
-    if (profile.value) await applicantsApi.updateMe(payload)
-    else                 await applicantsApi.createMe(payload)
+    if (profile.value) {
+      await applicantsApi.updateMe(payload as any)
+    } else {
+      // First-time profile creation — attach the inviter code captured at
+      // sign-in (?ref=CODE). Cleared after a successful submit so a stale
+      // value can't re-attach on a later profile rebuild.
+      const referrer_code = sessionStorage.getItem('referrer_code')
+      if (referrer_code) payload.referrer_code = referrer_code
+      await applicantsApi.createMe(payload as any)
+      if (referrer_code) sessionStorage.removeItem('referrer_code')
+    }
     toast.success("Ma'lumotlar saqlandi")
     await loadInitial()
     gotoStep('diplom')

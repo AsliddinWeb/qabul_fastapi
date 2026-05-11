@@ -14,6 +14,7 @@ from app.modules.files.router import router as files_router
 from app.modules.leads.router import router as leads_router
 from app.modules.payments.router import router as payments_router
 from app.modules.programs.router import router as programs_router
+from app.modules.referrals.router import router as referrals_router
 from app.modules.regions.router import router as regions_router
 from app.modules.users.router import router as users_router
 
@@ -38,4 +39,5 @@ api_router.include_router(audit_router,        prefix="/audit",        tags=["au
 api_router.include_router(files_router,        prefix="/files",        tags=["files"])
 api_router.include_router(leads_router,        prefix="/leads",        tags=["leads"])
 api_router.include_router(consulting_router,   prefix="/consulting-agencies", tags=["consulting"])
+api_router.include_router(referrals_router,    prefix="/referrals",    tags=["referrals"])
 api_router.include_router(crm_admin_router,    prefix="/integrations/crm", tags=["integrations"])
