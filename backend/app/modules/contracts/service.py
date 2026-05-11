@@ -472,6 +472,16 @@ def _build_context(
     )
     qr_data_uri = _make_qr_data_uri(pdf_url)
 
+    # === Xazna QR: static merchant link for the treasury payment app ===
+    # The same merchant URL is printed on every XIU contract — the xazna app
+    # asks the user for the specific contract number after they scan, so we
+    # don't need to bake contract-specific data into this QR.
+    XAZNA_PAYMENT_URL = (
+        "https://pay.xazna.uz/billing/universal"
+        "?merchantId=6ad325ed-7ff3-42e1-877f-a3a1a23e6743"
+    )
+    xazna_qr_data_uri = _make_qr_data_uri(XAZNA_PAYMENT_URL)
+
     # Bitiruv yili (graduation year): expected current_year + duration for new admission
     bitiruv_yili = ""
     if program and program.study_duration_years:
@@ -516,6 +526,10 @@ def _build_context(
         "QR_CODE": qr_data_uri,
         "QR_CODE_DATA": qr_data_uri,
         "qr_code": qr_data_uri,
+        # Treasury (Xazna) payment QR — only shown by templates that opt in.
+        "XAZNA_QR_CODE": xazna_qr_data_uri,
+        "XAZNA_QR_CODE_DATA": xazna_qr_data_uri,
+        "XAZNA_PAYMENT_URL": XAZNA_PAYMENT_URL,
         # Structured nested context
         "contract": {
             "number": contract.contract_number,
