@@ -444,10 +444,14 @@ onMounted(async () => {
       institutionTypes.value,
       countries.value,
     ] = await Promise.all([
-      adminApi.branches.list(true),
+      adminApi.branches.list(false),
       adminApi.educationLevels.list(),
       adminApi.educationForms.list(),
-      adminApi.programs.list({ active_only: true }),
+      // Load ALL programs (including inactive) so an edit mode on an
+      // application created against a now-deactivated program can still
+      // resolve the dropdowns — otherwise the form/program selects fall
+      // back to placeholder even though the row clearly has values.
+      adminApi.programs.list({ active_only: false }),
       adminApi.courses.list(),
       adminApi.educationTypes.list(),
       adminApi.institutionTypes.list(),
