@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeft, Save, UserPlus, Search, X, Award, Check } from 'lucide-vue-next'
+import { ArrowLeft, Save, UserPlus, Search, X, Award, Check, Pencil } from 'lucide-vue-next'
 import { AxiosError } from 'axios'
 import {
   adminApi,
@@ -285,18 +285,41 @@ async function createDiplomInline() {
   }
   diplomCreating.value = true
   try {
-    const payload = { user_id: form.applicant_user_id, ...diplomForm }
-    const created = await adminApi.diploms.create(payload)
-    toast.success("Diplom qo'shildi")
+    if (myDiplom.value?.id) {
+      const updated = await adminApi.diploms.update(myDiplom.value.id, { ...diplomForm })
+      toast.success("Diplom yangilandi")
+      myDiplom.value = updated
+      form.diplom_id = updated.id
+    } else {
+      const payload = { user_id: form.applicant_user_id, ...diplomForm }
+      const created = await adminApi.diploms.create(payload)
+      toast.success("Diplom qo'shildi")
+      myDiplom.value = created
+      form.diplom_id = created.id
+    }
     showDiplomForm.value = false
-    myDiplom.value = created
-    form.diplom_id = created.id
   } catch (e) {
     const ax = e as AxiosError<{ error?: { message?: string } }>
     toast.error(ax.response?.data?.error?.message || "Saqlab bo'lmadi")
   } finally {
     diplomCreating.value = false
   }
+}
+
+function openDiplomEdit() {
+  if (!myDiplom.value) return
+  Object.assign(diplomForm, {
+    serial_number: myDiplom.value.serial_number || '',
+    education_type_id: myDiplom.value.education_type_id || '',
+    institution_type_id: myDiplom.value.institution_type_id || '',
+    university_name: myDiplom.value.university_name || '',
+    graduation_year: myDiplom.value.graduation_year || '',
+    region_id: myDiplom.value.region_id || '',
+    district_id: myDiplom.value.district_id || '',
+    diploma_file_id: myDiplom.value.diploma_file_id || null,
+  })
+  diplomErrors.value = {}
+  showDiplomForm.value = true
 }
 
 const transferForm = reactive({
@@ -329,18 +352,40 @@ async function createTransferInline() {
   }
   transferCreating.value = true
   try {
-    const payload = { user_id: form.applicant_user_id, ...transferForm }
-    const created = await adminApi.transferDiploms.create(payload)
-    toast.success("Perevod diplomi qo'shildi")
+    if (myTransferDiplom.value?.id) {
+      // Edit path — update the existing row.
+      const updated = await adminApi.transferDiploms.update(myTransferDiplom.value.id, {
+        ...transferForm,
+      })
+      toast.success("Perevod diplomi yangilandi")
+      myTransferDiplom.value = updated
+      form.transfer_diplom_id = updated.id
+    } else {
+      const payload = { user_id: form.applicant_user_id, ...transferForm }
+      const created = await adminApi.transferDiploms.create(payload)
+      toast.success("Perevod diplomi qo'shildi")
+      myTransferDiplom.value = created
+      form.transfer_diplom_id = created.id
+    }
     showTransferForm.value = false
-    myTransferDiplom.value = created
-    form.transfer_diplom_id = created.id
   } catch (e) {
     const ax = e as AxiosError<{ error?: { message?: string } }>
     toast.error(ax.response?.data?.error?.message || "Saqlab bo'lmadi")
   } finally {
     transferCreating.value = false
   }
+}
+
+function openTransferEdit() {
+  if (!myTransferDiplom.value) return
+  Object.assign(transferForm, {
+    country_id: myTransferDiplom.value.country_id || '',
+    university_name: myTransferDiplom.value.university_name || '',
+    target_course_id: myTransferDiplom.value.target_course_id || '',
+    transcript_file_id: myTransferDiplom.value.transcript_file_id || null,
+  })
+  transferErrors.value = {}
+  showTransferForm.value = true
 }
 
 // =============================================================================
@@ -691,11 +736,12 @@ async function submit() {
             <Check class="w-4 h-4 text-green-600" />
             <span class="font-medium text-slate-900 dark:text-slate-100">{{ selectedApplicantLabel }}</span>
           </div>
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 shrink-0">
             <button v-if="isEdit" type="button"
-                    class="text-xs font-medium px-2.5 py-1 rounded-md bg-white dark:bg-slate-800 text-brand-700 dark:text-brand-300 ring-1 ring-brand-200 dark:ring-brand-700/40 hover:bg-brand-50 dark:hover:bg-brand-900/30"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-brand-600 hover:bg-brand-700 text-white shadow-sm transition"
                     @click="applicantEditOpen = !applicantEditOpen">
-              {{ applicantEditOpen ? 'Yopish' : "Ma'lumotlarni tahrirlash" }}
+              <Pencil class="w-3.5 h-3.5" />
+              {{ applicantEditOpen ? 'Yopish' : "Tahrirlash" }}
             </button>
             <button v-if="!isEdit" type="button" class="text-xs text-red-600 hover:underline" @click="clearApplicant">
               <X class="w-3.5 h-3.5 inline" /> O'zgartirish
@@ -980,18 +1026,23 @@ async function submit() {
           <h2 class="font-semibold text-slate-900 dark:text-slate-100">Diplom (1-kurs)</h2>
         </div>
 
-        <div v-if="myDiplom"
-             class="flex items-center justify-between p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-900">
-          <div class="text-sm">
+        <div v-if="myDiplom && !showDiplomForm"
+             class="flex items-start justify-between gap-3 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-900">
+          <div class="text-sm flex-1 min-w-0">
             <div class="font-medium text-slate-900 dark:text-slate-100 inline-flex items-center gap-1.5">
-              <Check class="w-4 h-4 text-green-600" /> {{ myDiplom.serial_number }}
+              <Check class="w-4 h-4 text-green-600 shrink-0" /> {{ myDiplom.serial_number }}
             </div>
-            <div class="text-xs text-slate-600 dark:text-slate-400 mt-0.5">{{ myDiplom.university_name }} ({{ myDiplom.graduation_year }})</div>
+            <div class="text-xs text-slate-600 dark:text-slate-400 mt-0.5 truncate">{{ myDiplom.university_name }} ({{ myDiplom.graduation_year }})</div>
           </div>
+          <button type="button"
+                  class="text-xs font-medium px-2.5 py-1 rounded-md bg-white dark:bg-slate-800 text-brand-700 dark:text-brand-300 ring-1 ring-brand-200 dark:ring-brand-700/40 hover:bg-brand-50 dark:hover:bg-brand-900/30 shrink-0"
+                  @click="openDiplomEdit">
+            Tahrirlash
+          </button>
         </div>
 
-        <template v-else>
-          <p v-if="!showDiplomForm" class="text-sm text-amber-700 dark:text-amber-300">
+        <template v-if="!myDiplom || showDiplomForm">
+          <p v-if="!showDiplomForm && !myDiplom" class="text-sm text-amber-700 dark:text-amber-300">
             Bu abituriyentda diplom yo'q.
             <button type="button" class="text-brand-600 hover:underline ml-1" @click="showDiplomForm = true">
               Diplom qo'shish
@@ -1073,7 +1124,7 @@ async function submit() {
             <div class="flex gap-2 pt-2">
               <button type="button" class="btn-primary text-sm" :disabled="diplomCreating" @click="createDiplomInline">
                 <Award class="w-4 h-4" />
-                {{ diplomCreating ? "Saqlanmoqda..." : "Diplomni saqlash" }}
+                {{ diplomCreating ? "Saqlanmoqda..." : myDiplom ? "Diplomni yangilash" : "Diplomni saqlash" }}
               </button>
               <button type="button" class="btn-ghost text-sm" @click="showDiplomForm = false">Bekor</button>
             </div>
@@ -1089,15 +1140,27 @@ async function submit() {
           <h2 class="font-semibold text-slate-900 dark:text-slate-100">Perevod diplomi</h2>
         </div>
 
-        <div v-if="myTransferDiplom"
-             class="p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-900">
-          <div class="text-sm font-medium text-slate-900 dark:text-slate-100 inline-flex items-center gap-1.5">
-            <Check class="w-4 h-4 text-green-600" /> {{ myTransferDiplom.university_name }}
+        <div v-if="myTransferDiplom && !showTransferForm"
+             class="flex items-start justify-between gap-3 p-3 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-900">
+          <div class="text-sm flex-1 min-w-0">
+            <div class="font-medium text-slate-900 dark:text-slate-100 inline-flex items-center gap-1.5">
+              <Check class="w-4 h-4 text-green-600 shrink-0" /> {{ myTransferDiplom.university_name }}
+            </div>
+            <div class="text-xs text-slate-600 dark:text-slate-400 mt-1">
+              <span v-if="myTransferDiplom.target_course_id">
+                Maqsadli kurs: {{ courses.find((c) => c.id === myTransferDiplom.target_course_id)?.name || '—' }}
+              </span>
+            </div>
           </div>
+          <button type="button"
+                  class="text-xs font-medium px-2.5 py-1 rounded-md bg-white dark:bg-slate-800 text-brand-700 dark:text-brand-300 ring-1 ring-brand-200 dark:ring-brand-700/40 hover:bg-brand-50 dark:hover:bg-brand-900/30 shrink-0"
+                  @click="openTransferEdit">
+            Tahrirlash
+          </button>
         </div>
 
-        <template v-else>
-          <p v-if="!showTransferForm" class="text-sm text-amber-700 dark:text-amber-300">
+        <template v-if="!myTransferDiplom || showTransferForm">
+          <p v-if="!showTransferForm && !myTransferDiplom" class="text-sm text-amber-700 dark:text-amber-300">
             Perevod diplomi yo'q.
             <button type="button" class="text-brand-600 hover:underline ml-1" @click="showTransferForm = true">
               Qo'shish
@@ -1142,7 +1205,7 @@ async function submit() {
             <div class="flex gap-2 pt-2">
               <button type="button" class="btn-primary text-sm" :disabled="transferCreating" @click="createTransferInline">
                 <Award class="w-4 h-4" />
-                {{ transferCreating ? "Saqlanmoqda..." : "Diplomni saqlash" }}
+                {{ transferCreating ? "Saqlanmoqda..." : myTransferDiplom ? "Diplomni yangilash" : "Diplomni saqlash" }}
               </button>
               <button type="button" class="btn-ghost text-sm" @click="showTransferForm = false">Bekor</button>
             </div>

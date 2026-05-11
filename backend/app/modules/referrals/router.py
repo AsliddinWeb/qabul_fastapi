@@ -89,6 +89,7 @@ async def my_referrals(
 async def list_referrals(
     status_filter: str | None = None,
     referrer_user_id: UUID | None = None,
+    referred_applicant_id: UUID | None = None,
     svc: ReferralService = Depends(_service),
 ) -> list[ReferralRead]:
     stmt = select(Referral)
@@ -96,6 +97,8 @@ async def list_referrals(
         stmt = stmt.where(Referral.status == status_filter)
     if referrer_user_id is not None:
         stmt = stmt.where(Referral.referrer_user_id == referrer_user_id)
+    if referred_applicant_id is not None:
+        stmt = stmt.where(Referral.referred_applicant_id == referred_applicant_id)
     stmt = stmt.order_by(Referral.created_at.desc())
     rows = list((await svc.session.scalars(stmt)).all())
     return await _enrich_referrals(svc.session, rows)

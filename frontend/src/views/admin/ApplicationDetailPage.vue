@@ -8,9 +8,11 @@ import {
   Clock, Send, Eye, Phone, MapPin, IdCard,
   Building2, Layers, BookOpen, Calendar, Globe, Hash, Wallet,
   AlertTriangle, Inbox, Paperclip, ExternalLink,
+  Shield, Users,
 } from 'lucide-vue-next'
 import { AxiosError } from 'axios'
 import { adminApi } from '@/api/admin.api'
+import { http } from '@/api/http'
 import { consultingApi, type ConsultingAgency } from '@/api/consulting.api'
 import { useAuthStore } from '@/stores/auth'
 import { fileUrl } from '@/utils/files'
@@ -54,6 +56,10 @@ const lead = ref<any>(null)
 const consultingAgencies = ref<ConsultingAgency[]>([])
 const consultingSelected = ref<string>('')
 const savingConsulting = ref(false)
+// Referral row attached to this applicant (if anyone invited them).
+const referralRow = ref<any>(null)
+// Map of user_id → { full_name, phone, role } for the actor card.
+const actorMap = ref<Record<string, { full_name: string | null; phone: string | null; role: string | null; referral_code: string | null }>>({})
 
 function authHeader(): Record<string, string> {
   const t = localStorage.getItem('access_token')
@@ -143,6 +149,46 @@ async function loadAll() {
     if (canSeeConsulting.value) {
       consultingAgencies.value = await consultingApi.list(true).catch(() => [])
       consultingSelected.value = application.value.consulting_agency_id || ''
+    }
+
+    // Referral row attached to this applicant (if any). Best-effort —
+    // ignore 403s for users without applicants.list (e.g. accountants
+    // viewing through their read-only path).
+    if (applicant.value) {
+      try {
+        const { referralsApi } = await import('@/api/referrals.api')
+        const refs = await referralsApi.list({ referred_applicant_id: applicant.value.id })
+        referralRow.value = refs[0] || null
+      } catch { /* ignore */ }
+    }
+
+    // Resolve actor names + applicant's own referral_code (so the card can
+    // show "Bu abituriyentning kodi") in one batch.
+    const ids = new Set<string>()
+    if (applicant.value?.user_id) ids.add(applicant.value.user_id)
+    if (applicant.value?.registered_by_id) ids.add(applicant.value.registered_by_id)
+    if (application.value.reviewed_by_id) ids.add(application.value.reviewed_by_id)
+    if (contract.value?.created_by_id) ids.add(contract.value.created_by_id)
+    if (referralRow.value?.referrer_user_id) ids.add(referralRow.value.referrer_user_id)
+    if (lead.value?.assigned_to_id) ids.add(lead.value.assigned_to_id)
+    if (lead.value?.created_by_id) ids.add(lead.value.created_by_id)
+    if (ids.size > 0) {
+      try {
+        const res = await http.get<Array<{
+          id: string; full_name: string | null; phone: string | null;
+          role: string | null; referral_code: string | null
+        }>>('/users/public-lookup', { params: { ids: Array.from(ids).join(',') } })
+        const map: Record<string, any> = {}
+        for (const u of res.data) {
+          map[u.id] = {
+            full_name: u.full_name,
+            phone: u.phone,
+            role: u.role,
+            referral_code: u.referral_code,
+          }
+        }
+        actorMap.value = map
+      } catch { /* ignore */ }
     }
   } catch (e) {
     const ax = e as AxiosError<{ error?: { message?: string } }>
@@ -726,6 +772,12 @@ function applicantInitials(): string {
                   <MapPin class="w-3.5 h-3.5 text-slate-400 shrink-0" />
                   <span class="truncate">{{ applicant.address }}</span>
                 </div>
+                <div v-if="applicant.user_id && actorMap[applicant.user_id]?.referral_code"
+                     class="flex items-center gap-2 text-slate-600 dark:text-slate-400 sm:col-span-2">
+                  <span class="text-base">🎁</span>
+                  <span class="text-slate-400">Referal kodi:</span>
+                  <span class="font-mono font-semibold text-rose-700 dark:text-rose-300">{{ actorMap[applicant.user_id].referral_code }}</span>
+                </div>
               </div>
             </div>
           </div>
@@ -1210,6 +1262,122 @@ function applicantInitials(): string {
           <div v-else class="text-sm text-slate-500 dark:text-slate-400 py-4 text-center">
             Hali to'lovlar yo'q
           </div>
+        </section>
+
+        <!-- ========================================================== -->
+        <!--   Referral & actor card — who registered / created / etc.   -->
+        <!-- ========================================================== -->
+        <section class="card p-5">
+          <h2 class="section-title inline-flex items-center gap-2 mb-4">
+            <span class="icon-bubble-sm bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300">
+              <Shield class="w-4 h-4" />
+            </span>
+            Ariza yo'li
+          </h2>
+
+          <ul class="space-y-3 text-sm">
+            <!-- Referrer (who invited the applicant) -->
+            <li v-if="referralRow" class="flex items-start gap-3">
+              <span class="grid place-items-center w-8 h-8 rounded-lg shrink-0 mt-0.5"
+                    :class="referralRow.status === 'pending'
+                      ? 'bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300'
+                      : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300'">
+                <span class="text-base">🎁</span>
+              </span>
+              <div class="flex-1 min-w-0">
+                <div class="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Kim tavsiya qilgan</div>
+                <div class="font-medium text-slate-900 dark:text-slate-100 truncate">
+                  {{ actorMap[referralRow.referrer_user_id]?.full_name || actorMap[referralRow.referrer_user_id]?.phone || referralRow.referrer_user_id.slice(0, 8) }}
+                </div>
+                <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  Holat:
+                  <strong :class="referralRow.status === 'pending' ? 'text-amber-700 dark:text-amber-300'
+                                : referralRow.status === 'active' ? 'text-emerald-700 dark:text-emerald-300'
+                                : 'text-slate-700 dark:text-slate-300'">
+                    {{ referralRow.status === 'pending' ? 'Kutilmoqda (25% to\'lovga)'
+                      : referralRow.status === 'active' ? 'Faol (ishlatish mumkin)'
+                      : referralRow.status === 'spent_on_contract' ? 'Chegirma qilingan'
+                      : referralRow.status === 'paid_cash' ? 'Naqd to\'langan'
+                      : 'Bekor' }}
+                  </strong>
+                </div>
+              </div>
+            </li>
+
+            <!-- Registered by -->
+            <li class="flex items-start gap-3">
+              <span class="grid place-items-center w-8 h-8 rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 shrink-0 mt-0.5">
+                <UserIcon class="w-4 h-4" />
+              </span>
+              <div class="flex-1 min-w-0">
+                <div class="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Kim ro'yxatdan o'tkazgan</div>
+                <div class="font-medium text-slate-900 dark:text-slate-100 truncate">
+                  <template v-if="applicant?.registered_by_id">
+                    {{ actorMap[applicant.registered_by_id]?.full_name || actorMap[applicant.registered_by_id]?.phone || 'Operator' }}
+                  </template>
+                  <template v-else>Abituriyent o'zi ro'yxatdan o'tgan</template>
+                </div>
+              </div>
+            </li>
+
+            <!-- Reviewer -->
+            <li v-if="application.reviewed_by_id" class="flex items-start gap-3">
+              <span class="grid place-items-center w-8 h-8 rounded-lg bg-sky-50 text-sky-600 dark:bg-sky-500/15 dark:text-sky-300 shrink-0 mt-0.5">
+                <Eye class="w-4 h-4" />
+              </span>
+              <div class="flex-1 min-w-0">
+                <div class="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Arizani kim ko'rib chiqgan</div>
+                <div class="font-medium text-slate-900 dark:text-slate-100 truncate">
+                  {{ actorMap[application.reviewed_by_id]?.full_name || actorMap[application.reviewed_by_id]?.phone || application.reviewed_by_id.slice(0, 8) }}
+                </div>
+                <div v-if="application.reviewed_at" class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  {{ new Date(application.reviewed_at).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) }}
+                </div>
+              </div>
+            </li>
+
+            <!-- Contract creator -->
+            <li v-if="contract" class="flex items-start gap-3">
+              <span class="grid place-items-center w-8 h-8 rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300 shrink-0 mt-0.5">
+                <FileText class="w-4 h-4" />
+              </span>
+              <div class="flex-1 min-w-0">
+                <div class="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Shartnomani kim yaratgan</div>
+                <div class="font-medium text-slate-900 dark:text-slate-100 truncate">
+                  {{ actorMap[contract.created_by_id]?.full_name || actorMap[contract.created_by_id]?.phone || (contract.created_by_id || '—').slice(0, 8) }}
+                </div>
+                <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  Yaratilgan: {{ new Date(contract.created_at).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) }}
+                </div>
+              </div>
+            </li>
+
+            <!-- Contract signed -->
+            <li v-if="contract?.signed_at" class="flex items-start gap-3">
+              <span class="grid place-items-center w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300 shrink-0 mt-0.5">
+                <CheckCircle2 class="w-4 h-4" />
+              </span>
+              <div class="flex-1 min-w-0">
+                <div class="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Shartnoma imzolangan</div>
+                <div class="font-medium text-emerald-700 dark:text-emerald-300">
+                  {{ new Date(contract.signed_at).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) }}
+                </div>
+              </div>
+            </li>
+
+            <!-- Lead conversion (if any) -->
+            <li v-if="lead && lead.assigned_to_id" class="flex items-start gap-3">
+              <span class="grid place-items-center w-8 h-8 rounded-lg bg-violet-50 text-violet-600 dark:bg-violet-500/15 dark:text-violet-300 shrink-0 mt-0.5">
+                <Users class="w-4 h-4" />
+              </span>
+              <div class="flex-1 min-w-0">
+                <div class="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Lead biriktirilgan operator</div>
+                <div class="font-medium text-slate-900 dark:text-slate-100 truncate">
+                  {{ actorMap[lead.assigned_to_id]?.full_name || actorMap[lead.assigned_to_id]?.phone || lead.assigned_to_name || lead.assigned_to_id.slice(0, 8) }}
+                </div>
+              </div>
+            </li>
+          </ul>
         </section>
       </div>
     </div>

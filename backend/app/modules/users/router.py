@@ -37,6 +37,46 @@ async def me(
     return UserRead.model_validate(user)
 
 
+@router.get("/public-lookup")
+async def public_user_lookup(
+    ids: str = Query(..., description="Comma-separated UUIDs"),
+    _: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Bulk minimal user info ({id, full_name, phone, role}) for the given IDs.
+
+    Used by detail pages to resolve actor names (registered_by_id /
+    reviewed_by_id / created_by_id) without forcing operators to also
+    hold USERS_LIST. Returns only public-safe fields.
+    """
+    from sqlalchemy import select as _select
+    from app.modules.users.models import User as _UserModel
+
+    raw = [s.strip() for s in (ids or "").split(",") if s.strip()]
+    parsed: list[UUID] = []
+    for token in raw:
+        try:
+            parsed.append(UUID(token))
+        except (TypeError, ValueError):
+            continue
+    if not parsed:
+        return []
+    rows = (await session.execute(
+        _select(_UserModel.id, _UserModel.full_name, _UserModel.phone, _UserModel.role, _UserModel.referral_code)
+        .where(_UserModel.id.in_(parsed))
+    )).all()
+    return [
+        {
+            "id": str(uid),
+            "full_name": fn,
+            "phone": ph,
+            "role": role.value if role else None,
+            "referral_code": code,
+        }
+        for uid, fn, ph, role, code in rows
+    ]
+
+
 @router.get(
     "",
     response_model=PageResponse[UserRead],

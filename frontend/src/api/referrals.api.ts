@@ -98,7 +98,11 @@ export const referralsApi = {
     }).then(r => r.data),
 
   // Staff
-  list: (params: { status_filter?: ReferralStatus; referrer_user_id?: string } = {}) =>
+  list: (params: {
+    status_filter?: ReferralStatus
+    referrer_user_id?: string
+    referred_applicant_id?: string
+  } = {}) =>
     http.get<ReferralRead[]>('/referrals', { params }).then(r => r.data),
 
   attach: (applicantId: string, referrerCode: string) =>
