@@ -595,14 +595,20 @@ async function submit() {
     }
     if (form.admission_type === 'yangi_qabul') {
       payload.diplom_id = form.diplom_id || null
+      // Clear any stale perevod FKs so switching types from edit mode
+      // doesn't leave orphaned references on the row.
+      payload.transfer_diplom_id = null
+      payload.course_id = null
     } else {
       payload.transfer_diplom_id = form.transfer_diplom_id || null
       payload.course_id = form.course_id || null
+      payload.diplom_id = null
     }
 
     if (isEdit.value && id.value) {
       delete payload.applicant_id
-      delete payload.admission_type
+      // admission_type IS now editable in edit mode — keep it on the payload so
+      // the backend can switch a yangi_qabul ariza to perevod or vice versa.
       // If the operator opened the inline applicant editor, validate and persist
       // those changes against the applicant record before updating the application.
       if (applicantEditOpen.value && form.applicant_id) {
@@ -779,7 +785,7 @@ async function submit() {
             <div class="sm:col-span-2">
               <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Yashash manzili</label>
               <textarea v-model="inlineApplicant.address" rows="2" class="input"
-                        placeholder="Toshkent shahri, Mirzo Ulug'bek tumani, ..."></textarea>
+                        placeholder="Mahalla yoki ko'cha nomi, uy raqami"></textarea>
             </div>
           </div>
           <p class="text-[11px] text-slate-500 dark:text-slate-400">
@@ -920,7 +926,7 @@ async function submit() {
               <div class="sm:col-span-2">
                 <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Yashash manzili</label>
                 <textarea v-model="inlineApplicant.address" rows="2" class="input"
-                          placeholder="Toshkent shahri, Mirzo Ulug'bek tumani, ..."></textarea>
+                          placeholder="Mahalla yoki ko'cha nomi, uy raqami"></textarea>
               </div>
             </div>
             <div class="flex gap-2 pt-2">
@@ -949,14 +955,14 @@ async function submit() {
                  :class="form.admission_type === 'yangi_qabul'
                    ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/30'
                    : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'">
-            <input v-model="form.admission_type" type="radio" value="yangi_qabul" :disabled="isEdit" />
+            <input v-model="form.admission_type" type="radio" value="yangi_qabul" />
             <span class="text-sm font-medium">1-kurs (Yangi qabul)</span>
           </label>
           <label class="flex-1 flex items-center gap-2 px-4 py-3 rounded-lg border cursor-pointer transition-colors"
                  :class="form.admission_type === 'perevod'
                    ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/30'
                    : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'">
-            <input v-model="form.admission_type" type="radio" value="perevod" :disabled="isEdit" />
+            <input v-model="form.admission_type" type="radio" value="perevod" />
             <span class="text-sm font-medium">Perevod</span>
           </label>
         </div>

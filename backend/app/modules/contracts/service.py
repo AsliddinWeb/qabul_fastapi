@@ -472,12 +472,28 @@ def _build_context(
 
     # Compose the student address: "<viloyat> viloyati, <tuman> tumani, <manzil>"
     # so the contract shows full geographic context, not just a street line.
-    # Drops any segment that's missing.
+    # Drops any segment that's missing AND skips the suffix when the name
+    # already carries one (e.g. "Qarshi tumani" or "Toshkent shahri") so we
+    # don't get "Qarshi tumani tumani".
+    def _with_suffix(name: str | None, default_suffix: str) -> str | None:
+        if not name:
+            return None
+        bare = name.strip()
+        if not bare:
+            return None
+        lowered = bare.lower()
+        for already in ("viloyati", "tumani", "shahri", "shahar", "respublikasi"):
+            if lowered.endswith(already):
+                return bare
+        return f"{bare} {default_suffix}"
+
     _addr_parts: list[str] = []
-    if region_name:
-        _addr_parts.append(f"{region_name} viloyati")
-    if district_name:
-        _addr_parts.append(f"{district_name} tumani")
+    v = _with_suffix(region_name, "viloyati")
+    if v:
+        _addr_parts.append(v)
+    d = _with_suffix(district_name, "tumani")
+    if d:
+        _addr_parts.append(d)
     if applicant.address:
         _addr_parts.append(applicant.address.strip())
     composed_address = ", ".join(_addr_parts)

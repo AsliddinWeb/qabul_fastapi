@@ -56,6 +56,7 @@ class ApplicationReview(AppSchema):
 
 
 class ApplicationUpdate(AppSchema):
+    admission_type: AdmissionType | None = None
     branch_id: UUID | None = None
     education_level_id: UUID | None = None
     education_form_id: UUID | None = None

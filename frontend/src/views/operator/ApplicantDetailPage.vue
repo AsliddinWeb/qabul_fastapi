@@ -275,7 +275,7 @@ async function generateContract() {
         </div>
         <div class="sm:col-span-2 lg:col-span-3 xl:col-span-4">
           <label class="block text-sm font-medium mb-1">Manzil</label>
-          <input v-model="personal.address" class="input" placeholder="Toshkent shahri, Mirzo Ulug'bek tumani, ..." />
+          <input v-model="personal.address" class="input" placeholder="Mahalla yoki ko'cha nomi, uy raqami" />
         </div>
       </div>
       <button v-if="!isAccountantPanel" class="btn-primary" :disabled="saving" @click="saveInfo">

@@ -255,7 +255,7 @@ async function submit() {
         </div>
         <div class="sm:col-span-2 lg:col-span-3 xl:col-span-4">
           <label class="block text-sm font-medium mb-1">Manzil</label>
-          <input v-model="form.address" class="input" placeholder="Toshkent shahri, Mirzo Ulug'bek tumani, ..." />
+          <input v-model="form.address" class="input" placeholder="Mahalla yoki ko'cha nomi, uy raqami" />
         </div>
       </div>
 
