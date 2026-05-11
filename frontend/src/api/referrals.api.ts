@@ -48,6 +48,29 @@ export interface ReferralAvailableBalance {
   available_amount: string
 }
 
+export interface TopReferrer {
+  user_id: string
+  full_name: string | null
+  phone: string | null
+  referral_code: string | null
+  total_invited: number
+  active_count: number
+  spent_count: number
+  paid_count: number
+  earned_amount: string
+}
+
+export interface ReferralStats {
+  total_referrals: number
+  by_status: Record<string, number>
+  total_discount_amount: string
+  total_cash_paid: string
+  cash_pending_count: number
+  cash_pending_amount: string
+  top_referrers: TopReferrer[]
+  monthly_trend: Array<{ month: string; count: number }>
+}
+
 export interface ReferralPayoutRead {
   id: string
   referrer_user_id: string
@@ -120,4 +143,7 @@ export const referralsApi = {
     http.post<ReferralPayoutRead>(`/referrals/payouts/${id}/pay`).then(r => r.data),
   rejectPayout: (id: string, reason: string) =>
     http.post<ReferralPayoutRead>(`/referrals/payouts/${id}/reject`, { reason }).then(r => r.data),
+
+  // Phase 5 — admin
+  stats: () => http.get<ReferralStats>('/referrals/stats').then(r => r.data),
 }

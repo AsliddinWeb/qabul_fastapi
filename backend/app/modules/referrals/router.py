@@ -1,11 +1,15 @@
-"""Referrals HTTP surface (phase 2)."""
+"""Referrals HTTP surface."""
 from __future__ import annotations
 
+import csv
+import io
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -13,8 +17,7 @@ from app.core.dependencies import CurrentUser, get_current_user, get_db, require
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationError
 from app.core.permissions import Permission
 from app.modules.applicants.models import Applicant
-from app.modules.referrals.models import Referral
-from app.modules.referrals.models import ReferralPayout
+from app.modules.referrals.models import Referral, ReferralPayout
 from app.modules.referrals.schemas import (
     ApplyToContractPayload,
     ApplyToContractResponse,
@@ -25,9 +28,12 @@ from app.modules.referrals.schemas import (
     ReferralPayoutRead,
     ReferralRead,
     ReferralSettingsRead,
+    ReferralStats,
     RejectPayoutPayload,
+    TopReferrer,
 )
 from app.modules.referrals.service import ReferralService
+from app.modules.users.models import User
 
 router = APIRouter()
 
@@ -362,3 +368,177 @@ async def _enrich_referrals(session: AsyncSession, rows: list[Referral]) -> list
         rec.referred_full_name = name_by_id.get(r.referred_applicant_id)
         out.append(rec)
     return out
+
+
+# ============================================================================
+# Admin: stats + CSV export (Phase 5)
+# ============================================================================
+@router.get(
+    "/stats",
+    response_model=ReferralStats,
+    dependencies=[Depends(require_permission(Permission.REPORTS_VIEW))],
+)
+async def referral_stats(
+    svc: ReferralService = Depends(_service),
+) -> ReferralStats:
+    """Top-level numbers for the admin dashboard."""
+    from sqlalchemy import Integer as _Int, case as _case
+    session = svc.session
+
+    by_status_rows = (await session.execute(
+        select(Referral.status, func.count(Referral.id)).group_by(Referral.status)
+    )).all()
+    by_status: dict[str, int] = {s: int(c or 0) for s, c in by_status_rows}
+    total = sum(by_status.values())
+
+    discount_total = await session.scalar(
+        select(func.coalesce(func.sum(Referral.reward_amount), 0))
+        .where(Referral.status == "spent_on_contract")
+    ) or Decimal(0)
+
+    cash_paid = await session.scalar(
+        select(func.coalesce(func.sum(ReferralPayout.amount), 0))
+        .where(ReferralPayout.status == "paid")
+    ) or Decimal(0)
+
+    cash_pending_row = (await session.execute(
+        select(func.count(ReferralPayout.id), func.coalesce(func.sum(ReferralPayout.amount), 0))
+        .where(ReferralPayout.status.in_(("requested", "approved")))
+    )).one()
+
+    # Top 10 referrers (count of invitees, plus splits by status)
+    top_stmt = (
+        select(
+            Referral.referrer_user_id,
+            func.count(Referral.id).label("total_invited"),
+            func.sum(_case((Referral.status == "active", 1), else_=0)).label("active_count"),
+            func.sum(_case((Referral.status == "spent_on_contract", 1), else_=0)).label("spent_count"),
+            func.sum(_case((Referral.status == "paid_cash", 1), else_=0)).label("paid_count"),
+        )
+        .group_by(Referral.referrer_user_id)
+        .order_by(func.count(Referral.id).desc())
+        .limit(10)
+    )
+    top_rows = (await session.execute(top_stmt)).all()
+    top_user_ids = [r[0] for r in top_rows]
+    user_info: dict = {}
+    if top_user_ids:
+        u_rows = (await session.execute(
+            select(User.id, User.full_name, User.phone, User.referral_code)
+            .where(User.id.in_(top_user_ids))
+        )).all()
+        user_info = {uid: (n, ph, code) for uid, n, ph, code in u_rows}
+
+    referral_settings = await svc.get_settings()
+    reward = Decimal(referral_settings.reward_amount)
+
+    top_referrers: list[TopReferrer] = []
+    for uid, total_inv, active_c, spent_c, paid_c in top_rows:
+        full, ph, code = user_info.get(uid, (None, None, None))
+        earned = reward * Decimal(int((spent_c or 0)) + int((paid_c or 0)))
+        top_referrers.append(TopReferrer(
+            user_id=uid,
+            full_name=full,
+            phone=ph,
+            referral_code=code,
+            total_invited=int(total_inv or 0),
+            active_count=int(active_c or 0),
+            spent_count=int(spent_c or 0),
+            paid_count=int(paid_c or 0),
+            earned_amount=earned,
+        ))
+
+    # Monthly trend — last 6 calendar months
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    trend: list[dict] = []
+    for i in range(5, -1, -1):
+        y, m = month_start.year, month_start.month - i
+        while m <= 0:
+            m += 12; y -= 1
+        bucket_start = month_start.replace(year=y, month=m)
+        ny, nm = (y + 1, 1) if m == 12 else (y, m + 1)
+        bucket_end = month_start.replace(year=ny, month=nm)
+        cnt = await session.scalar(
+            select(func.count(Referral.id))
+            .where(Referral.created_at >= bucket_start, Referral.created_at < bucket_end)
+        ) or 0
+        trend.append({"month": bucket_start.strftime("%Y-%m"), "count": int(cnt)})
+
+    return ReferralStats(
+        total_referrals=total,
+        by_status=by_status,
+        total_discount_amount=discount_total,
+        total_cash_paid=cash_paid,
+        cash_pending_count=int(cash_pending_row[0] or 0),
+        cash_pending_amount=Decimal(cash_pending_row[1] or 0),
+        top_referrers=top_referrers,
+        monthly_trend=trend,
+    )
+
+
+@router.get(
+    "/export.csv",
+    dependencies=[Depends(require_permission(Permission.REPORTS_VIEW))],
+)
+async def export_referrals_csv(
+    status_filter: str | None = Query(default=None),
+    svc: ReferralService = Depends(_service),
+) -> Response:
+    """Full referrals export (joined with applicant + referrer)."""
+    session = svc.session
+    stmt = (
+        select(
+            Referral.id,
+            Referral.status,
+            Referral.reward_amount,
+            Referral.source,
+            Referral.created_at,
+            Referral.activated_at,
+            Referral.cancelled_at,
+            Referral.payout_at,
+            User.full_name.label("referrer_name"),
+            User.phone.label("referrer_phone"),
+            User.referral_code.label("referrer_code"),
+            Applicant.last_name,
+            Applicant.first_name,
+            Applicant.other_name,
+        )
+        .join(User, User.id == Referral.referrer_user_id)
+        .join(Applicant, Applicant.id == Referral.referred_applicant_id)
+    )
+    if status_filter:
+        stmt = stmt.where(Referral.status == status_filter)
+    stmt = stmt.order_by(Referral.created_at.desc())
+    rows = (await session.execute(stmt)).all()
+
+    buf = io.StringIO()
+    buf.write("﻿")  # UTF-8 BOM for Excel
+    w = csv.writer(buf)
+    w.writerow([
+        "ID", "Holat", "Summa", "Manba", "Yaratilgan", "Faollashgan",
+        "Bekor qilingan", "To'lov vaqti", "Tavsiya qiluvchi", "Telefon",
+        "Kod", "Taklif qilingan F.I.Sh.",
+    ])
+    for r in rows:
+        full_name = " ".join(filter(None, [r.last_name, r.first_name, r.other_name])).strip()
+        w.writerow([
+            str(r.id),
+            r.status or "",
+            str(r.reward_amount or 0),
+            r.source or "",
+            r.created_at.strftime("%Y-%m-%d %H:%M") if r.created_at else "",
+            r.activated_at.strftime("%Y-%m-%d %H:%M") if r.activated_at else "",
+            r.cancelled_at.strftime("%Y-%m-%d %H:%M") if r.cancelled_at else "",
+            r.payout_at.strftime("%Y-%m-%d %H:%M") if r.payout_at else "",
+            r.referrer_name or "",
+            r.referrer_phone or "",
+            r.referrer_code or "",
+            full_name,
+        ])
+    fn = f"referrals-{datetime.now().strftime('%Y%m%d-%H%M')}.csv"
+    return Response(
+        content=buf.getvalue().encode("utf-8"),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{fn}"'},
+    )

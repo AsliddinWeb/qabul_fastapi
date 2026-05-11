@@ -100,3 +100,28 @@ class ReferralAvailableBalance(AppSchema):
     earmarked_count:     int      # tied up in a pending payout
     available_count:     int      # truly spendable right now
     available_amount:    Decimal  # available_count * reward_amount
+
+
+# ---------- Phase 5: admin stats ----------
+class TopReferrer(AppSchema):
+    user_id:        UUID
+    full_name:      str | None = None
+    phone:          str | None = None
+    referral_code:  str | None = None
+    total_invited:  int
+    active_count:   int
+    spent_count:    int
+    paid_count:     int
+    earned_amount:  Decimal      # spent + paid * reward_amount
+
+
+class ReferralStats(AppSchema):
+    total_referrals:        int
+    by_status:              dict[str, int]
+    total_discount_amount:  Decimal     # SUM(reward_amount) on spent_on_contract rows
+    total_cash_paid:        Decimal     # SUM(amount) on referral_payouts where status=paid
+    cash_pending_count:     int         # payouts in requested/approved
+    cash_pending_amount:    Decimal
+    top_referrers:          list[TopReferrer]
+    # Monthly trend (last 6 months) — counts of new referrals registered.
+    monthly_trend:          list[dict]

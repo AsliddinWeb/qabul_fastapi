@@ -129,6 +129,8 @@ const routes: RouteRecordRaw[] = [
       { path: 'leads/:id',              name: 'admin-leads-detail', component: () => import('@/views/admin/leads/LeadDetailPage.vue'),   meta: { title: 'Lead tafsiloti' } },
       { path: 'lead-settings',          name: 'admin-lead-settings', component: () => import('@/views/admin/leads/LeadSettingsPage.vue'), meta: { title: 'Lead sozlamalari' } },
 
+      { path: 'referrals',              name: 'admin-referrals',    component: () => import('@/views/admin/ReferralsDashboardPage.vue'), meta: { title: 'Referal dasturi' } },
+
       { path: 'audit',                  name: 'admin-audit',        component: () => import('@/views/admin/AuditLogPage.vue'),           meta: { title: 'Audit jurnali' } },
       { path: 'audit/:id',              name: 'admin-audit-detail', component: () => import('@/views/admin/AuditDetailPage.vue'),        meta: { title: 'Audit yozuvi' } },
 

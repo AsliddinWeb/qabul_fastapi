@@ -88,6 +88,7 @@ const ADMIN_NAV: NavEntry[] = [
     leaf('/admin/diploms',              'Diplomlar (1-kurs)',     Award,          'emerald'),
     leaf('/admin/transfer-diploms',     'Perevod diplomlari',     Award,          'cyan'),
     leaf('/admin/payments',             "To'lovlar",              CreditCard,     'teal'),
+    leaf('/admin/referrals',            'Referal dasturi',        Gift,           'rose'),
   ]),
 
   group('programs', "Ta'lim", School, [
