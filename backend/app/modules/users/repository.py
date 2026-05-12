@@ -1,14 +1,37 @@
 from __future__ import annotations
 
+import secrets
+import string
+from typing import Any
+
 from sqlalchemy import select
 
 from app.core.repository import BaseRepository
 from app.db.enums import UserRole
 from app.modules.users.models import User
 
+# 36^6 ≈ 2.1B combinations — collisions are vanishingly rare; the retry loop
+# below handles them just in case.
+_REFERRAL_ALPHABET = string.ascii_uppercase + string.digits
+_REFERRAL_CODE_LEN = 6
+
 
 class UserRepository(BaseRepository[User]):
     model = User
+
+    async def create(self, **kwargs: Any) -> User:
+        """Wrap BaseRepository.create to guarantee every new user has a
+        referral_code. Without this, applicants that signed up after the
+        backfill migration (05_referrals.sql) ended up with NULL codes, so
+        their personal share link never rendered in the admin UI.
+        """
+        if not kwargs.get("referral_code"):
+            for _ in range(8):
+                code = "".join(secrets.choice(_REFERRAL_ALPHABET) for _ in range(_REFERRAL_CODE_LEN))
+                if await self.get_by(referral_code=code) is None:
+                    kwargs["referral_code"] = code
+                    break
+        return await super().create(**kwargs)
 
     async def get_by_phone(self, phone: str) -> User | None:
         return await self.get_by(phone=phone)
