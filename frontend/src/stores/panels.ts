@@ -110,6 +110,8 @@ const ADMIN_NAV: NavEntry[] = [
     leaf('/admin/courses',              'Kurslar',                Layers,         'emerald'),
   ]),
 
+  leaf('/admin/operator-analytics',     'Operatorlar analitikasi', BarChart3,    'sky'),
+
   group('system', 'Sozlamalar', Settings, [
     leaf('/admin/users',                'Foydalanuvchilar',       UsersIcon,      'rose'),
     leaf('/admin/contract-templates',   'Shartnoma shabloni',     FilePlus2,      'violet'),
@@ -142,6 +144,7 @@ const DIRECTOR_NAV: NavEntry[] = [
   leaf('/director',              'Bosh sahifa',     LayoutDashboard, 'violet'),
   leaf('/director/applicants',   'Abituriyentlar',  UsersIcon,       'violet'),
   leaf('/director/applications', 'Arizalar',        ClipboardList,   'amber'),
+  leaf('/director/operator-analytics', 'Operatorlar analitikasi', BarChart3, 'sky'),
 ]
 
 const ACCOUNTANT_NAV: NavEntry[] = [

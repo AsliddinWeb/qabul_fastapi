@@ -360,4 +360,61 @@ export const adminApi = {
     refund: (id: string, reason?: string) =>
       http.post<any>(`/payments/${id}/refund`, null, { params: { reason } }).then((r) => r.data),
   },
+
+  // ---------- Analytics (Phase 1 endpoints) ----------
+  analytics: {
+    leaderboard: (params: { from: string; to: string; operator_id?: string; role?: string }) =>
+      http.get<OperatorLeaderboardRead>('/analytics/operators', { params }).then((r) => r.data),
+    timeseries: (operator_id: string, params: { from: string; to: string }) =>
+      http.get<OperatorTimeseriesRead>(`/analytics/operators/${operator_id}/timeseries`, { params }).then((r) => r.data),
+    mySummary: (params: { from: string; to: string }) =>
+      http.get<OperatorStatsRead | null>('/analytics/operators/me/summary', { params }).then((r) => r.data),
+  },
+}
+
+// ---------- Analytics types (mirror backend schemas.py) ----------
+export interface OperatorStatsRead {
+  operator_id: string
+  full_name: string | null
+  phone: string | null
+  role: string
+  leads_created: number
+  leads_won: number
+  leads_lost: number
+  leads_open: number
+  applicants_registered: number
+  applications_created: number
+  applications_reviewed: number
+  applications_accepted: number
+  applications_rejected: number
+  contracts_created: number
+  contracts_signed: number
+  contracts_cancelled: number
+  payments_registered: number
+  payments_confirmed: number
+  payments_confirmed_amount: string  // Decimal arrives as string
+}
+
+export interface OperatorLeaderboardRead {
+  from_date: string
+  to_date: string
+  items: OperatorStatsRead[]
+}
+
+export interface TimeseriesPoint {
+  date: string
+  value: number
+}
+
+export interface OperatorTimeseriesRead {
+  operator_id: string
+  from_date: string
+  to_date: string
+  leads_created: TimeseriesPoint[]
+  leads_won: TimeseriesPoint[]
+  applicants_registered: TimeseriesPoint[]
+  applications_reviewed: TimeseriesPoint[]
+  contracts_created: TimeseriesPoint[]
+  contracts_signed: TimeseriesPoint[]
+  payments_confirmed: TimeseriesPoint[]
 }
