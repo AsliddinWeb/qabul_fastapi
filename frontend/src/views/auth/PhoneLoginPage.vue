@@ -4,7 +4,7 @@ import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { Phone, ArrowRight, AlertCircle, CheckCircle2, ShieldCheck } from 'lucide-vue-next'
 import { authApi } from '@/api/auth.api'
 import { AxiosError } from 'axios'
-import { formatPhone, compactPhone, PLACEHOLDERS } from '@/utils/validators'
+import { formatPhoneLocal, localToCompact, PLACEHOLDERS } from '@/utils/validators'
 
 const router = useRouter()
 const route = useRoute()
@@ -32,18 +32,18 @@ onMounted(() => {
 })
 
 function onPhoneInput(e: Event) {
-  phone.value = formatPhone((e.target as HTMLInputElement).value)
+  phone.value = formatPhoneLocal((e.target as HTMLInputElement).value)
   if (error.value) { error.value = null; errorCode.value = null }
 }
 
-const isValid = computed(() => /^\+998\d{9}$/.test(compactPhone(phone.value)))
+const isValid = computed(() => /^\+998\d{9}$/.test(localToCompact(phone.value)))
 
 async function submit() {
   error.value = null
   errorCode.value = null
-  const compact = compactPhone(phone.value)
+  const compact = localToCompact(phone.value)
   if (!compact.match(/^\+998\d{9}$/)) {
-    error.value = "Telefon raqamini to'liq kiriting: +998 XX XXX XX XX"
+    error.value = "Telefon raqamini to'liq kiriting: 9 ta raqam"
     return
   }
   loading.value = true
@@ -99,19 +99,24 @@ async function submit() {
         <label for="phone" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-2 inline-flex items-center gap-1.5">
           <Phone class="w-3 h-3" /> Telefon raqam
         </label>
-        <input
-          id="phone"
-          :value="phone"
-          type="tel"
-          inputmode="tel"
-          autocomplete="tel"
-          autofocus
-          :placeholder="PLACEHOLDERS.phoneUz"
-          class="input font-mono text-base !py-3.5"
-          :class="error ? 'error' : ''"
-          :disabled="loading"
-          @input="onPhoneInput"
-        />
+        <div class="relative">
+          <span class="absolute inset-y-0 left-0 flex items-center px-3 rounded-l-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-sm font-mono font-semibold border border-r-0 border-slate-200 dark:border-slate-700 pointer-events-none select-none">
+            +998
+          </span>
+          <input
+            id="phone"
+            :value="phone"
+            type="tel"
+            inputmode="tel"
+            autocomplete="tel-national"
+            autofocus
+            :placeholder="PLACEHOLDERS.phoneUzLocal"
+            class="input font-mono text-base !py-3.5 !pl-[4.5rem]"
+            :class="error ? 'error' : ''"
+            :disabled="loading"
+            @input="onPhoneInput"
+          />
+        </div>
         <p v-if="!error && isValid" class="mt-2 text-xs inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
           <CheckCircle2 class="w-3.5 h-3.5" />
           Telefon raqami to'g'ri kiritildi

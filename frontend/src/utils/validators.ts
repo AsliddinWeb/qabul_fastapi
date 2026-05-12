@@ -17,6 +17,9 @@ export const PATTERNS = {
 // ---------- Placeholders ----------
 export const PLACEHOLDERS = {
   phoneUz: '+998 94 202 55 11',
+  // Local-only placeholder used by inputs that render `+998` as a fixed
+  // sticker on the left rather than baking it into the value.
+  phoneUzLocal: '94 202 55 11',
   passport: 'AA1234567',
   pinfl: '12345678901234 (14 raqam)',
   year: '2024',
@@ -129,6 +132,42 @@ export function compactPhone(value: string): string {
   const digits = value.replace(/\D/g, '')
   if (!digits) return ''
   return '+' + digits
+}
+
+/**
+ * Format ONLY the 9-digit local part of an Uzbek mobile number as
+ * "94 202 55 11". Used by login forms that render the "+998" country code
+ * as a fixed sticker outside the input so the user only types the local
+ * digits. Strips anything that isn't a digit, drops a leading 998 if the
+ * user paste-includes it, and caps at 9 digits.
+ */
+export function formatPhoneLocal(value: string): string {
+  let digits = value.replace(/\D/g, '')
+  // If they pasted the full number, strip 998 / 8 prefixes so what stays
+  // is the 9-digit local body.
+  if (digits.startsWith('998')) digits = digits.slice(3)
+  digits = digits.slice(0, 9)
+  if (!digits) return ''
+  const op = digits.slice(0, 2)
+  const a  = digits.slice(2, 5)
+  const b  = digits.slice(5, 7)
+  const c  = digits.slice(7, 9)
+  let out = op
+  if (a) out += ' ' + a
+  if (b) out += ' ' + b
+  if (c) out += ' ' + c
+  return out
+}
+
+/**
+ * Pair with formatPhoneLocal: prepend the +998 country code to whatever
+ * the user typed into a local-only input. Returns "+998XXXXXXXXX" or ""
+ * for empty.
+ */
+export function localToCompact(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 9)
+  if (!digits) return ''
+  return '+998' + digits
 }
 
 export function formatPassport(value: string): string {

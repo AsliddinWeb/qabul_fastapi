@@ -7,7 +7,7 @@ import {
 } from 'lucide-vue-next'
 import { authApi, sessionToUser } from '@/api/auth.api'
 import { useAuthStore } from '@/stores/auth'
-import { formatPhone, compactPhone, PLACEHOLDERS } from '@/utils/validators'
+import { formatPhoneLocal, localToCompact, PLACEHOLDERS } from '@/utils/validators'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -19,19 +19,19 @@ const loading = ref(false)
 const error = ref<string | null>(null)
 
 function onPhoneInput(e: Event) {
-  phone.value = formatPhone((e.target as HTMLInputElement).value)
+  phone.value = formatPhoneLocal((e.target as HTMLInputElement).value)
   if (error.value) error.value = null
 }
 
-const phoneValid = computed(() => /^\+998\d{9}$/.test(compactPhone(phone.value)))
+const phoneValid = computed(() => /^\+998\d{9}$/.test(localToCompact(phone.value)))
 const passwordValid = computed(() => password.value.length >= 8)
 const canSubmit = computed(() => phoneValid.value && passwordValid.value && !loading.value)
 
 async function submit() {
   error.value = null
-  const compact = compactPhone(phone.value)
+  const compact = localToCompact(phone.value)
   if (!compact.match(/^\+998\d{9}$/)) {
-    error.value = "Telefon: +998 XX XXX XX XX (12 raqam)"
+    error.value = "Telefon raqamini to'liq kiriting: 9 ta raqam"
     return
   }
   if (password.value.length < 8) {
@@ -84,19 +84,24 @@ async function submit() {
         <label for="staff-phone" class="block text-[11px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-2 inline-flex items-center gap-1.5">
           <Phone class="w-3 h-3" /> Telefon raqam
         </label>
-        <input
-          id="staff-phone"
-          :value="phone"
-          type="tel"
-          inputmode="tel"
-          autocomplete="username"
-          autofocus
-          :placeholder="PLACEHOLDERS.phoneUz"
-          class="input font-mono text-base !py-3.5"
-          :class="error ? 'error' : ''"
-          :disabled="loading"
-          @input="onPhoneInput"
-        />
+        <div class="relative">
+          <span class="absolute inset-y-0 left-0 flex items-center px-3 rounded-l-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-sm font-mono font-semibold border border-r-0 border-slate-200 dark:border-slate-700 pointer-events-none select-none">
+            +998
+          </span>
+          <input
+            id="staff-phone"
+            :value="phone"
+            type="tel"
+            inputmode="tel"
+            autocomplete="username"
+            autofocus
+            :placeholder="PLACEHOLDERS.phoneUzLocal"
+            class="input font-mono text-base !py-3.5 !pl-[4.5rem]"
+            :class="error ? 'error' : ''"
+            :disabled="loading"
+            @input="onPhoneInput"
+          />
+        </div>
       </div>
 
       <!-- Password -->

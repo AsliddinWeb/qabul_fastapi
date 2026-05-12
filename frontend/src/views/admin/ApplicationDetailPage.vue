@@ -770,7 +770,7 @@ function applicantInitials(): string {
               </span>
               Abituriyent
             </h2>
-            <RouterLink v-if="applicant" :to="`/admin/applicants/${applicant.id}`"
+            <RouterLink v-if="applicant" :to="`${panelPrefix}/applicants/${applicant.id}`"
                         class="text-xs text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 font-medium">
               To'liq profil →
             </RouterLink>
