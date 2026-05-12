@@ -67,7 +67,7 @@ const referralCode = computed<string | null>(() => {
   return uid ? (actorMap.value[uid]?.referral_code ?? null) : null
 })
 const referralLink = computed(() =>
-  referralCode.value ? `${origin}/auth/login?ref=${encodeURIComponent(referralCode.value)}` : ''
+  referralCode.value ? `${origin}/app/auth/login?ref=${encodeURIComponent(referralCode.value)}` : ''
 )
 const referralShareText = computed(() =>
   `XIU universitetiga ushbu havola orqali ro'yxatdan o'ting: ${referralLink.value}`
@@ -80,7 +80,7 @@ const whatsappShareUrl = computed(() =>
 )
 async function copyReferralCode(code: string) {
   // Match the applicant page: copy the FULL share link, not just the code.
-  const link = `${origin}/auth/login?ref=${encodeURIComponent(code)}`
+  const link = `${origin}/app/auth/login?ref=${encodeURIComponent(code)}`
   try {
     await navigator.clipboard.writeText(link)
     referralCodeCopied.value = true

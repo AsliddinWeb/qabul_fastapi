@@ -44,12 +44,14 @@ def _service(session: AsyncSession = Depends(get_db)) -> ReferralService:
 
 def _build_share_url(code: str) -> str:
     base = (settings.public_base_url or "").rstrip("/")
-    # Applicant signup lives on the SPA at /auth/login (PhoneLoginPage); it
-    # captures ?ref=CODE into sessionStorage so ProfilePage can forward it on
+    # Applicant signup lives on the SPA at /app/auth/login (PhoneLoginPage);
+    # the SPA is mounted at /app/ in router.history, so the prefix is
+    # mandatory or nginx serves the marketing 404. PhoneLoginPage captures
+    # ?ref=CODE into sessionStorage so ProfilePage can forward it on
     # POST /applicants/me.
     if not base:
-        return f"/auth/login?ref={code}"
-    return f"{base}/auth/login?ref={code}"
+        return f"/app/auth/login?ref={code}"
+    return f"{base}/app/auth/login?ref={code}"
 
 
 # ============================================================================
