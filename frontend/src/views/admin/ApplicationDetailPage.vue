@@ -742,8 +742,66 @@ function applicantInitials(): string {
 
     <!-- Two-column body -->
     <div class="grid lg:grid-cols-3 gap-5">
-      <!-- LEFT COLUMN — Applicant + Diplom + Program -->
+      <!-- LEFT COLUMN — Program (hero) + Applicant + Diplom -->
       <div class="lg:col-span-2 space-y-5">
+        <!-- Yo'nalish — prominent hero card (moved to top so it's the first thing visible) -->
+        <section v-if="program" class="card overflow-hidden">
+          <div class="relative px-5 py-5 sm:px-7 sm:py-6 bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 text-white">
+            <div class="flex items-start gap-4">
+              <span class="grid place-items-center w-12 h-12 rounded-2xl bg-white/15 backdrop-blur ring-1 ring-white/20 shrink-0">
+                <GraduationCap class="w-6 h-6" />
+              </span>
+              <div class="flex-1 min-w-0">
+                <div class="text-[10px] uppercase tracking-[0.12em] font-bold opacity-80 mb-1">Yo'nalish</div>
+                <h2 class="text-xl sm:text-2xl font-bold leading-tight break-words">{{ program.name }}</h2>
+                <div class="mt-2 flex flex-wrap items-center gap-1.5">
+                  <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur text-[11px] font-mono font-bold">
+                    {{ program.code }}
+                  </span>
+                  <span v-if="branch" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/15 ring-1 ring-white/15 text-[11px] font-medium">
+                    <Building2 class="w-3 h-3" /> {{ branch.name }}
+                  </span>
+                  <span v-if="educationLevel" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/15 ring-1 ring-white/15 text-[11px] font-medium">
+                    <Layers class="w-3 h-3" /> {{ educationLevel.name }}
+                  </span>
+                  <span v-if="educationForm" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/15 ring-1 ring-white/15 text-[11px] font-medium">
+                    <BookOpen class="w-3 h-3" /> {{ educationForm.name }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="px-5 py-5 sm:px-7 sm:py-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="rounded-xl p-3.5 bg-slate-50 ring-1 ring-slate-200/60 dark:bg-slate-800/40 dark:ring-slate-700/40">
+              <div class="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">
+                <Wallet class="w-3 h-3" /> Yillik to'lov
+              </div>
+              <div class="mt-1 text-xl font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                {{ fmtMoney(program.tuition_fee) }}
+                <span class="text-xs font-medium text-slate-500">so'm</span>
+              </div>
+            </div>
+            <div class="rounded-xl p-3.5 bg-slate-50 ring-1 ring-slate-200/60 dark:bg-slate-800/40 dark:ring-slate-700/40">
+              <div class="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">
+                <Calendar class="w-3 h-3" /> O'qish muddati
+              </div>
+              <div class="mt-1 text-xl font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                {{ program.study_duration_years }}
+                <span class="text-xs font-medium text-slate-500">yil</span>
+              </div>
+            </div>
+            <div class="rounded-xl p-3.5 bg-slate-50 ring-1 ring-slate-200/60 dark:bg-slate-800/40 dark:ring-slate-700/40">
+              <div class="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">
+                <Hash class="w-3 h-3" /> Shartnoma seriyasi
+              </div>
+              <div class="mt-1 font-mono text-base font-bold text-slate-900 dark:text-slate-100">
+                {{ program.contract_series }}
+              </div>
+            </div>
+          </div>
+        </section>
+
         <!-- Applicant card -->
         <section class="card p-5">
           <div class="flex items-center justify-between mb-4">
@@ -912,54 +970,6 @@ function applicantInitials(): string {
         </section>
 
         <!-- Program card -->
-        <section class="card p-5">
-          <h2 class="section-title inline-flex items-center gap-2 mb-4">
-            <span class="icon-bubble-sm bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-              <GraduationCap class="w-4 h-4" />
-            </span>
-            Yo'nalish
-          </h2>
-          <div v-if="program" class="space-y-3">
-            <div>
-              <div class="flex items-center gap-2">
-                <span class="pill font-mono">{{ program.code }}</span>
-                <span class="text-base font-semibold text-slate-900 dark:text-slate-100">{{ program.name }}</span>
-              </div>
-              <div class="mt-2 flex flex-wrap gap-1.5">
-                <span v-if="branch" class="pill"><Building2 class="w-3 h-3" /> {{ branch.name }}</span>
-                <span v-if="educationLevel" class="pill"><Layers class="w-3 h-3" /> {{ educationLevel.name }}</span>
-                <span v-if="educationForm" class="pill"><BookOpen class="w-3 h-3" /> {{ educationForm.name }}</span>
-              </div>
-            </div>
-            <div class="pt-3 border-t border-slate-100 dark:border-slate-800 grid sm:grid-cols-3 gap-3">
-              <div class="rounded-xl p-3 bg-slate-50 ring-1 ring-slate-200/60 dark:bg-slate-800/40 dark:ring-slate-700/40">
-                <div class="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  <Wallet class="w-3 h-3" /> Yillik to'lov
-                </div>
-                <div class="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">
-                  {{ fmtMoney(program.tuition_fee) }}
-                  <span class="text-xs font-medium text-slate-500">so'm</span>
-                </div>
-              </div>
-              <div class="rounded-xl p-3 bg-slate-50 ring-1 ring-slate-200/60 dark:bg-slate-800/40 dark:ring-slate-700/40">
-                <div class="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  <Calendar class="w-3 h-3" /> Muddati
-                </div>
-                <div class="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">
-                  {{ program.study_duration_years }}
-                  <span class="text-xs font-medium text-slate-500">yil</span>
-                </div>
-              </div>
-              <div class="rounded-xl p-3 bg-slate-50 ring-1 ring-slate-200/60 dark:bg-slate-800/40 dark:ring-slate-700/40">
-                <div class="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                  <Hash class="w-3 h-3" /> Shartnoma seriyasi
-                </div>
-                <div class="mt-1 font-mono font-semibold text-slate-900 dark:text-slate-100">{{ program.contract_series }}</div>
-              </div>
-            </div>
-          </div>
-        </section>
-
         <section v-if="application.notes" class="card p-5">
           <h2 class="section-title mb-2">Eslatma</h2>
           <p class="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{{ application.notes }}</p>
