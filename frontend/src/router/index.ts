@@ -132,6 +132,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'referrals',              name: 'admin-referrals',    component: () => import('@/views/admin/ReferralsDashboardPage.vue'), meta: { title: 'Referal dasturi' } },
 
       { path: 'operator-analytics',     name: 'admin-operator-analytics', component: () => import('@/views/admin/OperatorAnalyticsPage.vue'), meta: { title: 'Operatorlar analitikasi' } },
+      { path: 'operator-analytics/:id', name: 'admin-operator-analytics-detail', component: () => import('@/views/admin/OperatorAnalyticsDetailPage.vue'), meta: { title: 'Operator tafsiloti' } },
 
       { path: 'audit',                  name: 'admin-audit',        component: () => import('@/views/admin/AuditLogPage.vue'),           meta: { title: 'Audit jurnali' } },
       { path: 'audit/:id',              name: 'admin-audit-detail', component: () => import('@/views/admin/AuditDetailPage.vue'),        meta: { title: 'Audit yozuvi' } },
@@ -155,6 +156,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'applicants',   name: 'director-applicants',   component: () => import('@/views/admin/ApplicantsPage.vue') },
       { path: 'applications', name: 'director-applications', component: () => import('@/views/admin/ApplicationsPage.vue') },
       { path: 'operator-analytics', name: 'director-operator-analytics', component: () => import('@/views/admin/OperatorAnalyticsPage.vue'), meta: { title: 'Operatorlar analitikasi' } },
+      { path: 'operator-analytics/:id', name: 'director-operator-analytics-detail', component: () => import('@/views/admin/OperatorAnalyticsDetailPage.vue'), meta: { title: 'Operator tafsiloti' } },
     ],
   },
 

@@ -1,31 +1,22 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { Line } from 'vue-chartjs'
+import { useRoute } from 'vue-router'
 import {
-  Chart as ChartJS, Tooltip, Legend, CategoryScale, LinearScale,
-  PointElement, LineElement, Filler,
-} from 'chart.js'
-import {
-  Users, ClipboardList, FileText, Inbox, CreditCard,
-  TrendingUp, RefreshCcw, X, Award, AlertTriangle, Download, Activity,
+  ClipboardList, FileText, CreditCard, TrendingUp,
+  RefreshCcw, Download, ChevronRight,
 } from 'lucide-vue-next'
-import {
-  adminApi,
-  type OperatorStatsRead,
-  type OperatorTimeseriesRead,
-  type OperatorActivityRead,
-} from '@/api/admin.api'
+import { adminApi, type OperatorStatsRead } from '@/api/admin.api'
 import { useToast } from '@/composables/useToast'
-import { useThemeStore } from '@/stores/theme'
-import { AUDIT_ACTIONS, tr } from '@/utils/labels'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
 
-ChartJS.register(Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement, Filler)
-
+const route = useRoute()
 const toast = useToast()
-const theme = useThemeStore()
+
+// Which panel-prefix to point detail links at — derived from the current
+// path so the same component serves /admin and /director.
+const panelPrefix = computed(() => route.path.startsWith('/director/') ? '/director' : '/admin')
 
 // ---------- Date range ----------
 type Preset = 'today' | '7d' | '30d' | 'month' | 'custom'
@@ -48,37 +39,22 @@ function applyPreset(p: Preset) {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   let from = new Date(today)
-  if (p === 'today') {
-    // from = today
-  } else if (p === '7d') {
-    from.setDate(today.getDate() - 6)
-  } else if (p === '30d') {
-    from.setDate(today.getDate() - 29)
-  } else if (p === 'month') {
-    from = new Date(today.getFullYear(), today.getMonth(), 1)
-  }
+  if (p === '7d') from.setDate(today.getDate() - 6)
+  else if (p === '30d') from.setDate(today.getDate() - 29)
+  else if (p === 'month') from = new Date(today.getFullYear(), today.getMonth(), 1)
   fromDate.value = isoDay(from)
   toDate.value = isoDay(today)
 }
 
-// Sync custom-date inputs → preset='custom'
-function onCustomDate() {
-  preset.value = 'custom'
-}
+function onCustomDate() { preset.value = 'custom' }
 
 // ---------- Data ----------
 const loading = ref(false)
 const items = ref<OperatorStatsRead[]>([])
-// Previous-equivalent-period totals — drives the "+X% vs ..." pill on
-// each summary StatCard. We compute the window length from the current
-// range and shift backwards by exactly that many days.
+// Previous-equivalent-period totals power the "+X% vs ..." pill on each
+// summary StatCard.
 const prevItems = ref<OperatorStatsRead[]>([])
 const downloading = ref(false)
-
-const drilldownId = ref<string | null>(null)
-const drilldownLoading = ref(false)
-const timeseries = ref<OperatorTimeseriesRead | null>(null)
-const activity = ref<OperatorActivityRead | null>(null)
 
 function prevWindow(): { from: string; to: string } {
   const from = new Date(fromDate.value)
@@ -108,22 +84,6 @@ async function loadLeaderboard() {
   }
 }
 
-async function loadDrilldown(opId: string) {
-  drilldownLoading.value = true
-  try {
-    const [ts, act] = await Promise.all([
-      adminApi.analytics.timeseries(opId, { from: fromDate.value, to: toDate.value }),
-      adminApi.analytics.activity(opId, { from: fromDate.value, to: toDate.value, limit: 20 }),
-    ])
-    timeseries.value = ts
-    activity.value = act
-  } catch {
-    toast.error("Operator ma'lumotlarini yuklab bo'lmadi")
-  } finally {
-    drilldownLoading.value = false
-  }
-}
-
 async function downloadCsv() {
   if (!fromDate.value || !toDate.value) return
   downloading.value = true
@@ -135,17 +95,6 @@ async function downloadCsv() {
   } finally {
     downloading.value = false
   }
-}
-
-function selectOperator(opId: string) {
-  if (drilldownId.value === opId) {
-    drilldownId.value = null
-    timeseries.value = null
-    activity.value = null
-    return
-  }
-  drilldownId.value = opId
-  loadDrilldown(opId)
 }
 
 // ---------- Sorting ----------
@@ -169,14 +118,12 @@ const sortedItems = computed(() => {
   return arr.sort((a, b) => {
     const av = a[k] as any
     const bv = b[k] as any
-    if (typeof av === 'string' && typeof bv === 'string') {
-      return av.localeCompare(bv) * dir
-    }
+    if (typeof av === 'string' && typeof bv === 'string') return av.localeCompare(bv) * dir
     return ((Number(av) || 0) - (Number(bv) || 0)) * dir
   })
 })
 
-// Totals row across all visible operators (used by summary cards).
+// ---------- Totals + trend ----------
 const NUMERIC_KEYS: SortKey[] = [
   'leads_created', 'leads_won', 'leads_lost', 'leads_open',
   'applicants_registered',
@@ -198,9 +145,6 @@ function sumTotals(rows: OperatorStatsRead[]): Record<string, number> {
 const totals = computed(() => sumTotals(items.value))
 const prevTotals = computed(() => sumTotals(prevItems.value))
 
-// % change current vs previous equivalent period. Null when prev=0 and
-// current=0 (no change to report); 100% when prev=0 and current>0 (new
-// activity); otherwise (current-prev)/prev * 100.
 function trendPct(key: string): number | null {
   const cur = totals.value[key] || 0
   const prev = prevTotals.value[key] || 0
@@ -211,10 +155,8 @@ function trendPct(key: string): number | null {
 
 // ---------- Formatting ----------
 function fmtMoney(v: string | number): string {
-  const n = Number(v) || 0
-  return n.toLocaleString('uz-UZ')
+  return (Number(v) || 0).toLocaleString('uz-UZ')
 }
-
 function roleLabel(role: string): string {
   return {
     superadmin: 'Super admin',
@@ -226,105 +168,18 @@ function roleLabel(role: string): string {
   }[role] || role
 }
 
-const selectedOperator = computed(() =>
-  drilldownId.value ? items.value.find(i => i.operator_id === drilldownId.value) || null : null
-)
-
-// ---------- Chart data ----------
-const labelsForChart = computed(() => {
-  if (!timeseries.value) return []
-  return timeseries.value.leads_created.map(p => p.date.slice(5))  // MM-DD
-})
-
-const isDark = computed(() => theme.isDark)
-
-function chartDataset(label: string, color: string, points: number[]) {
-  return {
-    label,
-    data: points,
-    borderColor: color,
-    backgroundColor: color + '22',
-    borderWidth: 2,
-    pointRadius: 2,
-    pointHoverRadius: 4,
-    tension: 0.3,
-    fill: true,
-  }
-}
-
-const conversionChart = computed(() => {
-  if (!timeseries.value) return { labels: [], datasets: [] }
-  return {
-    labels: labelsForChart.value,
-    datasets: [
-      chartDataset('Lead yaratildi', '#6366f1', timeseries.value.leads_created.map(p => p.value)),
-      chartDataset('Lead konversiya', '#10b981', timeseries.value.leads_won.map(p => p.value)),
-      chartDataset('Abituriyent', '#f59e0b', timeseries.value.applicants_registered.map(p => p.value)),
-    ],
-  }
-})
-
-const contractsChart = computed(() => {
-  if (!timeseries.value) return { labels: [], datasets: [] }
-  return {
-    labels: labelsForChart.value,
-    datasets: [
-      chartDataset('Shartnoma yaratildi', '#0ea5e9', timeseries.value.contracts_created.map(p => p.value)),
-      chartDataset('Imzolandi', '#22c55e', timeseries.value.contracts_signed.map(p => p.value)),
-      chartDataset("To'lov tasdiqlandi", '#a855f7', timeseries.value.payments_confirmed.map(p => p.value)),
-    ],
-  }
-})
-
-const chartOpts = computed(() => ({
-  responsive: true,
-  maintainAspectRatio: false,
-  interaction: { mode: 'index' as const, intersect: false },
-  plugins: {
-    legend: {
-      labels: {
-        color: isDark.value ? '#cbd5e1' : '#475569',
-        usePointStyle: true,
-        font: { size: 11 },
-      },
-    },
-    tooltip: {
-      backgroundColor: isDark.value ? '#0f172a' : '#fff',
-      titleColor: isDark.value ? '#e2e8f0' : '#0f172a',
-      bodyColor: isDark.value ? '#cbd5e1' : '#475569',
-      borderColor: isDark.value ? '#334155' : '#e2e8f0',
-      borderWidth: 1,
-      padding: 10,
-    },
-  },
-  scales: {
-    x: {
-      ticks: { color: isDark.value ? '#94a3b8' : '#64748b', font: { size: 10 } },
-      grid: { display: false },
-    },
-    y: {
-      beginAtZero: true,
-      ticks: { color: isDark.value ? '#94a3b8' : '#64748b', font: { size: 10 }, precision: 0 },
-      grid: { color: isDark.value ? '#1e293b' : '#f1f5f9' },
-    },
-  },
-}))
-
 onMounted(() => {
   applyPreset('30d')
   loadLeaderboard()
 })
 
-watch([fromDate, toDate], () => {
-  loadLeaderboard()
-  if (drilldownId.value) loadDrilldown(drilldownId.value)
-})
+watch([fromDate, toDate], loadLeaderboard)
 </script>
 
 <template>
   <div>
     <PageHeader title="Operatorlar analitikasi"
-                subtitle="Har bir operator bo'yicha leadlar, arizalar, shartnomalar va to'lovlar bo'yicha jami ko'rsatkichlar." />
+                subtitle="Har bir operator bo'yicha leadlar, arizalar, shartnomalar va to'lovlar bo'yicha jami ko'rsatkichlar. Tafsilot uchun jadvaldan operatorni tanlang." />
 
     <!-- Date range bar -->
     <section class="card p-4 mb-5">
@@ -439,15 +294,14 @@ watch([fromDate, toDate], () => {
               <th class="px-4 py-3 text-right font-semibold">
                 <button type="button" @click="setSort('payments_confirmed_amount')" class="hover:text-brand-600">Summa</button>
               </th>
+              <th class="px-3 py-3"></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 dark:divide-slate-800">
             <tr v-for="row in sortedItems" :key="row.operator_id"
                 class="hover:bg-slate-50 dark:hover:bg-slate-800/40 cursor-pointer transition"
-                :class="drilldownId === row.operator_id ? 'bg-brand-50 dark:bg-brand-500/10' : ''"
-                @click="selectOperator(row.operator_id)">
-              <td class="px-4 py-3 sticky left-0 bg-white dark:bg-slate-900 z-10 group-hover:bg-slate-50"
-                  :class="drilldownId === row.operator_id ? '!bg-brand-50 dark:!bg-brand-500/10' : ''">
+                @click="$router.push(`${panelPrefix}/operator-analytics/${row.operator_id}`)">
+              <td class="px-4 py-3 sticky left-0 bg-white dark:bg-slate-900 z-10">
                 <div class="font-medium text-slate-900 dark:text-slate-100 truncate max-w-[200px]">
                   {{ row.full_name || row.phone || row.operator_id.slice(0, 8) }}
                 </div>
@@ -472,140 +326,12 @@ watch([fromDate, toDate], () => {
               <td class="px-4 py-3 text-right tabular-nums font-medium text-slate-700 dark:text-slate-300">
                 {{ fmtMoney(row.payments_confirmed_amount) }}
               </td>
+              <td class="px-3 py-3 text-right">
+                <ChevronRight class="w-4 h-4 text-slate-400 inline-block" />
+              </td>
             </tr>
           </tbody>
         </table>
-      </div>
-    </section>
-
-    <!-- Drilldown panel -->
-    <section v-if="selectedOperator" class="mt-6 card p-5">
-      <div class="flex items-center justify-between mb-4">
-        <div>
-          <h2 class="section-title">
-            {{ selectedOperator.full_name || selectedOperator.phone || 'Operator' }}
-          </h2>
-          <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            {{ roleLabel(selectedOperator.role) }} · {{ fromDate }} → {{ toDate }}
-          </div>
-        </div>
-        <button type="button" class="icon-btn"
-                @click="drilldownId = null; timeseries = null">
-          <X class="w-4 h-4" />
-        </button>
-      </div>
-
-      <!-- KPI tiles for this operator -->
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-        <StatCard label="Leadlar" :value="selectedOperator.leads_created" :icon="Inbox" tone="amber"
-                  :hint="`${selectedOperator.leads_won} konv. · ${selectedOperator.leads_lost} yo'q.`" />
-        <StatCard label="Abituriyentlar" :value="selectedOperator.applicants_registered" :icon="Users" tone="violet" />
-        <StatCard label="Imzolangan shartnoma" :value="selectedOperator.contracts_signed"
-                  :icon="Award" tone="brand"
-                  :hint="`${selectedOperator.contracts_cancelled} bekor`" />
-        <StatCard :label="`To'lov (so'm)`"
-                  :value="fmtMoney(selectedOperator.payments_confirmed_amount)"
-                  :icon="CreditCard" tone="emerald"
-                  :hint="`${selectedOperator.payments_confirmed} ta`" />
-      </div>
-
-      <div v-if="drilldownLoading" class="space-y-4">
-        <Skeleton class="h-64" />
-        <Skeleton class="h-64" />
-      </div>
-
-      <div v-else-if="timeseries" class="grid lg:grid-cols-2 gap-5">
-        <div>
-          <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
-            <TrendingUp class="w-4 h-4 text-emerald-500" />
-            Funnel: Lead → Abituriyent
-          </h3>
-          <div class="h-64">
-            <Line :data="conversionChart" :options="chartOpts" />
-          </div>
-        </div>
-        <div>
-          <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
-            <FileText class="w-4 h-4 text-brand-500" />
-            Shartnoma va to'lovlar
-          </h3>
-          <div class="h-64">
-            <Line :data="contractsChart" :options="chartOpts" />
-          </div>
-        </div>
-      </div>
-
-      <!-- Lead → Application → Contract conversion bar -->
-      <div v-if="!drilldownLoading" class="mt-6 grid lg:grid-cols-2 gap-5">
-        <div class="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/40">
-          <div class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
-            <AlertTriangle v-if="selectedOperator.leads_created && !selectedOperator.contracts_signed"
-                           class="w-3.5 h-3.5 text-amber-500" />
-            Konversiya foizi
-          </div>
-          <div class="grid grid-cols-3 gap-3 text-sm">
-            <div>
-              <div class="text-[11px] uppercase tracking-wider text-slate-500 mb-1">Lead → Abituriyent</div>
-              <div class="text-xl font-bold tabular-nums">
-                {{ selectedOperator.leads_created
-                   ? Math.round((selectedOperator.leads_won / selectedOperator.leads_created) * 100)
-                   : 0 }}%
-              </div>
-            </div>
-            <div>
-              <div class="text-[11px] uppercase tracking-wider text-slate-500 mb-1">Ariza → Qabul</div>
-              <div class="text-xl font-bold tabular-nums">
-                {{ selectedOperator.applications_reviewed
-                   ? Math.round((selectedOperator.applications_accepted / selectedOperator.applications_reviewed) * 100)
-                   : 0 }}%
-              </div>
-            </div>
-            <div>
-              <div class="text-[11px] uppercase tracking-wider text-slate-500 mb-1">Shartnoma → Imzo</div>
-              <div class="text-xl font-bold tabular-nums">
-                {{ selectedOperator.contracts_created
-                   ? Math.round((selectedOperator.contracts_signed / selectedOperator.contracts_created) * 100)
-                   : 0 }}%
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Audit-log activity breakdown — what the operator actually did. -->
-        <div class="p-4 rounded-lg bg-slate-50 dark:bg-slate-800/40">
-          <div class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center justify-between gap-2">
-            <span class="inline-flex items-center gap-2">
-              <Activity class="w-3.5 h-3.5 text-sky-500" />
-              Faollik (audit jurnali)
-            </span>
-            <span v-if="activity" class="text-[10px] text-slate-500 dark:text-slate-400 tabular-nums">
-              {{ activity.total }} ta yozuv
-            </span>
-          </div>
-          <div v-if="!activity || !activity.rows.length"
-               class="text-xs text-slate-500 dark:text-slate-400 py-4 text-center">
-            Tanlangan oraliqda faollik yo'q
-          </div>
-          <ul v-else class="space-y-1.5 max-h-64 overflow-y-auto pr-1">
-            <li v-for="row in activity.rows" :key="row.action"
-                class="flex items-center gap-3 text-sm">
-              <div class="flex-1 min-w-0">
-                <div class="text-slate-700 dark:text-slate-300 truncate">
-                  {{ tr(AUDIT_ACTIONS, row.action) }}
-                </div>
-                <!-- Show raw key only when no translation found, so admins
-                     can spot new actions worth labelling. -->
-                <div v-if="!AUDIT_ACTIONS[row.action]"
-                     class="text-[10px] font-mono text-slate-400 truncate">
-                  {{ row.action }}
-                </div>
-              </div>
-              <span class="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 tabular-nums shrink-0">
-                {{ row.count }}
-              </span>
-            </li>
-          </ul>
-        </div>
       </div>
     </section>
   </div>
