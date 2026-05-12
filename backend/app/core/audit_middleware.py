@@ -137,6 +137,13 @@ async def audit_writes_middleware(request: Request, call_next):
         if path.startswith(f"{api_prefix}/audit"):
             return response
 
+        # Endpoint code already wrote a semantic audit row for this request
+        # (AuditService.log sets this flag). Skip emitting the generic
+        # http-derived row so the audit detail page doesn't get a duplicate
+        # entry with only {path, method, status}.
+        if getattr(request.state, "audit_logged", False):
+            return response
+
         entity_type, entity_id, trailing = _parse_path(path)
         action = _action_for(method, entity_type, trailing)
         user_id = _extract_user_id(request)

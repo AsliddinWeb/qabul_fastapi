@@ -42,6 +42,15 @@ class AuditService:
         if request is not None:
             ip = request.client.host if request.client else None
             ua = request.headers.get("user-agent")
+            # Mark the request so the http_middleware skips its generic row
+            # for this transaction — otherwise every semantic log produces a
+            # duplicate "<entity>.<verb>" row with only {path, method,
+            # status} and no snapshot, which confuses the audit detail page
+            # for delete actions in particular.
+            try:
+                request.state.audit_logged = True
+            except Exception:
+                pass
 
         try:
             return await self.repo.create(
