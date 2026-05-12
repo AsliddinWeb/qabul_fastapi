@@ -353,13 +353,30 @@ async def staff_delete_application(
     svc: ApplicationsService = Depends(_service),
 ):
     # Snapshot key fields BEFORE delete so the audit row carries a useful
-    # body — once the application is gone we can't read them back.
+    # body — once the application is gone we can't read them back. We also
+    # capture the applicant's full name + phone so the audit detail page
+    # can show them without needing to hit the (possibly also-deleted)
+    # applicant row later.
+    from sqlalchemy import select as _select
+    from app.modules.applicants.models import Applicant as _Applicant
+    from app.modules.users.models import User as _User
+
     app = await svc.get(application_id)
-    snapshot = {
+    snapshot: dict[str, object | None] = {
         "application_number": app.application_number,
         "applicant_id": str(app.applicant_id),
         "status": app.status.value if app.status else None,
     }
+    ap_row = (await svc.session.execute(
+        _select(_Applicant.last_name, _Applicant.first_name, _Applicant.other_name,
+                _Applicant.additional_phone, _User.phone)
+        .join(_User, _User.id == _Applicant.user_id)
+        .where(_Applicant.id == app.applicant_id)
+    )).first()
+    if ap_row is not None:
+        name_parts = [ap_row.last_name, ap_row.first_name, ap_row.other_name]
+        snapshot["applicant_full_name"] = " ".join(p for p in name_parts if p)
+        snapshot["applicant_phone"] = ap_row.phone or ap_row.additional_phone
     await svc.delete(application_id)
     await AuditService(svc.session).log(
         "application.delete",

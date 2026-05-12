@@ -43,7 +43,12 @@ async function load() {
     const res = await http.get<AuditLog>(`/audit/${id.value}`)
     log.value = res.data
   } catch (e: any) {
-    error.value = e?.response?.data?.detail || "Yuklab bo'lmadi"
+    const status = e?.response?.status
+    error.value =
+      status === 404 ? "Audit yozuvi topilmadi" :
+      status === 403 ? "Bu yozuvni ko'rish uchun ruxsat yo'q" :
+      e?.response?.data?.error?.message ||
+      "Audit yozuvini yuklab bo'lmadi"
   } finally {
     loading.value = false
   }
@@ -167,6 +172,10 @@ const actionExplanation = computed(() => {
 const entityLink = computed(() => {
   const l = log.value
   if (!l?.entity_id || !l.entity_type) return null
+  // For delete actions the entity no longer exists — navigating to it
+  // would just 404, so we hide the button. The diff table already shows
+  // the snapshot we captured at delete time.
+  if (cat.value === 'delete') return null
   const map: Record<string, string> = {
     applications: `/admin/applications/${l.entity_id}`,
     applicants:   `/admin/applicants/${l.entity_id}`,
@@ -175,6 +184,20 @@ const entityLink = computed(() => {
     users:        `/admin/users`,
   }
   return map[l.entity_type] || null
+})
+
+// Pull a few snapshot fields out for prominent display on delete actions.
+// The diff table already lists everything, but for deletions we want the
+// person who got removed to be the FIRST thing the reader sees.
+const deletedSnapshot = computed(() => {
+  if (cat.value !== 'delete') return null
+  const c = log.value?.changes
+  if (!c || typeof c !== 'object') return null
+  const name = c.applicant_full_name as string | undefined
+  const phone = c.applicant_phone as string | undefined
+  const num = c.application_number as string | undefined
+  if (!name && !phone && !num) return null
+  return { name, phone, number: num }
 })
 </script>
 
@@ -219,6 +242,31 @@ const entityLink = computed(() => {
       <!-- Plain explanation -->
       <div class="px-6 py-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40">
         <p class="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{{ actionExplanation }}</p>
+
+        <!-- Deleted-entity snapshot: surface the applicant identity at the
+             top since the original object is gone and there's nothing to
+             navigate to. -->
+        <div v-if="deletedSnapshot"
+             class="mt-4 p-4 rounded-xl bg-white dark:bg-slate-900 ring-1 ring-rose-200/60 dark:ring-rose-500/20">
+          <div class="text-[11px] uppercase tracking-wider font-bold text-rose-600 dark:text-rose-400 mb-2 inline-flex items-center gap-1.5">
+            <Trash2 class="w-3 h-3" />
+            O'chirilgan ariza ma'lumotlari
+          </div>
+          <dl class="grid sm:grid-cols-3 gap-3 text-sm">
+            <div v-if="deletedSnapshot.name">
+              <dt class="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Abituriyent F.I.Sh.</dt>
+              <dd class="mt-0.5 font-semibold text-slate-900 dark:text-slate-100 break-words">{{ deletedSnapshot.name }}</dd>
+            </div>
+            <div v-if="deletedSnapshot.phone">
+              <dt class="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Telefon</dt>
+              <dd class="mt-0.5 font-mono text-slate-900 dark:text-slate-100">{{ deletedSnapshot.phone }}</dd>
+            </div>
+            <div v-if="deletedSnapshot.number">
+              <dt class="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">Ariza raqami</dt>
+              <dd class="mt-0.5 font-mono text-slate-900 dark:text-slate-100">{{ deletedSnapshot.number }}</dd>
+            </div>
+          </dl>
+        </div>
       </div>
     </div>
 
@@ -368,6 +416,11 @@ const entityLink = computed(() => {
             <RouterLink v-if="entityLink" :to="entityLink" class="btn-outline btn-sm w-full justify-center mt-2">
               Obyektga o'tish
             </RouterLink>
+            <div v-else-if="cat === 'delete'"
+                 class="mt-2 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+              Bu obyekt o'chirilgan — yuqorida saqlangan ma'lumotlar
+              audit hisobotidagi yagona qaydlardir.
+            </div>
           </div>
         </section>
       </div>
