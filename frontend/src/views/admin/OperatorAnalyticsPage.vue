@@ -236,7 +236,7 @@ const labelsForChart = computed(() => {
   return timeseries.value.leads_created.map(p => p.date.slice(5))  // MM-DD
 })
 
-const isDark = computed(() => theme.theme === 'dark')
+const isDark = computed(() => theme.isDark)
 
 function chartDataset(label: string, color: string, points: number[]) {
   return {
