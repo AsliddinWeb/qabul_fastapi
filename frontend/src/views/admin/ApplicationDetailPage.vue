@@ -59,10 +59,27 @@ const savingConsulting = ref(false)
 // Referral row attached to this applicant (if anyone invited them).
 const referralRow = ref<any>(null)
 const referralCodeCopied = ref(false)
+// Browser origin — used both in copy handler and to render the share URL
+// inline in the referral card template.
+const origin = (typeof window !== 'undefined' && window.location.origin) || ''
+const referralCode = computed<string | null>(() => {
+  const uid = applicant.value?.user_id
+  return uid ? (actorMap.value[uid]?.referral_code ?? null) : null
+})
+const referralLink = computed(() =>
+  referralCode.value ? `${origin}/auth/applicant?ref=${encodeURIComponent(referralCode.value)}` : ''
+)
+const referralShareText = computed(() =>
+  `XIU universitetiga ushbu havola orqali ro'yxatdan o'ting: ${referralLink.value}`
+)
+const telegramShareUrl = computed(() =>
+  `https://t.me/share/url?url=${encodeURIComponent(referralLink.value)}&text=${encodeURIComponent("XIU universitetiga ushbu havola orqali ro'yxatdan o'ting:")}`
+)
+const whatsappShareUrl = computed(() =>
+  `https://wa.me/?text=${encodeURIComponent(referralShareText.value)}`
+)
 async function copyReferralCode(code: string) {
   // Match the applicant page: copy the FULL share link, not just the code.
-  // Falls back to a relative path when public_base_url isn't reachable.
-  const origin = (typeof window !== 'undefined' && window.location.origin) || ''
   const link = `${origin}/auth/applicant?ref=${encodeURIComponent(code)}`
   try {
     await navigator.clipboard.writeText(link)
@@ -742,66 +759,8 @@ function applicantInitials(): string {
 
     <!-- Two-column body -->
     <div class="grid lg:grid-cols-3 gap-5">
-      <!-- LEFT COLUMN — Program (hero) + Applicant + Diplom -->
+      <!-- LEFT COLUMN — Applicant + Diplom + Program -->
       <div class="lg:col-span-2 space-y-5">
-        <!-- Yo'nalish — prominent hero card (moved to top so it's the first thing visible) -->
-        <section v-if="program" class="card overflow-hidden">
-          <div class="relative px-5 py-5 sm:px-7 sm:py-6 bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 text-white">
-            <div class="flex items-start gap-4">
-              <span class="grid place-items-center w-12 h-12 rounded-2xl bg-white/15 backdrop-blur ring-1 ring-white/20 shrink-0">
-                <GraduationCap class="w-6 h-6" />
-              </span>
-              <div class="flex-1 min-w-0">
-                <div class="text-[10px] uppercase tracking-[0.12em] font-bold opacity-80 mb-1">Yo'nalish</div>
-                <h2 class="text-xl sm:text-2xl font-bold leading-tight break-words">{{ program.name }}</h2>
-                <div class="mt-2 flex flex-wrap items-center gap-1.5">
-                  <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur text-[11px] font-mono font-bold">
-                    {{ program.code }}
-                  </span>
-                  <span v-if="branch" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/15 ring-1 ring-white/15 text-[11px] font-medium">
-                    <Building2 class="w-3 h-3" /> {{ branch.name }}
-                  </span>
-                  <span v-if="educationLevel" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/15 ring-1 ring-white/15 text-[11px] font-medium">
-                    <Layers class="w-3 h-3" /> {{ educationLevel.name }}
-                  </span>
-                  <span v-if="educationForm" class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-white/15 ring-1 ring-white/15 text-[11px] font-medium">
-                    <BookOpen class="w-3 h-3" /> {{ educationForm.name }}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="px-5 py-5 sm:px-7 sm:py-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div class="rounded-xl p-3.5 bg-slate-50 ring-1 ring-slate-200/60 dark:bg-slate-800/40 dark:ring-slate-700/40">
-              <div class="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">
-                <Wallet class="w-3 h-3" /> Yillik to'lov
-              </div>
-              <div class="mt-1 text-xl font-bold tabular-nums text-slate-900 dark:text-slate-100">
-                {{ fmtMoney(program.tuition_fee) }}
-                <span class="text-xs font-medium text-slate-500">so'm</span>
-              </div>
-            </div>
-            <div class="rounded-xl p-3.5 bg-slate-50 ring-1 ring-slate-200/60 dark:bg-slate-800/40 dark:ring-slate-700/40">
-              <div class="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">
-                <Calendar class="w-3 h-3" /> O'qish muddati
-              </div>
-              <div class="mt-1 text-xl font-bold tabular-nums text-slate-900 dark:text-slate-100">
-                {{ program.study_duration_years }}
-                <span class="text-xs font-medium text-slate-500">yil</span>
-              </div>
-            </div>
-            <div class="rounded-xl p-3.5 bg-slate-50 ring-1 ring-slate-200/60 dark:bg-slate-800/40 dark:ring-slate-700/40">
-              <div class="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">
-                <Hash class="w-3 h-3" /> Shartnoma seriyasi
-              </div>
-              <div class="mt-1 font-mono text-base font-bold text-slate-900 dark:text-slate-100">
-                {{ program.contract_series }}
-              </div>
-            </div>
-          </div>
-        </section>
-
         <!-- Applicant card -->
         <section class="card p-5">
           <div class="flex items-center justify-between mb-4">
@@ -822,10 +781,9 @@ function applicantInitials(): string {
               {{ applicantInitials() }}
             </div>
             <div class="min-w-0 flex-1">
-              <div class="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                {{ applicant.last_name }} {{ applicant.first_name }}
+              <div class="text-lg font-semibold text-slate-900 dark:text-slate-100 break-words">
+                {{ [applicant.last_name, applicant.first_name, applicant.other_name].filter(Boolean).join(' ') }}
               </div>
-              <div class="text-sm text-slate-500 dark:text-slate-400">{{ applicant.other_name || '' }}</div>
               <div class="mt-3 grid sm:grid-cols-2 gap-y-2 gap-x-4 text-xs">
                 <div class="flex items-center gap-2 text-slate-600 dark:text-slate-400">
                   <Calendar class="w-3.5 h-3.5 text-slate-400" />
@@ -851,19 +809,6 @@ function applicantInitials(): string {
                   <MapPin class="w-3.5 h-3.5 text-slate-400 shrink-0" />
                   <span class="truncate">{{ applicant.address }}</span>
                 </div>
-                <div v-if="applicant.user_id && actorMap[applicant.user_id]?.referral_code"
-                     class="flex items-center gap-2 text-slate-600 dark:text-slate-400 sm:col-span-2">
-                  <span class="text-base">🎁</span>
-                  <span class="text-slate-400">Referal kodi:</span>
-                  <span class="font-mono font-semibold text-rose-700 dark:text-rose-300">{{ actorMap[applicant.user_id].referral_code }}</span>
-                  <button type="button"
-                          class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
-                          @click="copyReferralCode(actorMap[applicant.user_id].referral_code!)">
-                    <Check v-if="referralCodeCopied" class="w-3 h-3 text-emerald-600" />
-                    <Copy v-else class="w-3 h-3" />
-                    {{ referralCodeCopied ? 'Nusxalandi' : 'Nusxalash' }}
-                  </button>
-                </div>
               </div>
             </div>
           </div>
@@ -871,6 +816,56 @@ function applicantInitials(): string {
 
         <!-- Login info card -->
         <LoginInfoCard v-if="applicant?.user_id" :user-id="applicant.user_id" />
+
+        <!-- Referal havola card — full shareable link with copy + quick share -->
+        <section v-if="referralCode"
+                 class="card p-5 border border-rose-200/60 dark:border-rose-500/20 bg-gradient-to-br from-rose-50/60 to-amber-50/40 dark:from-rose-500/10 dark:to-amber-500/5">
+          <h2 class="section-title inline-flex items-center gap-2 mb-3">
+            <span class="icon-bubble-sm bg-rose-100 text-rose-600 dark:bg-rose-500/20 dark:text-rose-300">
+              <span class="text-base leading-none">🎁</span>
+            </span>
+            Referal havola
+          </h2>
+
+          <div class="text-xs text-slate-600 dark:text-slate-400 mb-3">
+            Abituriyentning shaxsiy referal havolasi. Ushbu havola orqali ro'yxatdan o'tgan har bir yangi abituriyent uchun bonus beriladi.
+          </div>
+
+          <div class="flex items-center gap-2 mb-3">
+            <span class="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Kod:</span>
+            <span class="font-mono font-semibold text-rose-700 dark:text-rose-300 text-sm">
+              {{ referralCode }}
+            </span>
+          </div>
+
+          <div class="flex items-stretch gap-2">
+            <code class="flex-1 min-w-0 px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[12px] font-mono text-slate-700 dark:text-slate-300 truncate">
+              {{ referralLink }}
+            </code>
+            <button type="button"
+                    class="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition shrink-0"
+                    @click="copyReferralCode(referralCode!)">
+              <Check v-if="referralCodeCopied" class="w-3.5 h-3.5" />
+              <Copy v-else class="w-3.5 h-3.5" />
+              {{ referralCodeCopied ? 'Nusxalandi' : 'Nusxalash' }}
+            </button>
+          </div>
+
+          <div class="flex flex-wrap gap-2 mt-3">
+            <a :href="telegramShareUrl"
+               target="_blank" rel="noopener"
+               class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-500/20 transition">
+              <Send class="w-3 h-3" />
+              Telegram
+            </a>
+            <a :href="whatsappShareUrl"
+               target="_blank" rel="noopener"
+               class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-medium bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition">
+              <Phone class="w-3 h-3" />
+              WhatsApp
+            </a>
+          </div>
+        </section>
 
         <!-- Diplom card -->
         <section v-if="application.admission_type === 'yangi_qabul'" class="card p-5">
@@ -970,6 +965,54 @@ function applicantInitials(): string {
         </section>
 
         <!-- Program card -->
+        <section class="card p-5">
+          <h2 class="section-title inline-flex items-center gap-2 mb-4">
+            <span class="icon-bubble-sm bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              <GraduationCap class="w-4 h-4" />
+            </span>
+            Yo'nalish
+          </h2>
+          <div v-if="program" class="space-y-3">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="pill font-mono">{{ program.code }}</span>
+                <span class="text-base font-semibold text-slate-900 dark:text-slate-100">{{ program.name }}</span>
+              </div>
+              <div class="mt-2 flex flex-wrap gap-1.5">
+                <span v-if="branch" class="pill"><Building2 class="w-3 h-3" /> {{ branch.name }}</span>
+                <span v-if="educationLevel" class="pill"><Layers class="w-3 h-3" /> {{ educationLevel.name }}</span>
+                <span v-if="educationForm" class="pill"><BookOpen class="w-3 h-3" /> {{ educationForm.name }}</span>
+              </div>
+            </div>
+            <div class="pt-3 border-t border-slate-100 dark:border-slate-800 grid sm:grid-cols-3 gap-3">
+              <div class="rounded-xl p-3 bg-slate-50 ring-1 ring-slate-200/60 dark:bg-slate-800/40 dark:ring-slate-700/40">
+                <div class="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  <Wallet class="w-3 h-3" /> Yillik to'lov
+                </div>
+                <div class="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">
+                  {{ fmtMoney(program.tuition_fee) }}
+                  <span class="text-xs font-medium text-slate-500">so'm</span>
+                </div>
+              </div>
+              <div class="rounded-xl p-3 bg-slate-50 ring-1 ring-slate-200/60 dark:bg-slate-800/40 dark:ring-slate-700/40">
+                <div class="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  <Calendar class="w-3 h-3" /> Muddati
+                </div>
+                <div class="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">
+                  {{ program.study_duration_years }}
+                  <span class="text-xs font-medium text-slate-500">yil</span>
+                </div>
+              </div>
+              <div class="rounded-xl p-3 bg-slate-50 ring-1 ring-slate-200/60 dark:bg-slate-800/40 dark:ring-slate-700/40">
+                <div class="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  <Hash class="w-3 h-3" /> Shartnoma seriyasi
+                </div>
+                <div class="mt-1 font-mono font-semibold text-slate-900 dark:text-slate-100">{{ program.contract_series }}</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section v-if="application.notes" class="card p-5">
           <h2 class="section-title mb-2">Eslatma</h2>
           <p class="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{{ application.notes }}</p>
