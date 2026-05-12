@@ -8,7 +8,7 @@ import {
   Clock, Send, Eye, Phone, MapPin, IdCard,
   Building2, Layers, BookOpen, Calendar, Globe, Hash, Wallet,
   AlertTriangle, Inbox, Paperclip, ExternalLink,
-  Shield, Users,
+  Shield, Users, Copy, Check,
 } from 'lucide-vue-next'
 import { AxiosError } from 'axios'
 import { adminApi } from '@/api/admin.api'
@@ -58,6 +58,17 @@ const consultingSelected = ref<string>('')
 const savingConsulting = ref(false)
 // Referral row attached to this applicant (if anyone invited them).
 const referralRow = ref<any>(null)
+const referralCodeCopied = ref(false)
+async function copyReferralCode(code: string) {
+  try {
+    await navigator.clipboard.writeText(code)
+    referralCodeCopied.value = true
+    toast.success("Referal kodi nusxalandi")
+    setTimeout(() => { referralCodeCopied.value = false }, 2000)
+  } catch {
+    toast.error("Brauzer ruxsat bermadi — qo'lda nusxalang")
+  }
+}
 // Map of user_id → { full_name, phone, role } for the actor card.
 const actorMap = ref<Record<string, { full_name: string | null; phone: string | null; role: string | null; referral_code: string | null }>>({})
 
@@ -169,6 +180,12 @@ async function loadAll() {
     if (applicant.value?.registered_by_id) ids.add(applicant.value.registered_by_id)
     if (application.value.reviewed_by_id) ids.add(application.value.reviewed_by_id)
     if (contract.value?.created_by_id) ids.add(contract.value.created_by_id)
+    if (contract.value?.signed_by_id) ids.add(contract.value.signed_by_id)
+    if (contract.value?.cancelled_by_id) ids.add(contract.value.cancelled_by_id)
+    for (const cc of cancelledContracts.value) {
+      if (cc.cancelled_by_id) ids.add(cc.cancelled_by_id)
+      if (cc.created_by_id) ids.add(cc.created_by_id)
+    }
     if (referralRow.value?.referrer_user_id) ids.add(referralRow.value.referrer_user_id)
     if (lead.value?.assigned_to_id) ids.add(lead.value.assigned_to_id)
     if (lead.value?.created_by_id) ids.add(lead.value.created_by_id)
@@ -777,6 +794,13 @@ function applicantInitials(): string {
                   <span class="text-base">🎁</span>
                   <span class="text-slate-400">Referal kodi:</span>
                   <span class="font-mono font-semibold text-rose-700 dark:text-rose-300">{{ actorMap[applicant.user_id].referral_code }}</span>
+                  <button type="button"
+                          class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition"
+                          @click="copyReferralCode(actorMap[applicant.user_id].referral_code!)">
+                    <Check v-if="referralCodeCopied" class="w-3 h-3 text-emerald-600" />
+                    <Copy v-else class="w-3 h-3" />
+                    {{ referralCodeCopied ? 'Nusxalandi' : 'Nusxalash' }}
+                  </button>
                 </div>
               </div>
             </div>
@@ -1130,15 +1154,26 @@ function applicantInitials(): string {
             <li v-for="cc in cancelledContracts" :key="cc.id"
                 class="flex items-center justify-between gap-2 p-3 rounded-xl
                        bg-slate-50 dark:bg-slate-800/40 ring-1 ring-slate-200/60 dark:ring-slate-700/40">
-              <div class="min-w-0">
+              <div class="min-w-0 flex-1">
                 <div class="font-mono text-xs text-slate-500 dark:text-slate-400">{{ cc.contract_number }}</div>
-                <div class="mt-1 flex items-center gap-1.5">
+                <div class="mt-1 flex flex-wrap items-center gap-1.5">
                   <span class="pill">{{ tr(CONTRACT_STATUS, cc.status) }}</span>
-                  <span class="text-[11px] text-slate-500 dark:text-slate-400">{{ fmtDate(cc.created_at) }}</span>
+                  <span class="text-[11px] text-slate-500 dark:text-slate-400">{{ fmtDate(cc.cancelled_at || cc.created_at) }}</span>
+                </div>
+                <div v-if="cc.cancelled_by_id || cc.created_by_id" class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 space-y-0.5">
+                  <div v-if="cc.cancelled_by_id">
+                    Bekor qilgan: <strong class="text-rose-700 dark:text-rose-300">{{ actorMap[cc.cancelled_by_id]?.full_name || actorMap[cc.cancelled_by_id]?.phone || cc.cancelled_by_id.slice(0, 8) }}</strong>
+                  </div>
+                  <div v-if="cc.created_by_id">
+                    Yaratgan: <strong class="text-slate-700 dark:text-slate-300">{{ actorMap[cc.created_by_id]?.full_name || actorMap[cc.created_by_id]?.phone || cc.created_by_id.slice(0, 8) }}</strong>
+                  </div>
+                </div>
+                <div v-if="cc.cancelled_reason" class="mt-1 text-[11px] italic text-slate-500 dark:text-slate-400">
+                  Sabab: {{ cc.cancelled_reason }}
                 </div>
               </div>
               <button v-if="cc.pdf_file_id" type="button"
-                      class="icon-btn" title="PDF ni ochish"
+                      class="icon-btn shrink-0" title="PDF ni ochish"
                       @click="adminApi.contracts.openPdf(cc.id)">
                 <Download class="w-4 h-4" />
               </button>
@@ -1358,9 +1393,34 @@ function applicantInitials(): string {
                 <CheckCircle2 class="w-4 h-4" />
               </span>
               <div class="flex-1 min-w-0">
-                <div class="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Shartnoma imzolangan</div>
-                <div class="font-medium text-emerald-700 dark:text-emerald-300">
+                <div class="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Shartnomani kim imzolagan</div>
+                <div class="font-medium text-slate-900 dark:text-slate-100 truncate">
+                  <template v-if="contract.signed_by_id">
+                    {{ actorMap[contract.signed_by_id]?.full_name || actorMap[contract.signed_by_id]?.phone || contract.signed_by_id.slice(0, 8) }}
+                  </template>
+                  <template v-else>—</template>
+                </div>
+                <div class="text-[11px] text-emerald-700 dark:text-emerald-300 mt-0.5">
                   {{ new Date(contract.signed_at).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) }}
+                </div>
+              </div>
+            </li>
+
+            <!-- Contract cancelled (current active one rare; usually only in cancelledContracts) -->
+            <li v-if="contract?.cancelled_at" class="flex items-start gap-3">
+              <span class="grid place-items-center w-8 h-8 rounded-lg bg-rose-50 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300 shrink-0 mt-0.5">
+                <XCircle class="w-4 h-4" />
+              </span>
+              <div class="flex-1 min-w-0">
+                <div class="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400">Shartnomani kim bekor qilgan</div>
+                <div class="font-medium text-slate-900 dark:text-slate-100 truncate">
+                  <template v-if="contract.cancelled_by_id">
+                    {{ actorMap[contract.cancelled_by_id]?.full_name || actorMap[contract.cancelled_by_id]?.phone || contract.cancelled_by_id.slice(0, 8) }}
+                  </template>
+                  <template v-else>—</template>
+                </div>
+                <div class="text-[11px] text-rose-700 dark:text-rose-300 mt-0.5">
+                  {{ new Date(contract.cancelled_at).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) }}
                 </div>
               </div>
             </li>

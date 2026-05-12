@@ -315,7 +315,7 @@ class ContractsService:
             )
 
     # ---------- Sign ----------
-    async def sign(self, contract_id: UUID) -> Contract:
+    async def sign(self, contract_id: UUID, *, actor_id: UUID | None = None) -> Contract:
         obj = await self.get(contract_id)
         if obj.status != ContractStatus.DRAFT:
             raise ValidationError(
@@ -323,14 +323,21 @@ class ContractsService:
             )
         obj.status = ContractStatus.SIGNED
         obj.signed_at = datetime.now(timezone.utc)
+        obj.signed_by_id = actor_id
         await self.session.flush()
         return obj
 
-    async def cancel(self, contract_id: UUID) -> Contract:
+    async def cancel(
+        self, contract_id: UUID, *, actor_id: UUID | None = None, reason: str | None = None,
+    ) -> Contract:
         obj = await self.get(contract_id)
         if obj.status == ContractStatus.COMPLETED:
             raise ValidationError("Completed contracts cannot be cancelled")
         obj.status = ContractStatus.CANCELLED
+        obj.cancelled_at = datetime.now(timezone.utc)
+        obj.cancelled_by_id = actor_id
+        if reason:
+            obj.cancelled_reason = reason[:1000]
         await self.session.flush()
         # Referral side-effect: if this contract was driving an inviter's
         # bonus, the bonus no longer qualifies. Cancel pending/active

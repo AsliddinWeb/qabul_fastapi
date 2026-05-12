@@ -125,7 +125,12 @@ class ContractRead(IdSchema, TimestampedSchema):
     currency: str
     status: ContractStatus
     signed_at: datetime | None = None
+    signed_by_id: UUID | None = None
+    cancelled_at: datetime | None = None
+    cancelled_by_id: UUID | None = None
+    cancelled_reason: str | None = None
     pdf_file_id: UUID | None = None
+    created_by_id: UUID | None = None
 
 
 class ContractDetailed(ContractRead):

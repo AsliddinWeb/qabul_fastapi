@@ -115,6 +115,33 @@ export const AUDIT_ACTIONS: Record<string, string> = {
   'auth.login.post':       'Tizimga kirildi',
   'auth.logout.post':      'Tizimdan chiqildi',
   'auth.refresh.post':     'Sessiya yangilandi',
+  // Middleware composes "{entity}.{trailing}.{method}" when the URL has a
+  // sub-action segment after the entity-id. Map the common ones to friendly
+  // Uzbek so the audit log stops showing raw HTTP-style codes.
+  'leads.move.post':              "Lead bosqichi o'zgartirildi",
+  'leads.assign.post':            "Lead operator o'zgartirildi",
+  'leads.comment.post':           'Lead izohi qoʻshildi',
+  'leads.call.post':              "Lead qoʻngʻirogʻi qayd etildi",
+  'leads.schedule.post':          'Keyingi aloqa rejalashtirildi',
+  'leads.lose.post':              "Lead yoʻqotildi",
+  'leads.reopen.post':            'Lead qayta ochildi',
+  'leads.convert.post':           'Lead arizaga aylantirildi',
+  'leads.finalize-conversion.post': 'Lead konversiyasi yakunlandi',
+  'leads.public.post':            'Lead yaratildi (saytdan)',
+  'contracts.sign.post':          'Shartnoma imzolandi',
+  'contracts.cancel.post':        'Shartnoma bekor qilindi',
+  'contracts.activate.post':      'Shablon faollashtirildi',
+  'applications.review.post':     "Ariza koʻrib chiqildi",
+  'applications.start-review.post': "Ariza koʻrib chiqishga olindi",
+  'applications.withdraw.post':   'Ariza qaytarib olindi',
+  'payments.confirm.post':        "Toʻlov tasdiqlandi",
+  'payments.fail.post':           "Toʻlov bajarilmadi",
+  'payments.refund.post':         "Toʻlov qaytarildi",
+  'users.reset-password.post':    'Parol qayta tiklandi',
+  'referrals.apply-to-contract.post': "Referal chegirma qoʻllandi",
+  'referrals.payouts.approve.post':   "Naqd toʻlov tasdiqlandi",
+  'referrals.payouts.pay.post':       "Naqd toʻlov amalga oshirildi",
+  'referrals.payouts.reject.post':    "Naqd toʻlov rad etildi",
 }
 
 export const AUDIT_ENTITY_TYPES: Record<string, string> = {

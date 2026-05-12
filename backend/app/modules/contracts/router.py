@@ -362,7 +362,7 @@ async def sign_contract(
     current: CurrentUser = Depends(get_current_user),
     svc: ContractsService = Depends(_service),
 ) -> ContractRead:
-    obj = await svc.sign(contract_id)
+    obj = await svc.sign(contract_id, actor_id=UUID(current.user_id))
     application = await svc.applications.get(obj.application_id)
 
     await AuditService(svc.session).log(
@@ -400,7 +400,7 @@ async def cancel_contract(
     current: CurrentUser = Depends(get_current_user),
     svc: ContractsService = Depends(_service),
 ) -> ContractRead:
-    obj = await svc.cancel(contract_id)
+    obj = await svc.cancel(contract_id, actor_id=UUID(current.user_id))
     await AuditService(svc.session).log(
         "contract.cancel",
         user_id=UUID(current.user_id),
