@@ -99,7 +99,7 @@ async function downloadCsv() {
 
 // ---------- Sorting ----------
 type SortKey = keyof OperatorStatsRead
-const sortKey = ref<SortKey>('contracts_signed')
+const sortKey = ref<SortKey>('lead_activities_total')
 const sortDir = ref<'asc' | 'desc'>('desc')
 
 function setSort(k: SortKey) {
@@ -125,7 +125,9 @@ const sortedItems = computed(() => {
 
 // ---------- Totals + trend ----------
 const NUMERIC_KEYS: SortKey[] = [
-  'leads_created', 'leads_won', 'leads_lost', 'leads_open',
+  'leads_actioned', 'lead_activities_total', 'lead_creates', 'lead_calls',
+  'lead_comments', 'lead_stage_moves', 'lead_assigns',
+  'lead_converts', 'lead_loses', 'lead_reopens', 'leads_open_assigned',
   'applicants_registered',
   'applications_created', 'applications_reviewed', 'applications_accepted', 'applications_rejected',
   'contracts_created', 'contracts_signed', 'contracts_cancelled',
@@ -228,9 +230,9 @@ watch([fromDate, toDate], loadLeaderboard)
 
     <!-- Totals summary (with trend deltas vs the previous equivalent period) -->
     <section v-if="!loading && items.length" class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-5">
-      <StatCard label="Konversiyalar" :value="totals.leads_won" :icon="TrendingUp" tone="emerald"
-                :trend="trendPct('leads_won')" trend-hint="oldingi davrga nisbatan"
-                :hint="`${totals.leads_created} lead'dan`" />
+      <StatCard label="Lead konversiyasi" :value="totals.lead_converts" :icon="TrendingUp" tone="emerald"
+                :trend="trendPct('lead_converts')" trend-hint="oldingi davrga nisbatan"
+                :hint="`${totals.lead_activities_total} ta lead harakati`" />
       <StatCard label="Arizalar" :value="totals.applications_created" :icon="ClipboardList" tone="amber"
                 :trend="trendPct('applications_created')" trend-hint="oldingi davrga nisbatan"
                 :hint="`${totals.applications_accepted} qabul qilindi`" />
@@ -267,11 +269,17 @@ watch([fromDate, toDate], loadLeaderboard)
               <th class="px-4 py-3 text-left font-semibold sticky left-0 bg-slate-50 dark:bg-slate-800/50 z-10">
                 <button type="button" @click="setSort('full_name')" class="hover:text-brand-600">Xodim</button>
               </th>
-              <th class="px-3 py-3 text-right font-semibold">
-                <button type="button" @click="setSort('leads_created')" class="hover:text-brand-600">Lead</button>
+              <th class="px-3 py-3 text-right font-semibold" title="Operator harakat qilgan unique lead'lar soni">
+                <button type="button" @click="setSort('leads_actioned')" class="hover:text-brand-600">Lead (uniq)</button>
               </th>
-              <th class="px-3 py-3 text-right font-semibold">
-                <button type="button" @click="setSort('leads_won')" class="hover:text-brand-600">Konv.</button>
+              <th class="px-3 py-3 text-right font-semibold" title="Jami lead harakatlari (qo'ng'iroq, izoh, bosqich)">
+                <button type="button" @click="setSort('lead_activities_total')" class="hover:text-brand-600">Harakat</button>
+              </th>
+              <th class="px-3 py-3 text-right font-semibold" title="Qo'ng'iroqlar">
+                <button type="button" @click="setSort('lead_calls')" class="hover:text-brand-600">📞</button>
+              </th>
+              <th class="px-3 py-3 text-right font-semibold" title="Konversiyalar (lead → ariza)">
+                <button type="button" @click="setSort('lead_converts')" class="hover:text-brand-600">Konv.</button>
               </th>
               <th class="px-3 py-3 text-right font-semibold">
                 <button type="button" @click="setSort('applicants_registered')" class="hover:text-brand-600">Abit.</button>
@@ -307,10 +315,16 @@ watch([fromDate, toDate], loadLeaderboard)
                 </div>
                 <div class="text-[10px] text-slate-500 dark:text-slate-400">{{ roleLabel(row.role) }}</div>
               </td>
-              <td class="px-3 py-3 text-right tabular-nums">{{ row.leads_created }}</td>
+              <td class="px-3 py-3 text-right tabular-nums">{{ row.leads_actioned }}</td>
               <td class="px-3 py-3 text-right tabular-nums">
-                <span :class="row.leads_won > 0 ? 'text-emerald-700 dark:text-emerald-300 font-semibold' : 'text-slate-400'">
-                  {{ row.leads_won }}
+                <span :class="row.lead_activities_total > 0 ? 'font-semibold text-slate-700 dark:text-slate-200' : 'text-slate-400'">
+                  {{ row.lead_activities_total }}
+                </span>
+              </td>
+              <td class="px-3 py-3 text-right tabular-nums text-slate-600 dark:text-slate-300">{{ row.lead_calls }}</td>
+              <td class="px-3 py-3 text-right tabular-nums">
+                <span :class="row.lead_converts > 0 ? 'text-emerald-700 dark:text-emerald-300 font-semibold' : 'text-slate-400'">
+                  {{ row.lead_converts }}
                 </span>
               </td>
               <td class="px-3 py-3 text-right tabular-nums">{{ row.applicants_registered }}</td>

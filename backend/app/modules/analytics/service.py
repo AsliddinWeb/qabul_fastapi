@@ -40,9 +40,18 @@ from app.modules.applicants.models import Applicant
 from app.modules.applications.models import Application
 from app.modules.audit.models import AuditLog
 from app.modules.contracts.models import Contract
-from app.modules.leads.models import Lead
+from app.modules.leads.models import Lead, LeadActivity
 from app.modules.payments.models import Payment
 from app.modules.users.models import User
+
+
+# LeadActivity.action codes we attribute to operators. These are the
+# values written by leads/service.py — keep this list in sync if new
+# action codes are added.
+_LEAD_ACTIONS = (
+    'create', 'stage_move', 'assign', 'comment', 'call',
+    'merge', 'convert', 'lose', 'reopen',
+)
 
 
 # ---------- helpers ----------
@@ -115,22 +124,18 @@ class AnalyticsService:
         }
         user_ids = list(stats.keys())
 
-        # Each helper returns a dict keyed by user_id. We can't asyncio.gather
-        # these because AsyncSession isn't safe for concurrent execution over
-        # a single connection — but with FK indexes on every group column the
-        # ~15 GROUP BYs come back in tens of milliseconds even on production
-        # data, so sequential is fine for a dashboard.
-        leads_created = await self._count_group(
-            Lead.created_by_id, Lead.created_at, start, end, user_ids,
+        # ----- Lead work — action-based via lead_activities. -----
+        # One query returns the full per-user × per-action matrix; we slice
+        # it locally instead of running 8 separate GROUP BYs. Sequential
+        # async (AsyncSession isn't concurrent-safe) keeps things simple.
+        lead_action_breakdown = await self._lead_action_breakdown(
+            user_ids=user_ids, start=start, end=end,
         )
-        leads_won = await self._count_group(
-            Lead.assigned_to_id, Lead.converted_at, start, end, user_ids,
-            extra=[Lead.status == LeadStatus.WON, Lead.converted_at.isnot(None)],
-        )
-        leads_lost = await self._count_group(
-            Lead.assigned_to_id, Lead.lost_at, start, end, user_ids,
-            extra=[Lead.status == LeadStatus.LOST, Lead.lost_at.isnot(None)],
-        )
+        # Distinct lead_id per user — the truest "worked on this period"
+        # signal; uses COUNT(DISTINCT lead_id) so re-touching the same lead
+        # 10x doesn't double-count.
+        leads_actioned = await self._lead_distinct_touches(user_ids, start, end)
+        # Workload snapshot, not a date-range metric.
         leads_open = await self._count_snapshot(
             Lead.assigned_to_id, user_ids,
             extra=[Lead.status == LeadStatus.OPEN],
@@ -177,10 +182,18 @@ class AnalyticsService:
         )
 
         for uid, row in stats.items():
-            row.leads_created = leads_created.get(uid, 0)
-            row.leads_won = leads_won.get(uid, 0)
-            row.leads_lost = leads_lost.get(uid, 0)
-            row.leads_open = leads_open.get(uid, 0)
+            row.leads_actioned = leads_actioned.get(uid, 0)
+            row.leads_open_assigned = leads_open.get(uid, 0)
+            actions = lead_action_breakdown.get(uid, {})
+            row.lead_creates     = actions.get('create', 0)
+            row.lead_stage_moves = actions.get('stage_move', 0)
+            row.lead_assigns     = actions.get('assign', 0)
+            row.lead_comments    = actions.get('comment', 0)
+            row.lead_calls       = actions.get('call', 0)
+            row.lead_converts    = actions.get('convert', 0)
+            row.lead_loses       = actions.get('lose', 0)
+            row.lead_reopens     = actions.get('reopen', 0)
+            row.lead_activities_total = sum(actions.values())
             row.applicants_registered = applicants_registered.get(uid, 0)
             row.applications_created = applications_created.get(uid, 0)
             row.applications_reviewed = applications_reviewed.get(uid, 0)
@@ -208,12 +221,14 @@ class AnalyticsService:
         start, end = _day_range_utc(from_date, to_date)
 
         # Sequential for the same single-connection reason as `leaderboard`.
-        leads_created = await self._daily_count(
-            Lead.created_by_id, Lead.created_at, operator_id, start, end,
+        # Lead work: total activity by this operator per day, plus the
+        # specific 'convert' actions (the closer-style metric).
+        lead_activities_total = await self._daily_count(
+            LeadActivity.user_id, LeadActivity.created_at, operator_id, start, end,
         )
-        leads_won = await self._daily_count(
-            Lead.assigned_to_id, Lead.converted_at, operator_id, start, end,
-            extra=[Lead.status == LeadStatus.WON, Lead.converted_at.isnot(None)],
+        lead_converts = await self._daily_count(
+            LeadActivity.user_id, LeadActivity.created_at, operator_id, start, end,
+            extra=[LeadActivity.action == 'convert'],
         )
         applicants_registered = await self._daily_count(
             Applicant.registered_by_id, Applicant.created_at, operator_id, start, end,
@@ -238,8 +253,8 @@ class AnalyticsService:
             operator_id=operator_id,
             from_date=from_date,
             to_date=to_date,
-            leads_created=_zero_fill(leads_created, from_date, to_date),
-            leads_won=_zero_fill(leads_won, from_date, to_date),
+            lead_activities_total=_zero_fill(lead_activities_total, from_date, to_date),
+            lead_converts=_zero_fill(lead_converts, from_date, to_date),
             applicants_registered=_zero_fill(applicants_registered, from_date, to_date),
             applications_reviewed=_zero_fill(applications_reviewed, from_date, to_date),
             contracts_created=_zero_fill(contracts_created, from_date, to_date),
@@ -366,6 +381,63 @@ class AnalyticsService:
             select(group_col, func.count())
             .where(and_(*where))
             .group_by(group_col)
+        )
+        rows = (await self.session.execute(stmt)).all()
+        return {uid: int(cnt) for uid, cnt in rows if uid is not None}
+
+    async def _lead_action_breakdown(
+        self,
+        *,
+        user_ids: list[UUID],
+        start: datetime,
+        end: datetime,
+    ) -> dict[UUID, dict[str, int]]:
+        """Pivot lead_activities by (user_id, action) over the range.
+
+        Returns a nested dict — `{user_id: {action: count}}`. Filters out
+        rows with NULL user_id (system-emitted activities) and actions we
+        don't track in the breakdown. Single GROUP BY query — cheaper than
+        per-action queries and keeps SQLAlchemy from accidentally serialising
+        9 round-trips.
+        """
+        stmt = (
+            select(LeadActivity.user_id, LeadActivity.action, func.count())
+            .where(and_(
+                LeadActivity.user_id.in_(user_ids),
+                LeadActivity.action.in_(_LEAD_ACTIONS),
+                LeadActivity.created_at >= start,
+                LeadActivity.created_at < end,
+            ))
+            .group_by(LeadActivity.user_id, LeadActivity.action)
+        )
+        rows = (await self.session.execute(stmt)).all()
+        out: dict[UUID, dict[str, int]] = {}
+        for uid, action, cnt in rows:
+            if uid is None:
+                continue
+            out.setdefault(uid, {})[action] = int(cnt)
+        return out
+
+    async def _lead_distinct_touches(
+        self,
+        user_ids: list[UUID],
+        start: datetime,
+        end: datetime,
+    ) -> dict[UUID, int]:
+        """For each operator: how many *distinct* leads did they touch?
+
+        A single lead worked 12 times counts once. Pure-COUNT(DISTINCT) so
+        Postgres can short-circuit via the (user_id, lead_id) shape of the
+        result set.
+        """
+        stmt = (
+            select(LeadActivity.user_id, func.count(func.distinct(LeadActivity.lead_id)))
+            .where(and_(
+                LeadActivity.user_id.in_(user_ids),
+                LeadActivity.created_at >= start,
+                LeadActivity.created_at < end,
+            ))
+            .group_by(LeadActivity.user_id)
         )
         rows = (await self.session.execute(stmt)).all()
         return {uid: int(cnt) for uid, cnt in rows if uid is not None}

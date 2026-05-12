@@ -397,10 +397,20 @@ export interface OperatorStatsRead {
   full_name: string | null
   phone: string | null
   role: string
-  leads_created: number
-  leads_won: number
-  leads_lost: number
-  leads_open: number
+
+  // Lead work — action-based, from lead_activities
+  leads_actioned: number          // distinct leads touched
+  lead_activities_total: number   // total LeadActivity rows by this user
+  lead_creates: number
+  lead_calls: number
+  lead_comments: number
+  lead_stage_moves: number
+  lead_assigns: number
+  lead_converts: number
+  lead_loses: number
+  lead_reopens: number
+  leads_open_assigned: number     // snapshot
+
   applicants_registered: number
   applications_created: number
   applications_reviewed: number
@@ -429,8 +439,8 @@ export interface OperatorTimeseriesRead {
   operator_id: string
   from_date: string
   to_date: string
-  leads_created: TimeseriesPoint[]
-  leads_won: TimeseriesPoint[]
+  lead_activities_total: TimeseriesPoint[]
+  lead_converts: TimeseriesPoint[]
   applicants_registered: TimeseriesPoint[]
   applications_reviewed: TimeseriesPoint[]
   contracts_created: TimeseriesPoint[]

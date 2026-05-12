@@ -109,7 +109,7 @@ function roleLabel(role: string): string {
 
 // ---------- Charts ----------
 const isDark = computed(() => theme.isDark)
-const labelsForChart = computed(() => timeseries.value?.leads_created.map(p => p.date.slice(5)) || [])
+const labelsForChart = computed(() => timeseries.value?.lead_activities_total.map(p => p.date.slice(5)) || [])
 
 function dataset(label: string, color: string, points: number[]) {
   return {
@@ -123,8 +123,8 @@ const conversionChart = computed(() => {
   return {
     labels: labelsForChart.value,
     datasets: [
-      dataset('Lead yaratildi', '#6366f1', timeseries.value.leads_created.map(p => p.value)),
-      dataset('Lead konversiya', '#10b981', timeseries.value.leads_won.map(p => p.value)),
+      dataset('Lead harakatlari', '#6366f1', timeseries.value.lead_activities_total.map(p => p.value)),
+      dataset('Konversiya', '#10b981', timeseries.value.lead_converts.map(p => p.value)),
       dataset('Abituriyent', '#f59e0b', timeseries.value.applicants_registered.map(p => p.value)),
     ],
   }
@@ -265,12 +265,13 @@ watch([fromDate, toDate, operatorId], loadAll)
       </div>
     </section>
 
-    <!-- KPI tiles -->
+    <!-- KPI tiles — action-based lead numbers, then downstream funnel -->
     <section v-if="operator" class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-5">
-      <StatCard label="Leadlar" :value="operator.leads_created" :icon="Inbox" tone="amber"
-                :hint="`${operator.leads_won} konv. · ${operator.leads_lost} yo'q.`" />
-      <StatCard label="Abituriyentlar" :value="operator.applicants_registered" :icon="Users" tone="violet"
-                :hint="`${operator.applications_created} ariza`" />
+      <StatCard label="Lead harakatlari" :value="operator.lead_activities_total" :icon="Inbox" tone="amber"
+                :hint="`${operator.leads_actioned} uniq lead'da`" />
+      <StatCard label="Lead konversiyasi" :value="operator.lead_converts"
+                :icon="TrendingUp" tone="emerald"
+                :hint="`${operator.lead_loses} yo'qotildi · ${operator.leads_open_assigned} ochiq`" />
       <StatCard label="Imzolangan shartnoma" :value="operator.contracts_signed"
                 :icon="Award" tone="brand"
                 :hint="`${operator.contracts_created} yaratildi · ${operator.contracts_cancelled} bekor`" />
@@ -278,6 +279,48 @@ watch([fromDate, toDate, operatorId], loadAll)
                 :value="fmtMoney(operator.payments_confirmed_amount)"
                 :icon="CreditCard" tone="emerald"
                 :hint="`${operator.payments_confirmed} ta to'lov tasdiqlandi`" />
+    </section>
+
+    <!-- Lead action breakdown — how the operator spent the lead work -->
+    <section v-if="operator" class="card p-5 mb-5">
+      <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
+        <Inbox class="w-4 h-4 text-amber-500" />
+        Lead bo'yicha ish taqsimoti
+      </h3>
+      <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 text-sm">
+        <div>
+          <div class="text-[11px] uppercase tracking-wider text-slate-500 mb-1">Yaratdi</div>
+          <div class="text-lg font-bold tabular-nums">{{ operator.lead_creates }}</div>
+        </div>
+        <div>
+          <div class="text-[11px] uppercase tracking-wider text-slate-500 mb-1">Qo'ng'iroq</div>
+          <div class="text-lg font-bold tabular-nums">{{ operator.lead_calls }}</div>
+        </div>
+        <div>
+          <div class="text-[11px] uppercase tracking-wider text-slate-500 mb-1">Izoh</div>
+          <div class="text-lg font-bold tabular-nums">{{ operator.lead_comments }}</div>
+        </div>
+        <div>
+          <div class="text-[11px] uppercase tracking-wider text-slate-500 mb-1">Bosqich</div>
+          <div class="text-lg font-bold tabular-nums">{{ operator.lead_stage_moves }}</div>
+        </div>
+        <div>
+          <div class="text-[11px] uppercase tracking-wider text-slate-500 mb-1">Biriktirdi</div>
+          <div class="text-lg font-bold tabular-nums">{{ operator.lead_assigns }}</div>
+        </div>
+        <div>
+          <div class="text-[11px] uppercase tracking-wider text-slate-500 mb-1">Konversiya</div>
+          <div class="text-lg font-bold tabular-nums text-emerald-700 dark:text-emerald-300">{{ operator.lead_converts }}</div>
+        </div>
+        <div>
+          <div class="text-[11px] uppercase tracking-wider text-slate-500 mb-1">Yo'qotdi</div>
+          <div class="text-lg font-bold tabular-nums text-rose-700 dark:text-rose-300">{{ operator.lead_loses }}</div>
+        </div>
+        <div>
+          <div class="text-[11px] uppercase tracking-wider text-slate-500 mb-1">Qayta ochdi</div>
+          <div class="text-lg font-bold tabular-nums">{{ operator.lead_reopens }}</div>
+        </div>
+      </div>
     </section>
 
     <!-- Charts -->
@@ -308,16 +351,16 @@ watch([fromDate, toDate, operatorId], loadAll)
     <section v-if="operator" class="grid lg:grid-cols-2 gap-5">
       <div class="card p-5">
         <div class="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-3 flex items-center gap-2">
-          <AlertTriangle v-if="operator.leads_created && !operator.contracts_signed"
+          <AlertTriangle v-if="operator.leads_actioned && !operator.contracts_signed"
                          class="w-3.5 h-3.5 text-amber-500" />
           Konversiya foizi
         </div>
         <div class="grid grid-cols-3 gap-3 text-sm">
           <div>
-            <div class="text-[11px] uppercase tracking-wider text-slate-500 mb-1">Lead → Abituriyent</div>
+            <div class="text-[11px] uppercase tracking-wider text-slate-500 mb-1">Lead → Konversiya</div>
             <div class="text-2xl font-bold tabular-nums">
-              {{ operator.leads_created
-                 ? Math.round((operator.leads_won / operator.leads_created) * 100)
+              {{ operator.leads_actioned
+                 ? Math.round((operator.lead_converts / operator.leads_actioned) * 100)
                  : 0 }}%
             </div>
           </div>
