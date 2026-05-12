@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.integrations.crm.router import router as crm_admin_router
+from app.modules.analytics.router import router as analytics_router
 from app.modules.applicants.router import router as applicants_router
 from app.modules.applications.router import router as applications_router
 from app.modules.audit.router import router as audit_router
@@ -40,4 +41,5 @@ api_router.include_router(files_router,        prefix="/files",        tags=["fi
 api_router.include_router(leads_router,        prefix="/leads",        tags=["leads"])
 api_router.include_router(consulting_router,   prefix="/consulting-agencies", tags=["consulting"])
 api_router.include_router(referrals_router,    prefix="/referrals",    tags=["referrals"])
+api_router.include_router(analytics_router,    prefix="/analytics",    tags=["analytics"])
 api_router.include_router(crm_admin_router,    prefix="/integrations/crm", tags=["integrations"])
