@@ -17,6 +17,10 @@ const routes: RouteRecordRaw[] = [
       { path: 'login',  name: 'phone-login', component: () => import('@/views/auth/PhoneLoginPage.vue'), meta: { title: 'Kirish' } },
       { path: 'verify', name: 'otp-verify',  component: () => import('@/views/auth/OtpVerifyPage.vue'),  meta: { title: "SMS-kodni tasdiqlash" } },
       { path: 'staff',  name: 'staff-login', component: () => import('@/views/auth/StaffLoginPage.vue'), meta: { title: "Xodim sifatida kirish" } },
+      // Legacy alias: early referral share links used /auth/applicant?ref=…
+      // The actual signup is /auth/login (PhoneLoginPage reads ?ref=). Keep
+      // the redirect so old WhatsApp/Telegram messages still work.
+      { path: 'applicant', redirect: (to) => ({ name: 'phone-login', query: to.query }) },
     ],
   },
 
