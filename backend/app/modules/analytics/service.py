@@ -30,12 +30,15 @@ from app.db.enums import (
     UserRole,
 )
 from app.modules.analytics.schemas import (
+    ActivityRow,
+    OperatorActivity,
     OperatorStats,
     OperatorTimeseries,
     TimeseriesPoint,
 )
 from app.modules.applicants.models import Applicant
 from app.modules.applications.models import Application
+from app.modules.audit.models import AuditLog
 from app.modules.contracts.models import Contract
 from app.modules.leads.models import Lead
 from app.modules.payments.models import Payment
@@ -242,6 +245,55 @@ class AnalyticsService:
             contracts_created=_zero_fill(contracts_created, from_date, to_date),
             contracts_signed=_zero_fill(contracts_signed, from_date, to_date),
             payments_confirmed=_zero_fill(payments_confirmed, from_date, to_date),
+        )
+
+    # ------------------------------------------------------------------
+    # Activity — what the operator actually did, from audit_logs
+    # ------------------------------------------------------------------
+    async def activity(
+        self,
+        *,
+        operator_id: UUID,
+        from_date: date,
+        to_date: date,
+        limit: int = 30,
+    ) -> OperatorActivity:
+        """Group audit_log rows by action for one user, ordered by frequency.
+
+        The frontend prints these with `tr()` so raw strings like
+        "leads.move.post" become "Lead bosqichi o'zgartirildi". We cap the
+        result set at `limit` actions so a noisy day doesn't blow up the
+        response — anything past the cap is bundled into a single "..."
+        row by the caller if needed.
+        """
+        start, end = _day_range_utc(from_date, to_date)
+        stmt = (
+            select(AuditLog.action, func.count())
+            .where(and_(
+                AuditLog.user_id == operator_id,
+                AuditLog.created_at >= start,
+                AuditLog.created_at < end,
+            ))
+            .group_by(AuditLog.action)
+            .order_by(func.count().desc(), AuditLog.action.asc())
+            .limit(limit)
+        )
+        rows = (await self.session.execute(stmt)).all()
+        total_stmt = (
+            select(func.count())
+            .where(and_(
+                AuditLog.user_id == operator_id,
+                AuditLog.created_at >= start,
+                AuditLog.created_at < end,
+            ))
+        )
+        total = int((await self.session.execute(total_stmt)).scalar() or 0)
+        return OperatorActivity(
+            operator_id=operator_id,
+            from_date=from_date,
+            to_date=to_date,
+            total=total,
+            rows=[ActivityRow(action=a, count=int(c)) for a, c in rows],
         )
 
     # ------------------------------------------------------------------

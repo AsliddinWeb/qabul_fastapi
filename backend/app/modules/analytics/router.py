@@ -13,10 +13,12 @@ kun") all translate to from_date+to_date so we don't carry a separate
 """
 from __future__ import annotations
 
-from datetime import date
+import csv
+import io
+from datetime import date, datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import CurrentUser, get_current_user, get_db
@@ -24,6 +26,7 @@ from app.core.exceptions import ForbiddenError, ValidationError
 from app.core.permissions import Permission, has_permission
 from app.db.enums import UserRole
 from app.modules.analytics.schemas import (
+    OperatorActivity,
     OperatorLeaderboard,
     OperatorStats,
     OperatorTimeseries,
@@ -120,3 +123,80 @@ async def my_summary(
         operator_id=UUID(current.user_id),
     )
     return items[0] if items else None
+
+
+@router.get(
+    "/operators/{operator_id}/activity",
+    response_model=OperatorActivity,
+)
+async def operator_activity(
+    operator_id: UUID,
+    from_date: date = Query(..., alias="from"),
+    to_date: date = Query(..., alias="to"),
+    limit: int = Query(default=30, ge=1, le=100),
+    current: CurrentUser = Depends(get_current_user),
+    svc: AnalyticsService = Depends(_service),
+) -> OperatorActivity:
+    _validate_range(from_date, to_date)
+    if not _can_see_others(current) and str(operator_id) != current.user_id:
+        raise ForbiddenError("Cannot view another operator's activity")
+    return await svc.activity(
+        operator_id=operator_id,
+        from_date=from_date,
+        to_date=to_date,
+        limit=limit,
+    )
+
+
+# ----------------------------------------------------------------------
+# CSV export of the leaderboard. Returns text/csv with a UTF-8 BOM so
+# Excel opens it cleanly with Uzbek characters intact. Only callers with
+# reports.view may export — operators see their own data inline already.
+# ----------------------------------------------------------------------
+@router.get("/operators.csv")
+async def operators_csv(
+    from_date: date = Query(..., alias="from"),
+    to_date: date = Query(..., alias="to"),
+    role: UserRole | None = Query(default=None),
+    current: CurrentUser = Depends(get_current_user),
+    svc: AnalyticsService = Depends(_service),
+) -> Response:
+    _validate_range(from_date, to_date)
+    if not _can_see_others(current):
+        raise ForbiddenError("CSV export requires reports.view permission")
+
+    roles = [role] if role is not None else None
+    items = await svc.leaderboard(
+        from_date=from_date, to_date=to_date, roles=roles,
+    )
+
+    buf = io.StringIO()
+    buf.write("﻿")  # BOM for Excel
+    w = csv.writer(buf)
+    w.writerow([
+        "F.I.Sh.", "Telefon", "Rol",
+        "Lead — yaratildi", "Lead — konversiya", "Lead — yo'q.", "Lead — ochiq",
+        "Abituriyent", "Ariza — yaratildi", "Ariza — ko'rib chiqildi",
+        "Ariza — qabul", "Ariza — rad",
+        "Shartnoma — yaratildi", "Shartnoma — imzo.", "Shartnoma — bekor",
+        "To'lov — yaratildi", "To'lov — tasdiqlandi", "To'lov — summa (so'm)",
+    ])
+    for r in items:
+        w.writerow([
+            r.full_name or "",
+            r.phone or "",
+            r.role,
+            r.leads_created, r.leads_won, r.leads_lost, r.leads_open,
+            r.applicants_registered,
+            r.applications_created, r.applications_reviewed,
+            r.applications_accepted, r.applications_rejected,
+            r.contracts_created, r.contracts_signed, r.contracts_cancelled,
+            r.payments_registered, r.payments_confirmed,
+            str(r.payments_confirmed_amount),
+        ])
+    fn = f"operator-analytics-{from_date}_to_{to_date}-{datetime.now().strftime('%H%M')}.csv"
+    return Response(
+        content=buf.getvalue().encode("utf-8"),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{fn}"'},
+    )

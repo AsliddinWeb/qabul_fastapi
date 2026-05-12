@@ -80,3 +80,28 @@ class OperatorTimeseries(AppSchema):
     contracts_created: list[TimeseriesPoint]
     contracts_signed: list[TimeseriesPoint]
     payments_confirmed: list[TimeseriesPoint]
+
+
+class ActivityRow(AppSchema):
+    """One bucket of audit_log activity for an operator: `action` is the
+    raw audit action string (e.g. 'leads.move.post'); the frontend maps it
+    to a human-friendly label via the shared `tr()` dictionary.
+    """
+
+    action: str
+    count: int
+
+
+class OperatorActivity(AppSchema):
+    """Activity summary derived from audit_logs.
+
+    Picks up softer engagement that the FK columns don't capture: lead
+    comments, calls, stage moves, contract sign clicks, etc. This is the
+    "where did the operator actually spend their day" view.
+    """
+
+    operator_id: UUID
+    from_date: date
+    to_date: date
+    total: int
+    rows: list[ActivityRow]

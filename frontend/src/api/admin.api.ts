@@ -361,7 +361,7 @@ export const adminApi = {
       http.post<any>(`/payments/${id}/refund`, null, { params: { reason } }).then((r) => r.data),
   },
 
-  // ---------- Analytics (Phase 1 endpoints) ----------
+  // ---------- Analytics ----------
   analytics: {
     leaderboard: (params: { from: string; to: string; operator_id?: string; role?: string }) =>
       http.get<OperatorLeaderboardRead>('/analytics/operators', { params }).then((r) => r.data),
@@ -369,6 +369,25 @@ export const adminApi = {
       http.get<OperatorTimeseriesRead>(`/analytics/operators/${operator_id}/timeseries`, { params }).then((r) => r.data),
     mySummary: (params: { from: string; to: string }) =>
       http.get<OperatorStatsRead | null>('/analytics/operators/me/summary', { params }).then((r) => r.data),
+    activity: (operator_id: string, params: { from: string; to: string; limit?: number }) =>
+      http.get<OperatorActivityRead>(`/analytics/operators/${operator_id}/activity`, { params }).then((r) => r.data),
+    // CSV — download via Blob so we can stuff it into a temp anchor like
+    // adminApi.diploms.exportCsv does. Caller passes the params and a
+    // suggested filename.
+    exportCsv: async (params: { from: string; to: string; role?: string }, filename?: string) => {
+      const res = await http.get('/analytics/operators.csv', { params, responseType: 'blob' })
+      const blob = new Blob([res.data as Blob], { type: 'text/csv;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename || `operator-analytics-${params.from}_to_${params.to}.csv`
+      a.target = '_blank'
+      a.rel = 'noopener'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    },
   },
 }
 
@@ -417,4 +436,17 @@ export interface OperatorTimeseriesRead {
   contracts_created: TimeseriesPoint[]
   contracts_signed: TimeseriesPoint[]
   payments_confirmed: TimeseriesPoint[]
+}
+
+export interface ActivityRow {
+  action: string
+  count: number
+}
+
+export interface OperatorActivityRead {
+  operator_id: string
+  from_date: string
+  to_date: string
+  total: number
+  rows: ActivityRow[]
 }
