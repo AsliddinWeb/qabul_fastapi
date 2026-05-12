@@ -29,6 +29,12 @@ const theme = useThemeStore()
 
 // ---------- Date range ----------
 type Preset = 'today' | '7d' | '30d' | 'month' | 'custom'
+const PRESET_LABELS: { key: Preset; label: string }[] = [
+  { key: 'today', label: 'Bugun' },
+  { key: '7d',    label: 'Oxirgi 7 kun' },
+  { key: '30d',   label: 'Oxirgi 30 kun' },
+  { key: 'month', label: 'Joriy oy' },
+]
 const preset = ref<Preset>('30d')
 const fromDate = ref<string>('')
 const toDate = ref<string>('')
@@ -324,20 +330,15 @@ watch([fromDate, toDate], () => {
     <section class="card p-4 mb-5">
       <div class="flex flex-wrap items-center gap-2">
         <div class="flex flex-wrap items-center gap-1">
-          <button v-for="(p, label) in {
-                    today: 'Bugun',
-                    '7d': "Oxirgi 7 kun",
-                    '30d': 'Oxirgi 30 kun',
-                    month: 'Joriy oy',
-                  }"
-                  :key="p"
+          <button v-for="opt in PRESET_LABELS"
+                  :key="opt.key"
                   type="button"
                   class="px-3 py-1.5 rounded-md text-xs font-medium transition"
-                  :class="preset === p
+                  :class="preset === opt.key
                     ? 'bg-brand-600 text-white shadow-sm'
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'"
-                  @click="applyPreset(p as Preset)">
-            {{ label }}
+                  @click="applyPreset(opt.key)">
+            {{ opt.label }}
           </button>
         </div>
 
