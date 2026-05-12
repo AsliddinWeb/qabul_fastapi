@@ -18,8 +18,9 @@ already closed by the time we reach the response phase.
 from __future__ import annotations
 
 import re
+from datetime import datetime, timezone
 from typing import Iterable
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import Request, Response
 from sqlalchemy import insert
@@ -153,8 +154,17 @@ async def audit_writes_middleware(request: Request, call_next):
         ua = request.headers.get("user-agent")
 
         async with async_session_factory() as session:
+            # NOTE: audit_logs.id is NOT NULL with no server-side DEFAULT in
+            # the bootstrap DDL, and `created_at` carries a frozen-timestamp
+            # default. SQLAlchemy Core `insert(...).values(...)` doesn't
+            # apply the Python-level UUIDPKMixin / TimestampMixin defaults,
+            # so we must populate id + created_at explicitly here or the
+            # insert silently raises and every middleware-emitted log is
+            # lost.
             await session.execute(
                 insert(AuditLog).values(
+                    id=uuid4(),
+                    created_at=datetime.now(timezone.utc),
                     action=action,
                     user_id=user_id,
                     entity_type=entity_type,

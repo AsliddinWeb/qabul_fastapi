@@ -60,10 +60,14 @@ const savingConsulting = ref(false)
 const referralRow = ref<any>(null)
 const referralCodeCopied = ref(false)
 async function copyReferralCode(code: string) {
+  // Match the applicant page: copy the FULL share link, not just the code.
+  // Falls back to a relative path when public_base_url isn't reachable.
+  const origin = (typeof window !== 'undefined' && window.location.origin) || ''
+  const link = `${origin}/auth/applicant?ref=${encodeURIComponent(code)}`
   try {
-    await navigator.clipboard.writeText(code)
+    await navigator.clipboard.writeText(link)
     referralCodeCopied.value = true
-    toast.success("Referal kodi nusxalandi")
+    toast.success("Referal havola nusxalandi")
     setTimeout(() => { referralCodeCopied.value = false }, 2000)
   } catch {
     toast.error("Brauzer ruxsat bermadi — qo'lda nusxalang")

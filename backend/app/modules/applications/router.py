@@ -324,9 +324,19 @@ async def get_application(
 async def staff_update_application(
     application_id: UUID,
     payload: ApplicationUpdate,
+    request: Request,
+    current: CurrentUser = Depends(get_current_user),
     svc: ApplicationsService = Depends(_service),
 ) -> ApplicationRead:
     obj = await svc.update(application_id, payload)
+    await AuditService(svc.session).log(
+        "application.update",
+        user_id=UUID(current.user_id),
+        entity_type="applications",
+        entity_id=obj.id,
+        changes=payload.model_dump(exclude_unset=True, mode="json"),
+        request=request,
+    )
     await svc.session.commit()
     return ApplicationRead.model_validate(obj)
 
@@ -338,9 +348,27 @@ async def staff_update_application(
 )
 async def staff_delete_application(
     application_id: UUID,
+    request: Request,
+    current: CurrentUser = Depends(get_current_user),
     svc: ApplicationsService = Depends(_service),
 ):
+    # Snapshot key fields BEFORE delete so the audit row carries a useful
+    # body — once the application is gone we can't read them back.
+    app = await svc.get(application_id)
+    snapshot = {
+        "application_number": app.application_number,
+        "applicant_id": str(app.applicant_id),
+        "status": app.status.value if app.status else None,
+    }
     await svc.delete(application_id)
+    await AuditService(svc.session).log(
+        "application.delete",
+        user_id=UUID(current.user_id),
+        entity_type="applications",
+        entity_id=application_id,
+        changes=snapshot,
+        request=request,
+    )
     await svc.session.commit()
 
 
