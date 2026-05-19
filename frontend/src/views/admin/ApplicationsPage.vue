@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useUrlFilters } from '@/composables/useUrlFilters'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import {
   CheckCircle2, XCircle, ClipboardList, Trash2, PlayCircle, Plus, Pencil,
@@ -59,7 +60,8 @@ const stats = ref<Record<string, number>>({
   total: 0, topshirildi: 0, korib_chiqilmoqda: 0, qabul_qilindi: 0, rad_etildi: 0,
 })
 
-const filters = reactive({
+// Filters persisted in URL so back/forward and sharing work.
+const { filters, clear: clearAllFilters } = useUrlFilters({
   status: '' as string,
   admission_type: '' as string,
   branch_id: '' as string,
@@ -67,6 +69,7 @@ const filters = reactive({
   education_form_id: '' as string,
   program_id: '' as string,
   consulting_agency_id: '' as string,
+  registered_by_id: '' as string,   // operator filter (admin/superadmin only)
   search: '' as string,
   page: 1,
   size: 20,
@@ -116,14 +119,7 @@ const activeFilterCount = computed(() => {
 })
 
 function clearFilters() {
-  filters.status = ''
-  filters.admission_type = ''
-  filters.branch_id = ''
-  filters.education_level_id = ''
-  filters.education_form_id = ''
-  filters.program_id = ''
-  filters.consulting_agency_id = ''
-  filters.search = ''
+  clearAllFilters()
 }
 
 async function loadStats() {

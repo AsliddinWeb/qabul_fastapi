@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useUrlFilters } from '@/composables/useUrlFilters'
 import { useRouter } from 'vue-router'
 import {
   Shield, FilePlus2, FileEdit, Trash2, Activity, ArrowRight,
@@ -33,7 +34,7 @@ const router = useRouter()
 const items = ref<AuditLog[]>([])
 const total = ref(0)
 const loading = ref(false)
-const filters = reactive({
+const { filters, clear: clearAllFilters, hasActiveFilters } = useUrlFilters({
   action: '',
   entity_type: '',
   date_from: '',
@@ -131,11 +132,7 @@ function relativeTime(iso: string): string {
 }
 
 function clearFilters() {
-  filters.action = ''
-  filters.entity_type = ''
-  filters.date_from = ''
-  filters.date_to = ''
-  filters.search = ''
+  clearAllFilters()
 }
 
 const activeCount = computed(() => {

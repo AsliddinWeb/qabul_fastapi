@@ -27,6 +27,28 @@ const isOperatorPanel = computed(() => panelPrefix.value === '/operator')
 
 const id = computed(() => route.params.id as string)
 const lead = ref<Lead | null>(null)
+
+// Prev/next navigation: pulled from sessionStorage stash that LeadsListPage
+// writes when its filtered list loads. If the user landed here from a
+// bookmark / direct URL the stash is missing and the buttons stay hidden.
+const navIds = computed<string[]>(() => {
+  try {
+    const raw = sessionStorage.getItem(`leadList:${panelPrefix.value}:ids`)
+    return raw ? JSON.parse(raw) : []
+  } catch { return [] }
+})
+const navIndex = computed(() => navIds.value.indexOf(id.value))
+const prevLeadId = computed(() =>
+  navIndex.value > 0 ? navIds.value[navIndex.value - 1] : null,
+)
+const nextLeadId = computed(() =>
+  navIndex.value >= 0 && navIndex.value < navIds.value.length - 1
+    ? navIds.value[navIndex.value + 1] : null,
+)
+function gotoSibling(leadId: string | null) {
+  if (!leadId) return
+  router.push(`${panelPrefix.value}/leads/${leadId}`)
+}
 const activities = ref<LeadActivity[]>([])
 const stages = ref<LeadStage[]>([])
 const lostReasons = ref<LeadLostReason[]>([])
@@ -377,10 +399,31 @@ function statusPill(s: string): string {
   <Skeleton v-if="loading" type="detail" />
 
   <div v-else-if="lead" class="space-y-5">
-    <button class="inline-flex items-center gap-1 text-sm text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100"
-            @click="router.push(`${panelPrefix}/leads`)">
-      <ArrowLeft class="w-4 h-4" /> Lead'lar
-    </button>
+    <div class="flex items-center justify-between gap-2 flex-wrap">
+      <button class="inline-flex items-center gap-1 text-sm text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100"
+              @click="router.push(`${panelPrefix}/leads`)">
+        <ArrowLeft class="w-4 h-4" /> Lead'lar
+      </button>
+      <!-- Prev / next within the same filtered list. Hidden when we have
+           no navigation context (direct URL access). -->
+      <div v-if="navIndex >= 0" class="inline-flex items-center gap-1">
+        <button type="button"
+                class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                :disabled="!prevLeadId"
+                @click="gotoSibling(prevLeadId)">
+          <ArrowLeft class="w-3 h-3" /> Oldingi
+        </button>
+        <span class="px-2 text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
+          {{ navIndex + 1 }} / {{ navIds.length }}
+        </span>
+        <button type="button"
+                class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                :disabled="!nextLeadId"
+                @click="gotoSibling(nextLeadId)">
+          Keyingi <span aria-hidden="true">→</span>
+        </button>
+      </div>
+    </div>
 
     <!-- Hero — bigger, cleaner -->
     <section class="card overflow-hidden">

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { useUrlFilters } from '@/composables/useUrlFilters'
 import { useAuthStore } from '@/stores/auth'
 import {
   Plus, Users as UsersIcon, Search, X as XIcon, LayoutGrid, Filter as FilterIcon,
@@ -35,12 +36,17 @@ const loading = ref(false)
 const pipelines = ref<LeadPipeline[]>([])
 const stages = ref<LeadStage[]>([])
 const sources = ref<LeadSource[]>([])
+// Operator filter — only fetched in admin/superadmin context (myOnly=false).
+const operators = ref<Array<{ id: string; label: string }>>([])
 
-const filters = reactive({
+// Filters live in the URL via useUrlFilters so back/forward restores them
+// and the view is shareable. Defaults stay out of the URL (empty query).
+const { filters, clear: clearAllFilters, hasActiveFilters } = useUrlFilters({
   pipeline_id: '' as string,
   stage_id: '' as string,
-  status: '' as LeadStatus | '',
+  status: '' as string,    // '' | 'open' | 'won' | 'lost'
   source_id: '' as string,
+  assigned_to_id: '' as string,   // operator filter (admin/superadmin only)
   search: '' as string,
   page: 1,
   size: 50,
@@ -72,6 +78,20 @@ async function loadCatalogs() {
   if (filters.pipeline_id) {
     stages.value = await leadsApi.stages.list(filters.pipeline_id).catch(() => [])
   }
+  // Operator pool — admins/superadmins only. Use the public-lookup-style
+  // approach via adminApi if available; falls back silently.
+  if (!myOnly.value) {
+    try {
+      const { adminApi } = await import('@/api/admin.api')
+      const us = await adminApi.users.list({ role: 'operator', size: 100 }).catch(() => null)
+      if (us) {
+        operators.value = us.items.map(u => ({
+          id: u.id,
+          label: u.full_name || u.phone || u.id.slice(0, 8),
+        }))
+      }
+    } catch { /* ignore */ }
+  }
 }
 
 async function loadStats() {
@@ -87,15 +107,25 @@ async function load() {
     const res = await leadsApi.list({
       pipeline_id: filters.pipeline_id || undefined,
       stage_id: filters.stage_id || undefined,
-      status: filters.status || undefined,
+      status: (filters.status as any) || undefined,
       source_id: filters.source_id || undefined,
-      assigned_to_id: myOnly.value ? (auth.user?.id || undefined) : undefined,
+      assigned_to_id: myOnly.value
+        ? (auth.user?.id || undefined)
+        : (filters.assigned_to_id || undefined),
       search: filters.search || undefined,
       page: filters.page,
       size: filters.size,
     })
     items.value = res.items
     total.value = res.total
+    // Stash ordered IDs so the lead-detail page can render prev/next
+    // buttons that respect the same filter context the operator was
+    // looking at. Scoped key per panel so admin and operator navs don't
+    // collide if both are open in different tabs.
+    try {
+      const key = `leadList:${panelPrefix.value}:ids`
+      sessionStorage.setItem(key, JSON.stringify(items.value.map(l => l.id)))
+    } catch { /* quota/private mode → silently skip */ }
   } catch (e) {
     const ax = e as AxiosError<{ error?: { message?: string } }>
     toast.error(ax.response?.data?.error?.message || "Yuklab bo'lmadi")
@@ -120,7 +150,10 @@ watch(() => filters.pipeline_id, async (v) => {
   filters.page = 1
   await Promise.all([load(), loadStats()])
 })
-watch(() => [filters.stage_id, filters.status, filters.source_id], () => { filters.page = 1; load() })
+watch(
+  () => [filters.stage_id, filters.status, filters.source_id, filters.assigned_to_id],
+  () => { filters.page = 1; load() },
+)
 watch(() => filters.page, load)
 
 const lastPage = () => Math.max(1, Math.ceil(total.value / filters.size))
@@ -153,14 +186,17 @@ const activeFilterCount = computed(() => {
   if (filters.stage_id) n++
   if (filters.status) n++
   if (filters.source_id) n++
+  if (filters.assigned_to_id) n++
+  if (filters.search) n++
   return n
 })
 
 function clearFilters() {
-  filters.stage_id = ''
-  filters.status = ''
-  filters.source_id = ''
-  filters.search = ''
+  // Delegate to composable so the URL drops back to /…?pipeline_id=<def>
+  // (we keep pipeline_id because it's a context, not a filter).
+  const keptPipeline = filters.pipeline_id
+  clearAllFilters()
+  filters.pipeline_id = keptPipeline
 }
 
 function setStatusFilter(s: 'open' | 'won' | 'lost') {
@@ -342,7 +378,7 @@ function opAvatarTone(name: string | null): string {
           <XIcon class="w-3 h-3" /> Tozalash
         </button>
       </div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
         <div class="lg:col-span-2">
           <label class="field-label">Qidirish</label>
           <div class="relative">
@@ -361,6 +397,11 @@ function opAvatarTone(name: string | null): string {
         <div>
           <label class="field-label">Manba</label>
           <SearchSelect v-model="filters.source_id" :options="sourceOptions" placeholder="— hammasi —" allow-clear />
+        </div>
+        <div v-if="!myOnly">
+          <label class="field-label">Operator</label>
+          <SearchSelect v-model="filters.assigned_to_id" :options="operators"
+                        placeholder="— hammasi —" allow-clear />
         </div>
       </div>
     </div>
