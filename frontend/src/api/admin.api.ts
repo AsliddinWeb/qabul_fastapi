@@ -22,6 +22,8 @@ export interface UserCreatePayload {
   password?: string | null
   is_active?: boolean
   is_consulting?: boolean
+  /** Permission codes to deny up-front (subset of the role's defaults). */
+  permissions_revoked?: string[]
 }
 
 export interface UserUpdatePayload {

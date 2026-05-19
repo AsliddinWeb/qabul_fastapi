@@ -45,6 +45,9 @@ async function refreshMe() {
         role: me.role,
         is_consulting: me.is_consulting ?? false,
         is_root_superadmin: me.is_root_superadmin ?? false,
+        permissions_revoked: Array.isArray((me as any).permissions_revoked)
+          ? (me as any).permissions_revoked
+          : [],
       },
     )
   } catch { /* ignore — token may be expiring; user will retry */ }

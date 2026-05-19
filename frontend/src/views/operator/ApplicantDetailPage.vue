@@ -7,6 +7,7 @@ import { staffApi } from '@/api/staff.api'
 import type { ApplicantDetailed, ApplicantBase } from '@/api/applicants.api'
 import { adminApi, type RegionRead, type DistrictRead, type CountryRead } from '@/api/admin.api'
 import { useToast } from '@/composables/useToast'
+import { useAuthStore } from '@/stores/auth'
 import {
   PLACEHOLDERS,
   formatNameUpper,
@@ -32,6 +33,8 @@ const panelPrefix = computed(() => {
   return '/operator'
 })
 const isAccountantPanel = computed(() => panelPrefix.value === '/accountant')
+const auth = useAuthStore()
+const canCreateContract = computed(() => auth.hasPermission('contracts.create'))
 
 const data = ref<ApplicantDetailed | null>(null)
 const loading = ref(true)
@@ -176,7 +179,7 @@ async function generateContract() {
       <button type="button" class="btn-ghost" @click="router.back()">
         <ArrowLeft class="w-4 h-4" /> Ortga
       </button>
-      <button v-if="!isAccountantPanel" class="btn-primary" @click="generateContract">
+      <button v-if="!isAccountantPanel && canCreateContract" class="btn-primary" @click="generateContract">
         <FileText class="w-4 h-4" /> Shartnoma yaratish
       </button>
     </PageHeader>

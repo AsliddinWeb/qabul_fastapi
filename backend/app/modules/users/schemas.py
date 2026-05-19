@@ -42,6 +42,10 @@ class UserCreate(UserBase):
     password: str | None = Field(default=None, min_length=8, max_length=100)
     is_active: bool = True
     is_consulting: bool = False
+    # Permissions the admin wants to deny up-front (subset of role defaults).
+    # Honored at create time so admins can spin up an operator with reduced
+    # rights in one round-trip rather than create-then-edit-revoke.
+    permissions_revoked: list[str] = Field(default_factory=list)
 
 
 class UserUpdate(AppSchema):

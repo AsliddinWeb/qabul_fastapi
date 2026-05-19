@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import type { Role, User } from '@/types'
+import { userHasPermission, type Permission } from '@/utils/permissions'
 
 interface AuthState {
   accessToken: string | null
@@ -39,6 +40,9 @@ export const useAuthStore = defineStore('auth', {
     /** True for users marked is_consulting (root included), used to gate
      *  the consulting_agency field/filter on application screens. */
     isConsulting: (s) => !!(s.user?.is_consulting || s.user?.is_root_superadmin),
+    /** Effective permission check: role default ∧ not revoked for this user.
+     *  Mirrors the backend matrix; backend re-checks every request. */
+    hasPermission: (s) => (perm: Permission) => userHasPermission(s.user, perm),
   },
 
   actions: {

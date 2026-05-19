@@ -29,6 +29,7 @@ const toast = useToast()
 const auth = useAuthStore()
 const { ask } = useConfirm()
 const canSeeConsulting = computed(() => auth.isConsulting)
+const canCreateContract = computed(() => auth.hasPermission('contracts.create'))
 
 const id = computed(() => route.params.id as string)
 const panelPrefix = computed(() => {
@@ -1094,6 +1095,13 @@ function applicantInitials(): string {
                         dark:bg-slate-800/40 dark:text-slate-400 dark:ring-slate-700">
               <AlertTriangle class="w-4 h-4 shrink-0 mt-0.5 text-slate-400" />
               <span>Shartnoma yaratish uchun avval ariza qabul qilinishi kerak.</span>
+            </div>
+            <div v-else-if="!canCreateContract"
+                 class="flex items-start gap-2 text-sm p-3 rounded-xl
+                        bg-amber-50 text-amber-700 ring-1 ring-amber-200
+                        dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-700/30">
+              <AlertTriangle class="w-4 h-4 shrink-0 mt-0.5" />
+              <span>Shartnoma yaratish uchun ruxsat yo'q. Administrator bilan bog'laning.</span>
             </div>
             <div v-else-if="!showContractForm">
               <button class="btn-primary w-full" @click="openContractForm">
