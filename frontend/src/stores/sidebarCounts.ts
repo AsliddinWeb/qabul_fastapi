@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { http } from '@/api/http'
+import { usePanelsStore, type NavEntry } from '@/stores/panels'
 
 /**
  * Sidebar-counts store: holds total-row counts for the operational pages
@@ -47,6 +48,28 @@ async function totalFor(path: string, params: Record<string, any> = {}): Promise
   }
 }
 
+// Map countKey → list endpoint. Adding a new countKey only needs an entry
+// here plus the corresponding label in panels.ts/NavLeaf.countKey.
+const ENDPOINT_FOR: Record<CountKey, string> = {
+  leads: '/leads',
+  applicants: '/applicants',
+  applications: '/applications',
+  contracts: '/contracts',
+  payments: '/payments',
+  users: '/users',
+  audit: '/audit',
+  referrals: '/referrals',
+}
+
+function collectKeys(nav: NavEntry[]): Set<CountKey> {
+  const out = new Set<CountKey>()
+  for (const e of nav) {
+    if (e.type === 'leaf' && e.countKey) out.add(e.countKey)
+    else if (e.type === 'group') for (const c of e.items) if (c.countKey) out.add(c.countKey)
+  }
+  return out
+}
+
 export const useSidebarCounts = defineStore('sidebarCounts', {
   state: (): { counts: CountState; loading: boolean } => ({
     counts: { ...EMPTY },
@@ -54,22 +77,26 @@ export const useSidebarCounts = defineStore('sidebarCounts', {
   }),
   actions: {
     async refresh() {
+      // Only fetch counts for keys the current panel actually shows. Saves
+      // a guaranteed-403 round-trip (e.g. operator hitting /users) and
+      // keeps the browser console clean of permission errors.
+      const panels = usePanelsStore()
+      const panel = panels.currentPanel
+      if (!panel) return
+      const keys = collectKeys(panel.nav)
+      if (!keys.size) return
+
       this.loading = true
       try {
-        const [leads, applicants, applications, contracts, payments, users, audit, referrals] = await Promise.all([
-          totalFor('/leads'),
-          totalFor('/applicants'),
-          totalFor('/applications'),
-          totalFor('/contracts'),
-          totalFor('/payments'),
-          totalFor('/users'),
-          totalFor('/audit'),
-          totalFor('/referrals'),
-        ])
-        this.counts = {
-          leads, applicants, applications, contracts,
-          payments, users, audit, referrals,
-        }
+        const fresh: CountState = { ...EMPTY }
+        await Promise.all(
+          Array.from(keys).map(async (k) => {
+            fresh[k] = await totalFor(ENDPOINT_FOR[k])
+          }),
+        )
+        // Preserve any count from a previous panel (rare; user role change)
+        // but newly-fetched keys overwrite.
+        this.counts = { ...this.counts, ...fresh }
       } finally {
         this.loading = false
       }
