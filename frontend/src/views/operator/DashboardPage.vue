@@ -4,7 +4,7 @@ import { RouterLink } from 'vue-router'
 import {
   UserPlus, Users, ClipboardList, LayoutDashboard, Phone, Send,
   TrendingUp, TrendingDown, AlertTriangle, Award, Target, Clock,
-  ArrowRight, Activity, Plus,
+  ArrowRight, Activity, Plus, RefreshCcw,
 } from 'lucide-vue-next'
 import { Line } from 'vue-chartjs'
 import {
@@ -12,7 +12,7 @@ import {
   CategoryScale, LinearScale, PointElement, LineElement, Filler, Tooltip, Legend,
 } from 'chart.js'
 import { staffApi } from '@/api/staff.api'
-import { leadsApi, type Lead, type LeadActivity, type LeadStats } from '@/api/leads.api'
+import { leadsApi, type Lead, type LeadStats } from '@/api/leads.api'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
 import StatCard from '@/components/ui/StatCard.vue'
@@ -32,7 +32,6 @@ const loading = ref(true)
 const stats = ref<LeadStats | null>(null)
 const myLeads = ref<Lead[]>([])
 const slaAlerts = ref<Array<Lead & { last_alert_at: string | null }>>([])
-const myActivities = ref<LeadActivity[]>([])
 const monthlyTrend = ref<Array<{ month: string; total: number; won: number; lost: number; conv: number }>>([])
 const operatorRow = ref<{ user_id: string; name: string; total: number; won: number; lost: number; open: number; conversion_rate: number } | null>(null)
 const applicantsCount = ref(0)
@@ -201,25 +200,44 @@ function buildTrend() {
   }))
 }
 
-onMounted(async () => {
+const refreshing = ref(false)
+const lastRefreshAt = ref<Date | null>(null)
+
+async function refresh(showSpinner = true) {
+  if (showSpinner) refreshing.value = true
   try {
-    const [leadsResp, breakdown, slaList, allActivities, applicantsResp] = await Promise.all([
+    const [leadsResp, breakdown, slaList, applicantsResp] = await Promise.all([
       leadsApi.list({ assigned_to_id: meId.value, page: 1, size: 200 }).catch(() => ({ items: [], total: 0 } as any)),
       leadsApi.breakdown().catch(() => ({ by_source: [], by_operator: [] })),
       leadsApi.slaAlerts(72).catch(() => []),
-      // Pull recent lead activities and filter by me
-      Promise.resolve([]),
       staffApi.applicants.list({ page: 1, size: 1 }).catch(() => ({ total: 0 } as any)),
     ])
     myLeads.value = leadsResp.items || []
     operatorRow.value = (breakdown.by_operator || []).find(r => r.user_id === meId.value) || null
     slaAlerts.value = (slaList || []).filter(l => l.assigned_to_id === meId.value)
-    myActivities.value = allActivities
     applicantsCount.value = applicantsResp.total || 0
     buildTrend()
+    lastRefreshAt.value = new Date()
   } finally {
+    refreshing.value = false
     loading.value = false
   }
+}
+
+function fmtLastRefresh(): string {
+  if (!lastRefreshAt.value) return ''
+  return lastRefreshAt.value.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })
+}
+
+onMounted(() => {
+  refresh(false)
+  // Soft auto-refresh every 60s so newly-scheduled callbacks appear without
+  // forcing the operator to reload the whole page. Cleared automatically
+  // when the component unmounts.
+  const id = window.setInterval(() => refresh(false), 60_000)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _stop = () => window.clearInterval(id)
+  window.addEventListener('beforeunload', _stop)
 })
 
 const _unused = AUDIT_ACTIONS
@@ -376,9 +394,21 @@ void _unused
               </p>
             </div>
           </div>
-          <span v-if="scheduledTasks.length" class="text-xs font-bold tabular-nums px-2 py-0.5 rounded-md bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
-            {{ scheduledTasks.length }}
-          </span>
+          <div class="flex items-center gap-2 shrink-0">
+            <span v-if="lastRefreshAt" class="hidden sm:inline text-[10px] text-slate-400 dark:text-slate-500">
+              {{ fmtLastRefresh() }} da yangilandi
+            </span>
+            <button type="button"
+                    class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition disabled:opacity-50"
+                    :disabled="refreshing"
+                    @click="refresh()">
+              <RefreshCcw class="w-3 h-3" :class="{ 'animate-spin': refreshing }" />
+              Yangilash
+            </button>
+            <span v-if="scheduledTasks.length" class="text-xs font-bold tabular-nums px-2 py-0.5 rounded-md bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
+              {{ scheduledTasks.length }}
+            </span>
+          </div>
         </div>
         <ul v-if="scheduledTasks.length" class="divide-y divide-slate-100 dark:divide-slate-800/60">
           <li v-for="l in scheduledTasks" :key="l.id"
