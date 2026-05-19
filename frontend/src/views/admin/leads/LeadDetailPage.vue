@@ -395,7 +395,7 @@ function statusPill(s: string): string {
                 <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full text-[11px] sm:text-xs font-semibold ring-1" :class="statusPill(lead.status)">
                   <span class="w-1.5 h-1.5 rounded-full"
                         :class="lead.status === 'open' ? 'bg-brand-500' : lead.status === 'won' ? 'bg-emerald-500' : 'bg-rose-500'"></span>
-                  {{ lead.status === 'open' ? 'Faol lead' : lead.status === 'won' ? 'Yutilgan' : "Yo'qotilgan" }}
+                  {{ lead.status === 'open' ? 'Faol lead' : lead.status === 'won' ? "Konversiya bo'lgan" : "Yo'qotilgan" }}
                 </span>
                 <span v-if="lead.pipeline_name" class="pill">{{ lead.pipeline_name }}</span>
                 <span v-if="lead.stage_name" class="pill text-brand-700 bg-brand-50 dark:text-brand-300 dark:bg-brand-500/15">{{ lead.stage_name }}</span>
@@ -763,7 +763,7 @@ function statusPill(s: string): string {
               </span>
               Lead ma'lumotlari
             </h2>
-            <button v-if="!editMode && lead.status === 'open'"
+            <button v-if="!editMode && lead.status !== 'lost'"
                     class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800 ring-1 ring-slate-200/70 dark:ring-slate-700/40 transition-colors"
                     @click="enterEditMode">
               <Pencil class="w-3 h-3" /> Tahrirlash

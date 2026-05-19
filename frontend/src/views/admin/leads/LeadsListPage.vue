@@ -48,7 +48,7 @@ const filters = reactive({
 
 const STATUS_OPTIONS = [
   { id: 'open', label: 'Faol' },
-  { id: 'won',  label: 'Yutilgan' },
+  { id: 'won',  label: "Konversiya bo'lgan" },
   { id: 'lost', label: "Yo'qotilgan" },
 ]
 
@@ -133,7 +133,7 @@ function statusPill(s: LeadStatus): string {
       : 'bg-rose-50 text-rose-700 ring-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:ring-rose-700/40'
 }
 function statusLabel(s: LeadStatus): string {
-  return s === 'open' ? 'Faol' : s === 'won' ? 'Yutilgan' : "Yo'qotilgan"
+  return s === 'open' ? 'Faol' : s === 'won' ? "Konversiya" : "Yo'qotilgan"
 }
 function statusDot(s: LeadStatus): string {
   return s === 'open' ? 'bg-brand-500' : s === 'won' ? 'bg-emerald-500' : 'bg-rose-500'
@@ -310,7 +310,7 @@ function opAvatarTone(name: string | null): string {
           </span>
         </div>
         <div class="mt-3 text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100 tabular-nums">{{ stats.won }}</div>
-        <div class="text-[11px] uppercase tracking-wider text-emerald-700 dark:text-emerald-300 mt-0.5 font-semibold">Yutilgan ({{ stats.conversion_rate }}%)</div>
+        <div class="text-[11px] uppercase tracking-wider text-emerald-700 dark:text-emerald-300 mt-0.5 font-semibold">Konversiya ({{ stats.conversion_rate }}%)</div>
       </button>
 
       <button type="button"

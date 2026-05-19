@@ -308,7 +308,7 @@ void _unused
               </div>
               <div class="mt-3 grid grid-cols-3 gap-3 text-xs opacity-90">
                 <div>
-                  <div class="text-[10px] uppercase tracking-wider opacity-70">Yutilgan</div>
+                  <div class="text-[10px] uppercase tracking-wider opacity-70">Konversiya</div>
                   <div class="text-base font-semibold tabular-nums">{{ operatorRow?.won ?? wonThisMonth }}</div>
                 </div>
                 <div>

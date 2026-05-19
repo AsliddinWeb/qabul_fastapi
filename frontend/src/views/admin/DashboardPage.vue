@@ -571,7 +571,7 @@ void auditCategory
               <div class="min-w-0 flex-1">
                 <div class="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">{{ row.name }}</div>
                 <div class="text-[11px] text-slate-500 dark:text-slate-400 tabular-nums">
-                  Jami: {{ row.total }} · Yutilgan: {{ row.won }} · Faol: {{ row.open }}
+                  Jami: {{ row.total }} · Konversiya: {{ row.won }} · Faol: {{ row.open }}
                 </div>
               </div>
               <span class="text-sm font-bold tabular-nums shrink-0"

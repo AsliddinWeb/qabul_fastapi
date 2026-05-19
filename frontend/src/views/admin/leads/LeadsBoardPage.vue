@@ -195,16 +195,25 @@ async function convertLead(lead: Lead) {
             <article
               v-for="lead in stage.leads"
               :key="lead.id"
-              draggable="true"
-              :class="draggingId === lead.id ? 'opacity-40 scale-95' : ''"
-              class="group bg-white dark:bg-slate-900 rounded-xl border border-slate-200/70 dark:border-slate-800 p-3.5 shadow-sm hover:shadow-md hover:border-brand-300 dark:hover:border-brand-700 transition-all cursor-grab active:cursor-grabbing"
+              :draggable="lead.status === 'open'"
+              :class="[
+                draggingId === lead.id ? 'opacity-40 scale-95' : '',
+                lead.status === 'won'
+                  ? 'ring-1 ring-emerald-300/60 dark:ring-emerald-500/30 bg-emerald-50/30 dark:bg-emerald-500/5 cursor-pointer'
+                  : 'cursor-grab active:cursor-grabbing'
+              ]"
+              class="group bg-white dark:bg-slate-900 rounded-xl border border-slate-200/70 dark:border-slate-800 p-3.5 shadow-sm hover:shadow-md hover:border-brand-300 dark:hover:border-brand-700 transition-all"
               @dragstart="onDragStart($event, lead)"
               @dragend="onDragEnd"
               @click="router.push(`${panelPrefix}/leads/${lead.id}`)">
 
               <div class="flex items-start gap-3 mb-2">
-                <div class="grid place-items-center w-10 h-10 rounded-full bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300 text-xs font-bold shrink-0">
-                  {{ avatarInitials(lead.full_name) }}
+                <div class="grid place-items-center w-10 h-10 rounded-full text-xs font-bold shrink-0"
+                     :class="lead.status === 'won'
+                       ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+                       : 'bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300'">
+                  <CheckCircle2 v-if="lead.status === 'won'" class="w-5 h-5" />
+                  <span v-else>{{ avatarInitials(lead.full_name) }}</span>
                 </div>
                 <div class="min-w-0 flex-1">
                   <div class="text-sm font-bold text-slate-900 dark:text-slate-100 truncate group-hover:text-brand-700 dark:group-hover:text-brand-300 transition-colors">{{ lead.full_name }}</div>
@@ -212,7 +221,11 @@ async function convertLead(lead: Lead) {
                     <Phone class="w-3 h-3" /> {{ formatPhone(lead.phone) }}
                   </div>
                 </div>
-                <GripVertical class="w-4 h-4 text-slate-300 dark:text-slate-700 group-hover:text-slate-500 transition-colors shrink-0" />
+                <span v-if="lead.status === 'won'"
+                      class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 shrink-0">
+                  Konversiya
+                </span>
+                <GripVertical v-else class="w-4 h-4 text-slate-300 dark:text-slate-700 group-hover:text-slate-500 transition-colors shrink-0" />
               </div>
 
               <div v-if="lead.program_name || lead.branch_name" class="space-y-0.5 pt-2 border-t border-slate-100 dark:border-slate-800/60">
@@ -249,8 +262,8 @@ async function convertLead(lead: Lead) {
                 </a>
               </div>
 
-              <!-- Convert button on terminal stage -->
-              <button v-if="stage.is_terminal" type="button"
+              <!-- Convert button on terminal stage — only for open leads -->
+              <button v-if="stage.is_terminal && lead.status === 'open'" type="button"
                       class="mt-2 w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm hover:shadow transition"
                       @click.stop="convertLead(lead)">
                 <CheckCircle2 class="w-3.5 h-3.5" /> Arizaga o'tkazish

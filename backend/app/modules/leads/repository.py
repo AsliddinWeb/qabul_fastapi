@@ -144,8 +144,19 @@ class LeadRepository(BaseRepository[Lead]):
         return rows, total
 
     async def board_for_pipeline(self, pipeline_id: UUID) -> list[dict]:
-        """All open leads of a pipeline, with embedded labels."""
-        clauses = [Lead.pipeline_id == pipeline_id, Lead.status == LeadStatus.OPEN]
+        """All non-lost leads of a pipeline, with embedded labels.
+
+        We include OPEN + WON so converted leads stay visible on the board
+        at the stage they reached before conversion — the user wanted to
+        be able to find and edit them after the fact. LOST is still hidden
+        because it would clutter the board with failures and the stage_id
+        on a lost lead is often noise (the user didn't progress it before
+        losing).
+        """
+        clauses = [
+            Lead.pipeline_id == pipeline_id,
+            Lead.status.in_([LeadStatus.OPEN, LeadStatus.WON]),
+        ]
         return await self._select_with_labels(clauses, limit=None, offset=0)
 
     async def _select_with_labels(self, clauses: list, *, limit: int | None, offset: int) -> list[dict]:

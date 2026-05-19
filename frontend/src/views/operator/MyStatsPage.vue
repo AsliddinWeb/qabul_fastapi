@@ -169,7 +169,7 @@ const trendChart = computed(() => ({
       borderRadius: 6,
     },
     {
-      label: 'Yutilgan',
+      label: 'Konversiya',
       data: monthlyTrend.value.map(b => b.won),
       backgroundColor: brand500,
       borderRadius: 6,
@@ -191,7 +191,7 @@ const trendOpts = computed(() => ({
 
 // ---- Status doughnut ----
 const statusDoughnut = computed(() => ({
-  labels: ['Faol', 'Yutilgan', "Yo'qotilgan"],
+  labels: ['Faol', 'Konversiya', "Yo'qotilgan"],
   datasets: [{
     data: [openCount.value, won.value, lost.value],
     backgroundColor: [brand500, emerald, '#f43f5e'],
@@ -277,7 +277,7 @@ const rangeShort = computed(() => {
           :trend-hint="rangeShort"
         />
         <StatCard
-          label="Yutilgan"
+          label="Konversiya"
           :value="won"
           :icon="Award"
           tone="emerald"
@@ -325,7 +325,7 @@ const rangeShort = computed(() => {
                   <div class="text-base font-semibold tabular-nums">{{ created }}</div>
                 </div>
                 <div>
-                  <div class="text-[10px] uppercase tracking-wider opacity-70">Yutilgan</div>
+                  <div class="text-[10px] uppercase tracking-wider opacity-70">Konversiya</div>
                   <div class="text-base font-semibold tabular-nums">{{ won }}</div>
                 </div>
                 <div>
@@ -362,7 +362,7 @@ const rangeShort = computed(() => {
               <strong class="tabular-nums">{{ openCount }}</strong>
             </li>
             <li class="flex items-center justify-between">
-              <span class="inline-flex items-center gap-2"><span class="w-2 h-2 rounded-full" :style="{ backgroundColor: emerald }"></span>Yutilgan</span>
+              <span class="inline-flex items-center gap-2"><span class="w-2 h-2 rounded-full" :style="{ backgroundColor: emerald }"></span>Konversiya</span>
               <strong class="tabular-nums">{{ won }}</strong>
             </li>
             <li class="flex items-center justify-between">
