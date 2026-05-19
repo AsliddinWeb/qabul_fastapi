@@ -1,14 +1,27 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
-import type { NavEntry } from '@/stores/panels'
+import type { NavEntry, NavLeaf } from '@/stores/panels'
 import { useUIStore } from '@/stores/ui'
+import { useSidebarCounts } from '@/stores/sidebarCounts'
 
 const props = defineProps<{ items: NavEntry[] }>()
 const emit = defineEmits<{ (e: 'navigate'): void }>()
 
 const route = useRoute()
 const ui = useUIStore()
+const counts = useSidebarCounts()
+
+function countFor(leaf: NavLeaf): number | null {
+  return leaf.countKey ? counts.counts[leaf.countKey] : null
+}
+function fmtCount(n: number): string {
+  // Compact form for big numbers — 1700 → "1.7k", 12345 → "12k".
+  if (n >= 1000) {
+    return (n / 1000).toFixed(n < 10000 ? 1 : 0).replace(/\.0$/, '') + 'k'
+  }
+  return String(n)
+}
 
 // Flat list of all link targets in this nav tree.
 const allLinks = computed(() => {
@@ -60,6 +73,10 @@ function isLeafActive(to: string): boolean {
                    class="w-[18px] h-[18px] shrink-0"
                    :class="isLeafActive(entry.to) ? 'text-brand-600 dark:text-brand-300' : 'text-slate-500 dark:text-slate-400'" />
         <span v-if="!ui.sidebarCollapsed" class="truncate flex-1">{{ entry.label }}</span>
+        <span v-if="!ui.sidebarCollapsed && countFor(entry) != null"
+              class="ml-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold tabular-nums bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 shrink-0">
+          {{ fmtCount(countFor(entry) as number) }}
+        </span>
         <span v-if="!ui.sidebarCollapsed && isLeafActive(entry.to)"
               class="absolute right-2 top-1/2 -translate-y-1/2 w-1 h-5 rounded-full bg-brand-500 dark:bg-brand-400"></span>
       </RouterLink>
@@ -100,6 +117,10 @@ function isLeafActive(to: string): boolean {
                      class="w-[16px] h-[16px] shrink-0"
                      :class="isLeafActive(child.to) ? 'text-brand-600 dark:text-brand-300' : 'text-slate-400 dark:text-slate-500'" />
           <span v-if="!ui.sidebarCollapsed" class="truncate flex-1">{{ child.label }}</span>
+          <span v-if="!ui.sidebarCollapsed && countFor(child) != null"
+                class="ml-1 px-1.5 py-0.5 rounded-md text-[10px] font-semibold tabular-nums bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 shrink-0">
+            {{ fmtCount(countFor(child) as number) }}
+          </span>
           <span v-if="!ui.sidebarCollapsed && isLeafActive(child.to)"
                 class="absolute right-2 top-1/2 -translate-y-1/2 w-1 h-5 rounded-full bg-brand-500 dark:bg-brand-400"></span>
         </RouterLink>

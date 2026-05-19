@@ -40,6 +40,8 @@ export interface NavLeaf {
   icon: FunctionalComponent
   tone?: NavTone
   rootOnly?: boolean
+  /** Optional key into the sidebar-counts store — renders "(N)" next to label. */
+  countKey?: 'leads' | 'applicants' | 'applications' | 'contracts' | 'payments' | 'users' | 'audit' | 'referrals'
 }
 
 export interface NavGroup {
@@ -53,7 +55,7 @@ export interface NavGroup {
 
 export type NavEntry = NavLeaf | NavGroup
 
-interface NavOpts { rootOnly?: boolean }
+interface NavOpts { rootOnly?: boolean; countKey?: NavLeaf['countKey'] }
 
 const leaf = (to: string, label: string, icon: any, tone: NavTone = 'slate', opts: NavOpts = {}): NavLeaf =>
   ({ type: 'leaf', to, label, icon, tone, ...opts })
@@ -76,19 +78,19 @@ const ADMIN_NAV: NavEntry[] = [
   leaf('/admin', 'Bosh sahifa', LayoutDashboard, 'violet'),
 
   group('crm', 'CRM — Leadlar', Inbox, [
-    leaf('/admin/leads',                'Lead\'lar ro\'yxati',   Inbox,          'amber'),
+    leaf('/admin/leads',                'Lead\'lar ro\'yxati',   Inbox,          'amber',   { countKey: 'leads' }),
     leaf('/admin/leads/board',          'Varonka',                LayoutGrid,     'indigo'),
     leaf('/admin/leads/new',            'Yangi lead',             FilePlus2,      'emerald'),
     leaf('/admin/lead-settings',        'Sozlamalar',             Settings,       'slate'),
   ]),
 
   group('admissions', 'Qabul jarayoni', ClipboardList, [
-    leaf('/admin/applicants',           'Abituriyentlar',         UsersIcon,      'violet'),
-    leaf('/admin/applications',         'Arizalar',               ClipboardList,  'amber'),
+    leaf('/admin/applicants',           'Abituriyentlar',         UsersIcon,      'violet',  { countKey: 'applicants' }),
+    leaf('/admin/applications',         'Arizalar',               ClipboardList,  'amber',   { countKey: 'applications' }),
     leaf('/admin/diploms',              'Diplomlar (1-kurs)',     Award,          'emerald'),
     leaf('/admin/transfer-diploms',     'Perevod diplomlari',     Award,          'cyan'),
-    leaf('/admin/payments',             "To'lovlar",              CreditCard,     'teal'),
-    leaf('/admin/referrals',            'Referal dasturi',        Gift,           'rose'),
+    leaf('/admin/payments',             "To'lovlar",              CreditCard,     'teal',    { countKey: 'payments' }),
+    leaf('/admin/referrals',            'Referal dasturi',        Gift,           'rose',    { countKey: 'referrals' }),
   ]),
 
   group('programs', "Ta'lim", School, [
@@ -113,10 +115,10 @@ const ADMIN_NAV: NavEntry[] = [
   leaf('/admin/operator-analytics',     'Operatorlar analitikasi', BarChart3,    'sky'),
 
   group('system', 'Sozlamalar', Settings, [
-    leaf('/admin/users',                'Foydalanuvchilar',       UsersIcon,      'rose'),
+    leaf('/admin/users',                'Foydalanuvchilar',       UsersIcon,      'rose',  { countKey: 'users' }),
     leaf('/admin/contract-templates',   'Shartnoma shabloni',     FilePlus2,      'violet'),
     leaf('/admin/contract-settings',    'Shartnoma sozlamalari',  Building2,      'indigo'),
-    leaf('/admin/audit',                'Audit jurnali',          Shield,         'slate'),
+    leaf('/admin/audit',                'Audit jurnali',          Shield,         'slate', { countKey: 'audit' }),
   ]),
 
   // ROOT-ONLY group — filtered out at runtime for non-root users by panels store.
@@ -133,27 +135,27 @@ const OPERATOR_NAV: NavEntry[] = [
     leaf('/operator/stats',          'Mening statistikam', BarChart3,     'amber'),
   ]),
   group('admission', 'Qabul', ClipboardList, [
-    leaf('/operator/applicants',     'Abituriyentlar',  UsersIcon,     'violet'),
-    leaf('/operator/applications',   'Arizalar',        ClipboardList, 'amber'),
-    leaf('/operator/contracts',      'Shartnomalar',    FileText,      'teal'),
-    leaf('/operator/payments',       "To'lovlar",       CreditCard,    'emerald'),
+    leaf('/operator/applicants',     'Abituriyentlar',  UsersIcon,     'violet',  { countKey: 'applicants' }),
+    leaf('/operator/applications',   'Arizalar',        ClipboardList, 'amber',   { countKey: 'applications' }),
+    leaf('/operator/contracts',      'Shartnomalar',    FileText,      'teal',    { countKey: 'contracts' }),
+    leaf('/operator/payments',       "To'lovlar",       CreditCard,    'emerald', { countKey: 'payments' }),
   ]),
 ]
 
 const DIRECTOR_NAV: NavEntry[] = [
   leaf('/director',              'Bosh sahifa',     LayoutDashboard, 'violet'),
-  leaf('/director/applicants',   'Abituriyentlar',  UsersIcon,       'violet'),
-  leaf('/director/applications', 'Arizalar',        ClipboardList,   'amber'),
+  leaf('/director/applicants',   'Abituriyentlar',  UsersIcon,       'violet', { countKey: 'applicants' }),
+  leaf('/director/applications', 'Arizalar',        ClipboardList,   'amber',  { countKey: 'applications' }),
   leaf('/director/operator-analytics', 'Operatorlar analitikasi', BarChart3, 'sky'),
 ]
 
 const ACCOUNTANT_NAV: NavEntry[] = [
   leaf('/accountant',                 'Bosh sahifa',     LayoutDashboard, 'violet'),
-  leaf('/accountant/contracts',       'Shartnomalar',    FileText,        'teal'),
-  leaf('/accountant/payments',        "To'lovlar",       CreditCard,      'emerald'),
+  leaf('/accountant/contracts',       'Shartnomalar',    FileText,        'teal',    { countKey: 'contracts' }),
+  leaf('/accountant/payments',        "To'lovlar",       CreditCard,      'emerald', { countKey: 'payments' }),
   leaf('/accountant/referral-payouts', "Referal naqd",   Gift,            'rose'),
-  leaf('/accountant/applications',    'Arizalar',        ClipboardList,   'amber'),
-  leaf('/accountant/applicants',      'Abituriyentlar',  UsersIcon,       'sky'),
+  leaf('/accountant/applications',    'Arizalar',        ClipboardList,   'amber',   { countKey: 'applications' }),
+  leaf('/accountant/applicants',      'Abituriyentlar',  UsersIcon,       'sky',     { countKey: 'applicants' }),
 ]
 
 const APPLICANT_NAV: NavEntry[] = [

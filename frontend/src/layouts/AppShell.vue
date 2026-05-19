@@ -13,12 +13,14 @@ import InstallPrompt from '@/components/ui/InstallPrompt.vue'
 import { usePanelsStore } from '@/stores/panels'
 import { useAuthStore } from '@/stores/auth'
 import { useUIStore } from '@/stores/ui'
+import { useSidebarCounts } from '@/stores/sidebarCounts'
 import { adminApi } from '@/api/admin.api'
 import { authApi } from '@/api/auth.api'
 
 const panels = usePanelsStore()
 const auth = useAuthStore()
 const ui = useUIStore()
+const sidebarCounts = useSidebarCounts()
 const route = useRoute()
 const router = useRouter()
 const sidebarOpen = ref(false)
@@ -50,6 +52,11 @@ async function refreshMe() {
 
 onMounted(async () => {
   await refreshMe()
+  // Sidebar count badges — fetch once on mount, then refresh every 60s
+  // so they stay reasonably current as the user works.
+  sidebarCounts.refresh()
+  window.setInterval(() => sidebarCounts.refresh(), 60_000)
+
   if (!isAdmin.value) return
   try {
     const stats = await adminApi.applications.stats()
