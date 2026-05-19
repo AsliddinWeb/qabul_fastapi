@@ -10,6 +10,7 @@ from app.modules.applicants.models import Applicant
 from app.modules.applications.models import Application, ApplicationStatusHistory
 from app.modules.consulting.models import ConsultingAgency
 from app.modules.programs.models import Branch, EducationForm, EducationLevel, Program
+from app.modules.users.models import User
 
 
 class ApplicationRepository(BaseRepository[Application]):
@@ -122,6 +123,8 @@ class ApplicationRepository(BaseRepository[Application]):
         education_level_id: UUID | None = None,
         education_form_id: UUID | None = None,
         consulting_agency_id: UUID | None = None,
+        registered_by_id: UUID | None = None,
+        source: str | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> tuple[list[dict], int]:
@@ -140,10 +143,23 @@ class ApplicationRepository(BaseRepository[Application]):
             clauses.append(Application.education_form_id == education_form_id)
         if consulting_agency_id is not None:
             clauses.append(Application.consulting_agency_id == consulting_agency_id)
+        # Filter by who registered the applicant (operator attribution).
+        # Joins on Applicant; _detailed_query already brings Applicant in.
+        if registered_by_id is not None:
+            clauses.append(Applicant.registered_by_id == registered_by_id)
+        # Source filter: 'lead' = converted from a lead row (lead_id IS NOT NULL),
+        # 'direct' = created directly (lead_id IS NULL).
+        if source == "lead":
+            clauses.append(Application.lead_id.isnot(None))
+        elif source == "direct":
+            clauses.append(Application.lead_id.is_(None))
 
         rows = await self._detailed_query(*clauses, limit=limit, offset=offset)
 
-        count_stmt = select(func.count(Application.id))
+        count_stmt = (
+            select(func.count(Application.id))
+            .join(Applicant, Application.applicant_id == Applicant.id)
+        )
         for c in clauses:
             count_stmt = count_stmt.where(c)
         total = await self.session.scalar(count_stmt) or 0
@@ -161,6 +177,8 @@ class ApplicationRepository(BaseRepository[Application]):
                 Applicant.first_name.label("a_first_name"),
                 Applicant.last_name.label("a_last_name"),
                 Applicant.other_name.label("a_other_name"),
+                Applicant.registered_by_id.label("applicant_registered_by_id"),
+                User.full_name.label("applicant_registered_by_name"),
                 ConsultingAgency.name.label("consulting_agency_name"),
             )
             .join(Program, Application.program_id == Program.id)
@@ -168,6 +186,10 @@ class ApplicationRepository(BaseRepository[Application]):
             .join(EducationLevel, Application.education_level_id == EducationLevel.id)
             .join(EducationForm, Application.education_form_id == EducationForm.id)
             .join(Applicant, Application.applicant_id == Applicant.id)
+            # Operator who registered the applicant — outer because legacy
+            # applicants from before the operator-registration flow can have
+            # registered_by_id = NULL.
+            .outerjoin(User, Applicant.registered_by_id == User.id)
             .outerjoin(
                 ConsultingAgency,
                 Application.consulting_agency_id == ConsultingAgency.id,
@@ -182,7 +204,7 @@ class ApplicationRepository(BaseRepository[Application]):
         rows = (await self.session.execute(stmt)).all()
         result = []
         for (app, p_name, p_code, b_name, lvl_name, form_name,
-             a_first, a_last, a_other, ca_name) in rows:
+             a_first, a_last, a_other, reg_by_id, reg_by_name, ca_name) in rows:
             data = {**app.__dict__}
             data.pop("_sa_instance_state", None)
             full_name = " ".join(filter(None, [a_last, a_first, a_other])).strip() or None
@@ -193,6 +215,8 @@ class ApplicationRepository(BaseRepository[Application]):
                 "education_level_name": lvl_name,
                 "education_form_name": form_name,
                 "applicant_full_name": full_name,
+                "applicant_registered_by_id": reg_by_id,
+                "applicant_registered_by_name": reg_by_name,
                 "consulting_agency_name": ca_name,
             })
             result.append(data)

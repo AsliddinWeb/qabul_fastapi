@@ -102,3 +102,8 @@ class ApplicationDetailed(ApplicationRead):
     education_form_name: str | None = None
     applicant_full_name: str | None = None
     consulting_agency_name: str | None = None
+    # Operator who originally registered the applicant — handy on the
+    # admin list to see who's bringing in students. Joined from
+    # applicants.registered_by_id → users.
+    applicant_registered_by_id: UUID | None = None
+    applicant_registered_by_name: str | None = None

@@ -70,6 +70,7 @@ const { filters, clear: clearAllFilters } = useUrlFilters({
   program_id: '' as string,
   consulting_agency_id: '' as string,
   registered_by_id: '' as string,   // operator filter (admin/superadmin only)
+  source_origin: '' as string,       // 'lead' | 'direct' | ''
   search: '' as string,
   page: 1,
   size: 20,
@@ -105,6 +106,25 @@ const TYPE_OPTIONS = [
   { id: 'yangi_qabul', label: ADMISSION_TYPE.yangi_qabul },
   { id: 'perevod',     label: ADMISSION_TYPE.perevod },
 ]
+const SOURCE_OPTIONS = [
+  { id: 'lead',   label: "Lead'dan o'tkazildi" },
+  { id: 'direct', label: "To'g'ridan-to'g'ri yaratildi" },
+]
+
+// Operator pool for the "Operator" filter — admin/superadmin only.
+const operatorOptions = ref<Array<{ id: string; label: string }>>([])
+async function loadOperators() {
+  if (isOperatorPanel.value) return
+  try {
+    const us = await adminApi.users.list({ role: 'operator', size: 100 }).catch(() => null)
+    if (us) {
+      operatorOptions.value = us.items.map(u => ({
+        id: u.id,
+        label: u.full_name || u.phone || u.id.slice(0, 8),
+      }))
+    }
+  } catch { /* ignore */ }
+}
 
 const activeFilterCount = computed(() => {
   let n = 0
@@ -115,6 +135,8 @@ const activeFilterCount = computed(() => {
   if (filters.education_form_id) n++
   if (filters.program_id) n++
   if (filters.consulting_agency_id) n++
+  if (filters.registered_by_id) n++
+  if (filters.source_origin) n++
   return n
 })
 
@@ -161,6 +183,8 @@ async function load() {
       consulting_agency_id: canSeeConsulting.value
         ? (filters.consulting_agency_id || undefined)
         : undefined,
+      registered_by_id: filters.registered_by_id || undefined,
+      source: (filters.source_origin as any) || undefined,
       page: filters.page,
       size: filters.size,
     })
@@ -201,6 +225,8 @@ watch(() => filters.education_form_id, () => {
 })
 watch(() => filters.program_id, () => { filters.page = 1; load() })
 watch(() => filters.consulting_agency_id, () => { filters.page = 1; load() })
+watch(() => filters.registered_by_id, () => { filters.page = 1; load() })
+watch(() => filters.source_origin, () => { filters.page = 1; load() })
 watch(() => filters.page, load)
 
 onMounted(async () => {
@@ -219,7 +245,7 @@ onMounted(async () => {
     consultingAgencies.value = await consultingApi.list(false).catch(() => [])
   }
 
-  await Promise.all([load(), loadStats()])
+  await Promise.all([load(), loadStats(), loadOperators()])
 })
 
 async function startReview(a: Application) {
@@ -525,6 +551,14 @@ const reviewedPercent = computed(() => {
           <label class="field-label">Konsalting</label>
           <SearchSelect v-model="filters.consulting_agency_id" :options="agencyOptions" placeholder="— hammasi —" allow-clear />
         </div>
+        <div v-if="!isOperatorPanel">
+          <label class="field-label">Operator</label>
+          <SearchSelect v-model="filters.registered_by_id" :options="operatorOptions" placeholder="— hammasi —" allow-clear />
+        </div>
+        <div>
+          <label class="field-label">Manba</label>
+          <SearchSelect v-model="filters.source_origin" :options="SOURCE_OPTIONS" placeholder="— hammasi —" allow-clear />
+        </div>
       </div>
     </div>
 
@@ -551,6 +585,8 @@ const reviewedPercent = computed(() => {
               <th class="text-left font-semibold px-4 py-3">Abituriyent</th>
               <th class="text-left font-semibold px-4 py-3">Yo'nalish</th>
               <th class="text-left font-semibold px-4 py-3 w-32">Qabul turi</th>
+              <th v-if="!isOperatorPanel" class="text-left font-semibold px-4 py-3 w-36">Operator</th>
+              <th class="text-left font-semibold px-4 py-3 w-24">Manba</th>
               <th class="text-left font-semibold px-4 py-3 w-44">Holati</th>
               <th class="text-left font-semibold px-4 py-3 w-32">Sana</th>
               <th class="text-right font-semibold px-4 py-3 w-44">Amal</th>
@@ -592,6 +628,29 @@ const reviewedPercent = computed(() => {
               <!-- Qabul turi -->
               <td class="px-4 py-3">
                 <span class="pill">{{ tr(ADMISSION_TYPE, a.admission_type) }}</span>
+              </td>
+
+              <!-- Operator (registered_by) — hidden on operator's own panel -->
+              <td v-if="!isOperatorPanel" class="px-4 py-3">
+                <span v-if="(a as any).applicant_registered_by_name"
+                      class="text-xs text-slate-700 dark:text-slate-300 truncate inline-block max-w-[140px]">
+                  {{ (a as any).applicant_registered_by_name }}
+                </span>
+                <span v-else class="text-slate-400 text-xs">—</span>
+              </td>
+
+              <!-- Manba: Lead'dan o'tkazildi vs to'g'ridan-to'g'ri -->
+              <td class="px-4 py-3">
+                <span v-if="(a as any).lead_id"
+                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/70 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-700/40"
+                      title="Lead'dan o'tkazildi">
+                  Lead
+                </span>
+                <span v-else
+                      class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:ring-slate-700/60"
+                      title="To'g'ridan-to'g'ri yaratildi">
+                  Bevosita
+                </span>
               </td>
 
               <!-- Status -->

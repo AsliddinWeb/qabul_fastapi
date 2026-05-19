@@ -33,6 +33,13 @@ export interface ApplicationListFilters {
   program_id?: string
   branch_id?: string
   applicant_id?: string
+  /** Operator who registered the applicant (filter for admin/superadmin). */
+  registered_by_id?: string
+  /** 'lead' = converted from a lead; 'direct' = created without lead. */
+  source?: 'lead' | 'direct'
+  consulting_agency_id?: string
+  education_level_id?: string
+  education_form_id?: string
   page?: number
   size?: number
 }

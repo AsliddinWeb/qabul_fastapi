@@ -46,6 +46,12 @@ export interface ApplicationDetailed {
   education_level_name?: string | null
   education_form_name?: string | null
   applicant_full_name?: string | null
+  /** Operator who registered the applicant (joined from applicants.registered_by_id). */
+  applicant_registered_by_id?: string | null
+  applicant_registered_by_name?: string | null
+  /** If set, the application was converted from this lead; otherwise it's direct. */
+  lead_id?: string | null
+  lead_source_code?: string | null
 }
 
 export const applicationsApi = {

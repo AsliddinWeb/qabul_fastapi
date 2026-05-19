@@ -175,6 +175,8 @@ async def list_applications(
     education_level_id: UUID | None = Query(default=None),
     education_form_id: UUID | None = Query(default=None),
     consulting_agency_id: UUID | None = Query(default=None),
+    registered_by_id: UUID | None = Query(default=None, description="Filter by who registered the applicant (operator attribution)"),
+    source: str | None = Query(default=None, description="'lead' or 'direct' — filter by lead-conversion origin"),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=100),
     svc: ApplicationsService = Depends(_service),
@@ -187,6 +189,8 @@ async def list_applications(
         education_level_id=education_level_id,
         education_form_id=education_form_id,
         consulting_agency_id=consulting_agency_id,
+        registered_by_id=registered_by_id,
+        source=source,
         limit=size,
         offset=(page - 1) * size,
     )
@@ -208,6 +212,8 @@ async def export_applications_csv(
     education_level_id: UUID | None = Query(default=None),
     education_form_id: UUID | None = Query(default=None),
     consulting_agency_id: UUID | None = Query(default=None),
+    registered_by_id: UUID | None = Query(default=None),
+    source: str | None = Query(default=None),
     svc: ApplicationsService = Depends(_service),
 ) -> Response:
     """Export filtered applications to CSV."""
@@ -219,6 +225,8 @@ async def export_applications_csv(
         education_level_id=education_level_id,
         education_form_id=education_form_id,
         consulting_agency_id=consulting_agency_id,
+        registered_by_id=registered_by_id,
+        source=source,
         limit=10_000,
         offset=0,
     )

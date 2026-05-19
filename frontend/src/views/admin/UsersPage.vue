@@ -1,19 +1,23 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { Plus, Users as UsersIcon, Pencil, Trash2, Power, PowerOff, KeyRound, MoreVertical, Eye, Download } from 'lucide-vue-next'
+import {
+  Plus, Users as UsersIcon, Pencil, Trash2, Power, PowerOff, KeyRound,
+  MoreVertical, Download, Search, X as XIcon, Filter as FilterIcon, Phone,
+  CheckCircle2, XCircle, Clock,
+} from 'lucide-vue-next'
 import { AxiosError } from 'axios'
 import { adminApi, type UserRead } from '@/api/admin.api'
 import { downloadCsv } from '@/api/http'
-import StatusBadge from '@/components/ui/StatusBadge.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import Dropdown from '@/components/ui/Dropdown.vue'
 import { ROLE } from '@/utils/labels'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
-import type { Role } from '@/types'
+import { useUrlFilters } from '@/composables/useUrlFilters'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
+import { formatPhone } from '@/utils/validators'
 
 const router = useRouter()
 const toast = useToast()
@@ -23,11 +27,20 @@ const items = ref<UserRead[]>([])
 const total = ref(0)
 const loading = ref(false)
 
-const filters = reactive<{ role: Role | ''; search: string; page: number; size: number }>({
-  role: '',
-  search: '',
+// Filters live in the URL → back/forward restores them.
+const { filters, clear: clearAllFilters } = useUrlFilters({
+  role: '' as string,
+  is_active: '' as string,   // '' | 'true' | 'false'
+  search: '' as string,
   page: 1,
   size: 20,
+})
+
+const activeFilterCount = computed(() => {
+  let n = 0
+  if (filters.role) n++
+  if (filters.is_active) n++
+  return n
 })
 
 async function load() {
@@ -35,6 +48,7 @@ async function load() {
   try {
     const res = await adminApi.users.list({
       role: filters.role || undefined,
+      is_active: filters.is_active === 'true' ? true : filters.is_active === 'false' ? false : undefined,
       search: filters.search || undefined,
       page: filters.page,
       size: filters.size,
@@ -54,7 +68,7 @@ watch(() => filters.search, () => {
   if (searchTimer) clearTimeout(searchTimer)
   searchTimer = setTimeout(() => { filters.page = 1; load() }, 300)
 })
-watch(() => filters.role, () => { filters.page = 1; load() })
+watch(() => [filters.role, filters.is_active], () => { filters.page = 1; load() })
 watch(() => filters.page, load)
 onMounted(load)
 
@@ -72,13 +86,13 @@ async function toggleActive(u: UserRead) {
 async function resetPassword(u: UserRead) {
   const pwd = window.prompt(`${u.full_name || u.phone} uchun yangi parol (kamida 8 belgi):`)
   if (!pwd) return
-  if (pwd.length < 8) { toast.error('Parol kamida 8 belgi bo\'lsin'); return }
+  if (pwd.length < 8) { toast.error("Parol kamida 8 belgi bo'lsin"); return }
   try {
     await adminApi.users.resetPassword(u.id, pwd)
-    toast.success('Parol tiklandi')
+    toast.success("Parol tiklandi")
   } catch (e) {
     const ax = e as AxiosError<{ error?: { message?: string } }>
-    toast.error(ax.response?.data?.error?.message || 'Xatolik')
+    toast.error(ax.response?.data?.error?.message || "Xatolik")
   }
 }
 
@@ -108,6 +122,7 @@ async function exportCsv() {
   try {
     await downloadCsv('/users/export.csv', {
       role: filters.role || undefined,
+      is_active: filters.is_active === 'true' ? true : filters.is_active === 'false' ? false : undefined,
       search: filters.search || undefined,
     })
     toast.success("CSV yuklab olindi")
@@ -118,13 +133,62 @@ async function exportCsv() {
     exporting.value = false
   }
 }
+
+// ---- Visuals ----
+const ROLE_TONE: Record<string, string> = {
+  superadmin: 'bg-violet-100 text-violet-700 dark:bg-violet-500/20 dark:text-violet-300',
+  admin:      'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300',
+  operator:   'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300',
+  director:   'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300',
+  accountant: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300',
+  applicant:  'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+}
+
+const AVATAR_TONES = [
+  'from-violet-500 to-indigo-600', 'from-emerald-500 to-teal-600',
+  'from-amber-500 to-orange-600', 'from-sky-500 to-blue-600',
+  'from-rose-500 to-pink-600', 'from-cyan-500 to-teal-600',
+]
+function avatarTone(id: string): string {
+  let h = 0
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0
+  return AVATAR_TONES[Math.abs(h) % AVATAR_TONES.length]
+}
+function initials(name?: string | null, phone?: string | null): string {
+  if (name) {
+    const parts = name.trim().split(/\s+/)
+    return (parts[0]?.[0] || '') + (parts[1]?.[0] || '')
+  }
+  return (phone || '').slice(-2)
+}
+
+function fmtLastLogin(iso: string | null | undefined): string {
+  if (!iso) return 'Hech qachon kirmagan'
+  const d = new Date(iso)
+  const diff = Date.now() - d.getTime()
+  if (diff < 60_000) return 'Hozir online'
+  if (diff < 3600_000) return `${Math.floor(diff / 60_000)} daq oldin`
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)} soat oldin`
+  if (diff < 7 * 86_400_000) return `${Math.floor(diff / 86_400_000)} kun oldin`
+  return d.toLocaleDateString('uz-UZ', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+const ROLE_OPTIONS = [
+  { value: '',           label: 'Hammasi' },
+  { value: 'superadmin', label: 'Bosh administrator' },
+  { value: 'admin',      label: 'Administrator' },
+  { value: 'operator',   label: 'Operator' },
+  { value: 'director',   label: 'Direktor' },
+  { value: 'accountant', label: 'Buxgalter' },
+  { value: 'applicant',  label: 'Abituriyent' },
+]
 </script>
 
 <template>
   <div>
     <PageHeader
       title="Foydalanuvchilar"
-      :subtitle="`Tizimdagi xodim va abituriyentlar · Jami ${total}`"
+      :subtitle="`Tizimdagi xodim va abituriyentlar — jami ${total.toLocaleString('uz-UZ')} ta`"
       :crumbs="[{ label: 'Bosh sahifa', to: '/admin' }, { label: 'Sozlamalar' }]"
     >
       <button class="btn-outline" :disabled="exporting" @click="exportCsv">
@@ -135,98 +199,157 @@ async function exportCsv() {
       </RouterLink>
     </PageHeader>
 
-    <div class="filter-bar">
-      <div class="flex-1 min-w-[260px]">
-        <label class="field-label">Qidirish</label>
-        <input v-model="filters.search" class="input" placeholder="Telefon yoki F.I.Sh..." />
+    <!-- Filter bar — URL-persisted -->
+    <div class="card p-4 mb-4 flex flex-col gap-3">
+      <div class="flex items-center justify-between gap-2">
+        <div class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 inline-flex items-center gap-2">
+          <FilterIcon class="w-3.5 h-3.5" /> Filtrlar
+          <span v-if="activeFilterCount" class="px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 text-[10px]">
+            {{ activeFilterCount }}
+          </span>
+        </div>
+        <button v-if="activeFilterCount || filters.search"
+                class="text-xs text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 inline-flex items-center gap-1"
+                @click="clearAllFilters">
+          <XIcon class="w-3 h-3" /> Tozalash
+        </button>
       </div>
-      <div class="min-w-[200px]">
-        <label class="field-label">Rol</label>
-        <select v-model="filters.role" class="input">
-          <option value="">Hammasi</option>
-          <option value="superadmin">Bosh administrator</option>
-          <option value="admin">Administrator</option>
-          <option value="operator">Operator</option>
-          <option value="director">Direktor</option>
-          <option value="accountant">Buxgalter</option>
-          <option value="applicant">Abituriyent</option>
-        </select>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="lg:col-span-2">
+          <label class="field-label">Qidirish</label>
+          <div class="relative">
+            <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <input v-model="filters.search" class="input pl-10" placeholder="Telefon yoki F.I.Sh..." />
+          </div>
+        </div>
+        <div>
+          <label class="field-label">Rol</label>
+          <select v-model="filters.role" class="input">
+            <option v-for="o in ROLE_OPTIONS" :key="o.value" :value="o.value">{{ o.label }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="field-label">Holati</label>
+          <select v-model="filters.is_active" class="input">
+            <option value="">Hammasi</option>
+            <option value="true">Faqat faollar</option>
+            <option value="false">Faqat faolsiz</option>
+          </select>
+        </div>
       </div>
     </div>
 
-    <div class="card">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>F.I.Sh. / Telefon</th>
-            <th>Rol</th>
-            <th>Holati</th>
-            <th class="w-32 text-right">Amallar</th>
-          </tr>
-        </thead>
-        <tbody>
-          <template v-if="loading">
-            <tr v-for="i in 6" :key="`sk-row-${i}`" class="border-b border-slate-100 dark:border-slate-800/60">
-              <td v-for="c in 4" :key="`sk-${i}-${c}`" class="px-5 py-4">
-                <div class="skeleton h-3 rounded" :class="c === 1 ? 'w-3/4' : 'w-1/2'" />
+    <!-- Loading / empty -->
+    <Skeleton v-if="loading && !items.length" type="table" />
+    <div v-else-if="!loading && !items.length" class="card p-6">
+      <EmptyState :icon="UsersIcon" title="Foydalanuvchilar topilmadi"
+                  subtitle="Filtrlarni tozalang yoki yangi foydalanuvchi qo'shing">
+        <RouterLink to="/admin/users/new" class="btn-primary mt-4 inline-flex">
+          <Plus class="w-4 h-4" /> Yangi qo'shish
+        </RouterLink>
+      </EmptyState>
+    </div>
+
+    <!-- Table -->
+    <div v-else class="card overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <tr>
+              <th class="text-left font-semibold px-5 py-3.5">Foydalanuvchi</th>
+              <th class="text-left font-semibold px-4 py-3.5 w-44">Rol</th>
+              <th class="text-left font-semibold px-4 py-3.5 w-28">Holati</th>
+              <th class="text-left font-semibold px-4 py-3.5 w-44">Oxirgi kirish</th>
+              <th class="text-right font-semibold px-5 py-3.5 w-32">Amal</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="u in items" :key="u.id"
+                class="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors cursor-pointer"
+                @click="router.push(`/admin/users/${u.id}/edit`)">
+              <!-- User cell — avatar + name + phone -->
+              <td class="px-5 py-3.5">
+                <div class="flex items-center gap-3">
+                  <div class="grid place-items-center w-10 h-10 rounded-full bg-gradient-to-br text-white text-xs font-bold shrink-0 shadow-sm"
+                       :class="avatarTone(u.id)">
+                    {{ initials(u.full_name, u.phone) }}
+                  </div>
+                  <div class="min-w-0">
+                    <div class="font-semibold text-slate-900 dark:text-slate-100 truncate">
+                      {{ u.full_name || '—' }}
+                    </div>
+                    <div class="text-[11px] text-slate-500 dark:text-slate-400 inline-flex items-center gap-1 font-mono mt-0.5">
+                      <Phone class="w-3 h-3" /> {{ formatPhone(u.phone) }}
+                    </div>
+                  </div>
+                </div>
+              </td>
+
+              <!-- Role -->
+              <td class="px-4 py-3.5">
+                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold"
+                      :class="ROLE_TONE[u.role] || ROLE_TONE.applicant">
+                  {{ ROLE[u.role] || u.role }}
+                </span>
+              </td>
+
+              <!-- Status -->
+              <td class="px-4 py-3.5">
+                <span class="inline-flex items-center gap-1.5 text-xs font-medium"
+                      :class="u.is_active ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400'">
+                  <CheckCircle2 v-if="u.is_active" class="w-3.5 h-3.5" />
+                  <XCircle v-else class="w-3.5 h-3.5" />
+                  {{ u.is_active ? 'Faol' : 'Faol emas' }}
+                </span>
+              </td>
+
+              <!-- Last login -->
+              <td class="px-4 py-3.5">
+                <span class="inline-flex items-center gap-1.5 text-xs"
+                      :class="u.last_login_at ? 'text-slate-600 dark:text-slate-400' : 'text-slate-400 dark:text-slate-500'">
+                  <Clock class="w-3 h-3" />
+                  {{ fmtLastLogin(u.last_login_at) }}
+                </span>
+              </td>
+
+              <!-- Actions -->
+              <td class="px-5 py-3.5 text-right" @click.stop>
+                <div class="inline-flex items-center gap-1.5">
+                  <RouterLink :to="`/admin/users/${u.id}/edit`" class="btn-outline btn-sm">
+                    <Pencil class="w-3.5 h-3.5" /> Tahrirlash
+                  </RouterLink>
+                  <Dropdown align="right">
+                    <template #trigger>
+                      <button class="icon-btn" title="Ko'proq amallar">
+                        <MoreVertical class="w-4 h-4" />
+                      </button>
+                    </template>
+                    <button class="menu-item" @click="toggleActive(u)">
+                      <Power v-if="!u.is_active" class="w-4 h-4 text-emerald-500" />
+                      <PowerOff v-else class="w-4 h-4 text-amber-500" />
+                      {{ u.is_active ? 'Faolsizlantirish' : 'Faollashtirish' }}
+                    </button>
+                    <button class="menu-item" @click="resetPassword(u)">
+                      <KeyRound class="w-4 h-4 text-indigo-500" /> Parolni tiklash
+                    </button>
+                    <div class="menu-divider"></div>
+                    <button class="menu-item !text-rose-600 dark:!text-rose-400 hover:!bg-rose-50 dark:hover:!bg-rose-900/30"
+                            @click="deleteUser(u)">
+                      <Trash2 class="w-4 h-4" /> O'chirish
+                    </button>
+                  </Dropdown>
+                </div>
               </td>
             </tr>
-          </template>
-          <tr v-else-if="!items.length">
-            <td colspan="4" class="p-0">
-              <EmptyState :icon="UsersIcon" title="Foydalanuvchilar topilmadi" />
-            </td>
-          </tr>
-          <tr v-for="u in items" :key="u.id"
-              class="cursor-pointer"
-              @click="router.push(`/admin/users/${u.id}/edit`)">
-            <td>
-              <div class="font-medium text-slate-900 dark:text-slate-100">{{ u.full_name || '—' }}</div>
-              <div class="text-xs text-slate-500 dark:text-slate-400">{{ u.phone }}</div>
-            </td>
-            <td><StatusBadge :status="u.role" :label="ROLE[u.role] || u.role" /></td>
-            <td>
-              <span class="badge"
-                    :class="u.is_active
-                      ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
-                      : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'">
-                {{ u.is_active ? 'Faol' : 'Faol emas' }}
-              </span>
-            </td>
-            <td class="text-right" @click.stop>
-              <div class="inline-flex items-center gap-1.5">
-                <RouterLink :to="`/admin/users/${u.id}/edit`" class="btn-outline btn-sm">
-                  <Pencil class="w-3.5 h-3.5" /> Tahrirlash
-                </RouterLink>
-                <Dropdown align="right">
-                  <template #trigger>
-                    <button class="icon-btn" title="Ko'proq amallar">
-                      <MoreVertical class="w-4 h-4" />
-                    </button>
-                  </template>
-                  <button class="menu-item" @click="toggleActive(u)">
-                    <Power v-if="!u.is_active" class="w-4 h-4 text-emerald-500" />
-                    <PowerOff v-else class="w-4 h-4 text-amber-500" />
-                    {{ u.is_active ? 'Faolsizlantirish' : 'Faollashtirish' }}
-                  </button>
-                  <button class="menu-item" @click="resetPassword(u)">
-                    <KeyRound class="w-4 h-4 text-indigo-500" /> Parolni tiklash
-                  </button>
-                  <div class="menu-divider"></div>
-                  <button class="menu-item !text-rose-600 dark:!text-rose-400 hover:!bg-rose-50 dark:hover:!bg-rose-900/30"
-                          @click="deleteUser(u)">
-                    <Trash2 class="w-4 h-4" /> O'chirish
-                  </button>
-                </Dropdown>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+          </tbody>
+        </table>
+      </div>
 
-      <div v-if="items.length" class="flex items-center justify-between p-4 border-t border-slate-100 dark:border-slate-800">
+      <!-- Pagination -->
+      <div class="flex items-center justify-between p-4 border-t border-slate-100 dark:border-slate-800">
         <div class="text-xs text-slate-500 dark:text-slate-400">
-          Sahifa <strong class="text-slate-700 dark:text-slate-300">{{ filters.page }}</strong> / {{ lastPage() }}
+          Sahifa <strong class="text-slate-700 dark:text-slate-300 tabular-nums">{{ filters.page }}</strong> / {{ lastPage() }}
+          <span class="ml-2 text-slate-400 dark:text-slate-500">· Jami {{ total }} ta</span>
         </div>
         <div class="flex gap-2">
           <button class="btn-outline btn-sm" :disabled="filters.page <= 1" @click="filters.page--">‹ Oldingi</button>
