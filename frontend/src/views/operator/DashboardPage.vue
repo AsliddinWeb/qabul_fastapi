@@ -36,20 +36,33 @@ const monthlyTrend = ref<Array<{ month: string; total: number; won: number; lost
 const operatorRow = ref<{ user_id: string; name: string; total: number; won: number; lost: number; open: number; conversion_rate: number } | null>(null)
 const applicantsCount = ref(0)
 
-// ---- Computed: scheduled tasks (today + overdue) based on next_contact_at ----
+// ---- Computed: scheduled tasks — ALL upcoming (no upper bound) plus
+//   overdue. Sorted with overdue first (oldest first), then chronological
+//   for everything ahead. Operators want to see "what's coming next",
+//   not just today, and dropping future tasks made the panel look empty
+//   for anyone who scheduled ahead.
 const scheduledTasks = computed(() => {
-  const endOfToday = new Date(); endOfToday.setHours(23, 59, 59, 999)
   return myLeads.value
     .filter(l => l.status === 'open' && l.next_contact_at)
-    .filter(l => new Date(l.next_contact_at!).getTime() <= endOfToday.getTime())
     .sort((a, b) => new Date(a.next_contact_at!).getTime() - new Date(b.next_contact_at!).getTime())
-    .slice(0, 8)
+    .slice(0, 15)
 })
 const overdueTasksCount = computed(() => {
   const now = Date.now()
   return myLeads.value
     .filter(l => l.status === 'open' && l.next_contact_at)
     .filter(l => new Date(l.next_contact_at!).getTime() < now)
+    .length
+})
+const todayTasksCount = computed(() => {
+  const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0)
+  const endOfToday = new Date(); endOfToday.setHours(23, 59, 59, 999)
+  return myLeads.value
+    .filter(l => l.status === 'open' && l.next_contact_at)
+    .filter(l => {
+      const t = new Date(l.next_contact_at!).getTime()
+      return t >= startOfToday.getTime() && t <= endOfToday.getTime()
+    })
     .length
 })
 
@@ -69,14 +82,25 @@ const needsContactToday = computed(() => {
     .slice(0, 8)
 })
 
-function taskStatus(iso: string): 'overdue' | 'today' {
-  return new Date(iso).getTime() < Date.now() ? 'overdue' : 'today'
+function taskStatus(iso: string): 'overdue' | 'today' | 'upcoming' {
+  const t = new Date(iso).getTime()
+  const now = Date.now()
+  if (t < now) return 'overdue'
+  const endOfToday = new Date(); endOfToday.setHours(23, 59, 59, 999)
+  if (t <= endOfToday.getTime()) return 'today'
+  return 'upcoming'
 }
 function fmtTaskTime(iso: string): string {
   const d = new Date(iso)
-  const isToday = d.toDateString() === new Date().toDateString()
+  const now = new Date()
+  const isToday = d.toDateString() === now.toDateString()
   if (isToday) {
     return d.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })
+  }
+  const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1)
+  const isTomorrow = d.toDateString() === tomorrow.toDateString()
+  if (isTomorrow) {
+    return 'Ertaga ' + d.toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })
   }
   return d.toLocaleString('uz-UZ', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
 }
@@ -387,9 +411,10 @@ void _unused
               <Target class="w-5 h-5" />
             </span>
             <div class="min-w-0">
-              <h2 class="font-semibold text-slate-900 dark:text-slate-100">Bugungi vazifalarim</h2>
+              <h2 class="font-semibold text-slate-900 dark:text-slate-100">Vazifalarim</h2>
               <p class="text-xs text-slate-500 dark:text-slate-400">
                 Rejalashtirilgan qo'ng'iroqlar va aloqalar
+                <span v-if="todayTasksCount > 0" class="ml-1 text-amber-600 dark:text-amber-400 font-semibold">· {{ todayTasksCount }} ta bugun</span>
                 <span v-if="overdueTasksCount > 0" class="ml-1 text-rose-600 dark:text-rose-400 font-semibold">· {{ overdueTasksCount }} ta muddati o'tgan</span>
               </p>
             </div>
@@ -413,10 +438,12 @@ void _unused
         <ul v-if="scheduledTasks.length" class="divide-y divide-slate-100 dark:divide-slate-800/60">
           <li v-for="l in scheduledTasks" :key="l.id"
               class="p-4 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors flex items-center gap-3">
-            <span class="grid place-items-center w-12 h-12 rounded-xl shrink-0 text-xs font-bold tabular-nums"
-                  :class="taskStatus(l.next_contact_at!) === 'overdue'
-                    ? 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300'
-                    : 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300'">
+            <span class="grid place-items-center min-w-[3.5rem] px-2 h-12 rounded-xl shrink-0 text-[11px] font-bold tabular-nums text-center leading-tight"
+                  :class="{
+                    'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300':   taskStatus(l.next_contact_at!) === 'overdue',
+                    'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300': taskStatus(l.next_contact_at!) === 'today',
+                    'bg-sky-100 text-sky-700 dark:bg-sky-500/20 dark:text-sky-300':       taskStatus(l.next_contact_at!) === 'upcoming',
+                  }">
               {{ fmtTaskTime(l.next_contact_at!) }}
             </span>
             <RouterLink :to="`/operator/leads/${l.id}`" class="flex-1 min-w-0">
@@ -444,7 +471,7 @@ void _unused
           <div class="inline-grid place-items-center w-12 h-12 rounded-2xl bg-violet-100 text-violet-600 dark:bg-violet-500/20 dark:text-violet-300 mb-3">
             <Target class="w-5 h-5" />
           </div>
-          <div class="text-sm font-medium text-slate-700 dark:text-slate-300">Bugun rejalashtirilgan vazifa yo'q</div>
+          <div class="text-sm font-medium text-slate-700 dark:text-slate-300">Rejalashtirilgan vazifa yo'q</div>
           <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Lead detail sahifasida "Keyingi aloqa" o'rnating</p>
         </div>
       </section>
