@@ -295,6 +295,10 @@ export const adminApi = {
       program_id?: string; branch_id?: string;
       education_level_id?: string; education_form_id?: string;
       consulting_agency_id?: string;
+      /** Operator who registered the applicant — scopes the list. */
+      registered_by_id?: string;
+      /** 'lead' = converted from a lead; 'direct' = created without one. */
+      source?: 'lead' | 'direct';
       page?: number; size?: number;
     } = {}) =>
       http.get<PageResponse<any>>('/applications', { params }).then((r) => r.data),
