@@ -106,6 +106,15 @@ class AuthService:
         return LoginResponse(session=self._session_dto(user), tokens=tokens)
 
     # ---------- Refresh ----------
+    # Grace window: a refresh token revoked within the last N seconds is
+    # treated as a benign tab-race (some other tab JUST rotated tokens),
+    # not a reuse attack. We fail this refresh call with 401 so the
+    # frontend can pick up the fresh tokens via localStorage, but we do
+    # NOT nuke every active session for the user. Without this every
+    # multi-tab operator got logged out the moment two tabs hit a 401
+    # at the same time.
+    _REFRESH_REUSE_GRACE_SECONDS = 30
+
     async def refresh(self, payload: RefreshRequest) -> TokenPair:
         try:
             data = decode_token(payload.refresh_token)
@@ -118,16 +127,33 @@ class AuthService:
         token_hash = hash_refresh_token(payload.refresh_token)
         record = await self.refresh_tokens.get_active_by_hash(token_hash)
         if not record:
-            # Either unknown, expired, or already revoked → potential reuse.
-            # Defensive: revoke all outstanding tokens for the subject.
-            try:
-                user_id = UUID(str(data.get("sub")))
-                revoked = await self.refresh_tokens.revoke_all_for_user(user_id)
-                if revoked:
-                    logger.warning("auth.refresh_reuse_suspected", user_id=str(user_id))
-                    await self.session.commit()
-            except ValueError:
-                pass
+            # Token isn't active right now. Two possibilities:
+            #   1. Real reuse → someone is replaying a stolen refresh. Nuke.
+            #   2. Tab-race → another tab just rotated; this token was
+            #      revoked seconds ago. Reject this call but leave other
+            #      sessions intact so the user keeps working.
+            stale = await self.refresh_tokens.get_by_hash(token_hash)
+            now = datetime.now(timezone.utc)
+            within_grace = (
+                stale is not None
+                and stale.revoked_at is not None
+                and (now - stale.revoked_at).total_seconds() <= self._REFRESH_REUSE_GRACE_SECONDS
+            )
+            if not within_grace:
+                try:
+                    user_id = UUID(str(data.get("sub")))
+                    revoked = await self.refresh_tokens.revoke_all_for_user(user_id)
+                    if revoked:
+                        logger.warning("auth.refresh_reuse_suspected", user_id=str(user_id))
+                        await self.session.commit()
+                except ValueError:
+                    pass
+            else:
+                logger.info(
+                    "auth.refresh_tab_race_ignored",
+                    user_id=str(data.get("sub")),
+                    revoked_age_s=(now - stale.revoked_at).total_seconds() if stale and stale.revoked_at else None,
+                )
             raise UnauthorizedError("Refresh token is no longer valid")
 
         user = await self.users.get(record.user_id)

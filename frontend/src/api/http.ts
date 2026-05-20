@@ -111,14 +111,22 @@ http.interceptors.response.use(
         return http.request(original as AxiosRequestConfig)
       }
 
-      // Refresh failed — but before logging out, re-check localStorage one
-      // more time in case a parallel tab just refreshed. If it did, retry
-      // the request with the fresher token instead of bouncing the user.
-      const fresh = localStorage.getItem('access_token')
-      if (fresh && fresh !== auth.accessToken) {
-        auth.accessToken = fresh
-        original.headers.Authorization = `Bearer ${fresh}`
-        return http.request(original as AxiosRequestConfig)
+      // Refresh failed. Before logging out, poll localStorage briefly in
+      // case a parallel tab is rotating the token right now — the storage
+      // event may not have arrived yet when we got here. Up to ~600 ms of
+      // grace before we give up; cheap insurance against the "two tabs
+      // refresh at once" tab-race that used to log operators out
+      // mid-session.
+      for (let i = 0; i < 6; i++) {
+        const fresh = localStorage.getItem('access_token')
+        if (fresh && fresh !== auth.accessToken) {
+          auth.accessToken = fresh
+          const lsRefresh2 = localStorage.getItem('refresh_token')
+          if (lsRefresh2) auth.refreshToken = lsRefresh2
+          original.headers.Authorization = `Bearer ${fresh}`
+          return http.request(original as AxiosRequestConfig)
+        }
+        await new Promise(r => setTimeout(r, 100))
       }
 
       auth.logout()
