@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft, Phone, Mail, MessageCircle, CheckCircle2, XCircle,
@@ -104,6 +104,12 @@ async function loadAll() {
 }
 
 onMounted(loadAll)
+// Route-only navigation (Prev/Next changes :id but Vue reuses the
+// component) needs a manual reload — otherwise the URL updates but the
+// page keeps showing the previous lead.
+watch(() => route.params.id, (newId, oldId) => {
+  if (newId && newId !== oldId) loadAll()
+})
 
 const stageOptions = computed(() => stages.value.map(s => ({ id: s.id, label: s.name })))
 const operatorOptions = computed(() => operators.value.map(u => ({ id: u.id, label: u.full_name || u.phone })))
