@@ -96,12 +96,44 @@ watch(() => form.telegram_username, () => { if (touched.value.telegram_username)
 function blur(field: string) {
   touched.value[field] = true
   recompute(field)
+  if (field === 'phone') void checkPhoneDuplicate()
 }
 
 // Format phone as the user types: "+998 94 202 55 11" pattern.
 function onPhoneInput(e: Event) {
   const el = e.target as HTMLInputElement
   form.phone = formatPhone(el.value)
+  // User is mid-edit; clear any stale duplicate hint until they blur.
+  if (duplicateHint.value) duplicateHint.value = null
+}
+
+// Pre-submit duplicate check — fires on phone blur.
+interface DuplicateHint {
+  lead_id: string
+  full_name?: string | null
+  assigned_to_name?: string | null
+  stage_name?: string | null
+}
+const duplicateHint = ref<DuplicateHint | null>(null)
+let dupeReqAbort: AbortController | null = null
+async function checkPhoneDuplicate() {
+  if (validatePhone(form.phone)) { duplicateHint.value = null; return }
+  const compact = compactPhone(form.phone)
+  if (dupeReqAbort) dupeReqAbort.abort()
+  dupeReqAbort = new AbortController()
+  try {
+    const res = await leadsApi.checkPhone(compact)
+    if (res.exists && res.lead_id) {
+      duplicateHint.value = {
+        lead_id: res.lead_id,
+        full_name: res.full_name,
+        assigned_to_name: res.assigned_to_name,
+        stage_name: res.stage_name,
+      }
+    } else {
+      duplicateHint.value = null
+    }
+  } catch { /* ignore — submit path will surface any real error */ }
 }
 
 // === Form valid? ===
@@ -174,7 +206,7 @@ async function submit() {
   }
   saving.value = true
   try {
-    const lead = await leadsApi.create({
+    const res = await leadsApi.create({
       full_name: form.full_name.trim(),
       phone: compactPhone(form.phone),
       telegram_username: form.telegram_username.trim().replace(/^@/, '') || null,
@@ -187,8 +219,19 @@ async function submit() {
       auto_assign: form.auto_assign,
       notes: form.notes.trim() || null,
     })
-    toast.success("Lead yaratildi")
-    router.push(`${panelPrefix.value}/leads/${lead.id}`)
+    if (res.merged) {
+      // Backend deduped into an existing OPEN lead. Tell the operator
+      // who owns it (or that it's unassigned) and jump them to that lead
+      // so they see the existing context instead of thinking they made a
+      // new record.
+      const owner = res.lead.assigned_to_name
+      toast.success(owner
+        ? `Bu telefon allaqachon "${owner}" operatorga biriktirilgan. Mavjud lead'ga yo'naltirilmoqda...`
+        : `Bu telefon allaqachon ro'yxatda. Mavjud lead'ga yo'naltirilmoqda...`)
+    } else {
+      toast.success("Lead yaratildi")
+    }
+    router.push(`${panelPrefix.value}/leads/${res.lead.id}`)
   } catch (e) {
     const ax = e as AxiosError<{ error?: { message?: string }; detail?: string }>
     toast.error(ax.response?.data?.error?.message || ax.response?.data?.detail || "Xatolik")
@@ -246,9 +289,35 @@ async function submit() {
           <p v-if="errors.phone" class="mt-1 text-xs text-rose-600 inline-flex items-center gap-1">
             <AlertCircle class="w-3 h-3" /> {{ errors.phone }}
           </p>
-          <p v-else-if="touched.phone && form.phone" class="mt-1 text-xs text-emerald-600 inline-flex items-center gap-1">
+          <p v-else-if="touched.phone && form.phone && !duplicateHint"
+             class="mt-1 text-xs text-emerald-600 inline-flex items-center gap-1">
             <CheckCircle2 class="w-3 h-3" /> Yaxshi
           </p>
+
+          <!-- Duplicate hint — backend already merges silently, this just
+               warns the operator before submit so they know they're
+               touching an existing record (possibly someone else's). -->
+          <div v-if="duplicateHint"
+               class="mt-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-500/10 ring-1 ring-amber-200 dark:ring-amber-500/30 text-amber-900 dark:text-amber-200 text-xs">
+            <div class="flex items-start gap-2">
+              <AlertCircle class="w-4 h-4 mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+              <div class="flex-1 min-w-0">
+                <div class="font-semibold mb-0.5">Bu telefon allaqachon ro'yxatda</div>
+                <div class="leading-relaxed text-amber-800 dark:text-amber-300">
+                  <span v-if="duplicateHint.full_name" class="font-medium">{{ duplicateHint.full_name }}</span>
+                  <template v-if="duplicateHint.assigned_to_name">
+                    · {{ duplicateHint.assigned_to_name }} operatorga biriktirilgan
+                  </template>
+                  <template v-else>· operator biriktirilmagan</template>
+                  <span v-if="duplicateHint.stage_name" class="text-amber-700 dark:text-amber-400/80"> · {{ duplicateHint.stage_name }}</span>
+                </div>
+                <RouterLink :to="`${panelPrefix}/leads/${duplicateHint.lead_id}`"
+                            class="inline-flex items-center gap-1 mt-1.5 font-semibold text-amber-900 dark:text-amber-200 hover:underline">
+                  Mavjud lead'ni ko'rish →
+                </RouterLink>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- Telegram -->

@@ -75,7 +75,13 @@ class LeadService:
     # ------------------------------------------------------------------ #
     #  Create (with de-duplication merge)
     # ------------------------------------------------------------------ #
-    async def create_lead(self, payload: LeadCreate, *, actor_id: UUID | None) -> Lead:
+    async def create_lead(
+        self, payload: LeadCreate, *, actor_id: UUID | None,
+    ) -> tuple[Lead, bool]:
+        """Returns (lead, merged_flag). When merged_flag is True the lead is
+        an existing OPEN one we deduped into — caller should surface that to
+        the operator so they don't think they created a new record.
+        """
         phone = payload.phone.strip()
         if not phone:
             raise ValidationError("phone is required")
@@ -100,9 +106,10 @@ class LeadService:
         # 2) De-dup: existing OPEN lead with same phone → merge
         existing = await self.leads.find_by_phone_open(phone)
         if existing:
-            return await self._merge_into_existing(
+            merged = await self._merge_into_existing(
                 existing, payload=payload, actor_id=actor_id,
             )
+            return merged, True
 
         # 3) Auto-assign (round-robin) if requested and no explicit user
         assigned_to_id = payload.assigned_to_id
@@ -137,7 +144,7 @@ class LeadService:
                 lead_id=lead.id, user_id=actor_id, action="assign",
                 extra={"to_user_id": str(assigned_to_id)},
             )
-        return lead
+        return lead, False
 
     async def _merge_into_existing(
         self, existing: Lead, *, payload: LeadCreate, actor_id: UUID | None,

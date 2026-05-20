@@ -59,6 +59,7 @@ from app.modules.leads.schemas import (
     LeadCommentCreate,
     LeadConvert,
     LeadCreate,
+    LeadCreateResponse,
     LeadLose,
     LeadLostReasonCreate,
     LeadLostReasonRead,
@@ -202,7 +203,7 @@ async def public_capture(
     )
 
     was_merge = latest is not None and latest.status == LeadStatus.OPEN
-    await svc.create_lead(internal, actor_id=None)
+    await svc.create_lead(internal, actor_id=None)  # public flow ignores the (lead, merged) flag
     await session.commit()
 
     if was_merge:
@@ -219,6 +220,41 @@ async def public_capture(
 # --------------------------------------------------------------------------- #
 #  STAFF endpoints
 # --------------------------------------------------------------------------- #
+
+@router.get(
+    "/check-phone",
+    dependencies=[Depends(require_permission(Permission.LEADS_CREATE))],
+)
+async def check_phone(
+    phone: str = Query(..., min_length=4, max_length=20),
+    svc: LeadService = Depends(_service),
+) -> dict:
+    """Pre-submit dedup probe for the LeadNewPage form.
+
+    Returns the existing OPEN lead's identity (id + assignee name) if a
+    match is found, or `{exists: false}` otherwise. Lets the UI warn the
+    operator before they submit instead of after, saving an unintended
+    silent merge into someone else's funnel.
+    """
+    cleaned = phone.strip()
+    if not cleaned:
+        return {"exists": False}
+    existing = await svc.leads.find_by_phone_open(cleaned)
+    if existing is None:
+        return {"exists": False}
+    # Resolve assignee name in a single hop — find_by_phone_open returns
+    # the bare ORM row, so we go through get_with_labels for the joined
+    # fields (assigned_to_name in particular).
+    full = await svc.leads.get_with_labels(existing.id)
+    return {
+        "exists": True,
+        "lead_id": str(existing.id),
+        "full_name": existing.full_name,
+        "assigned_to_id": str(existing.assigned_to_id) if existing.assigned_to_id else None,
+        "assigned_to_name": (full or {}).get("assigned_to_name"),
+        "stage_name": (full or {}).get("stage_name"),
+    }
+
 
 @router.get(
     "",
@@ -250,7 +286,7 @@ async def list_leads(
 
 @router.post(
     "",
-    response_model=LeadRead,
+    response_model=LeadCreateResponse,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_permission(Permission.LEADS_CREATE))],
 )
@@ -259,17 +295,23 @@ async def create_lead(
     request: Request,
     current: CurrentUser = Depends(get_current_user),
     svc: LeadService = Depends(_service),
-) -> LeadRead:
-    lead = await svc.create_lead(payload, actor_id=UUID(current.user_id))
-    await AuditService(svc.session).log(
-        "lead.create", user_id=UUID(current.user_id),
-        entity_type="leads", entity_id=lead.id,
-        changes={"phone": lead.phone, "full_name": lead.full_name},
-        request=request,
-    )
+) -> LeadCreateResponse:
+    lead, merged = await svc.create_lead(payload, actor_id=UUID(current.user_id))
+    # Only audit fresh creates; merges already get a 'merge' lead_activity row
+    # via _merge_into_existing, so duplicating into audit_logs is noise.
+    if not merged:
+        await AuditService(svc.session).log(
+            "lead.create", user_id=UUID(current.user_id),
+            entity_type="leads", entity_id=lead.id,
+            changes={"phone": lead.phone, "full_name": lead.full_name},
+            request=request,
+        )
     await svc.session.commit()
     full = await svc.leads.get_with_labels(lead.id)
-    return LeadRead.model_validate(full)
+    return LeadCreateResponse(
+        lead=LeadRead.model_validate(full),
+        merged=merged,
+    )
 
 
 @router.get(

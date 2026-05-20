@@ -268,6 +268,15 @@ class LeadRead(IdSchema):
     assigned_to_name: str | None = None
 
 
+class LeadCreateResponse(AppSchema):
+    """Wraps the (possibly merged) lead with a flag so the UI can tell the
+    operator we deduped into an existing record instead of creating a new
+    one. Frontend redirects to the existing lead when `merged=true`.
+    """
+    lead: LeadRead
+    merged: bool = False
+
+
 class LeadBoardStage(AppSchema):
     id: UUID
     name: str

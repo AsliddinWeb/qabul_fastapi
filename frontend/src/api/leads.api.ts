@@ -159,7 +159,19 @@ export const leadsApi = {
     http.get<PageResponse<Lead>>('/leads', { params }).then(r => r.data),
 
   get: (id: string) => http.get<Lead>(`/leads/${id}`).then(r => r.data),
-  create: (payload: LeadCreatePayload) => http.post<Lead>('/leads', payload).then(r => r.data),
+  create: (payload: LeadCreatePayload) =>
+    http.post<{ lead: Lead; merged: boolean }>('/leads', payload).then(r => r.data),
+  // Pre-submit dedup probe. Returns existence + who owns the existing
+  // OPEN lead. Used by LeadNewPage to warn before submit.
+  checkPhone: (phone: string) =>
+    http.get<{
+      exists: boolean
+      lead_id?: string
+      full_name?: string
+      assigned_to_id?: string | null
+      assigned_to_name?: string | null
+      stage_name?: string | null
+    }>('/leads/check-phone', { params: { phone } }).then(r => r.data),
   update: (id: string, payload: Partial<LeadCreatePayload>) => http.patch<Lead>(`/leads/${id}`, payload).then(r => r.data),
   delete: (id: string) => http.delete(`/leads/${id}`).then(r => r.data),
 
