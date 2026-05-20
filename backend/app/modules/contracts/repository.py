@@ -92,6 +92,7 @@ class ContractRepository(BaseRepository[Contract]):
         type: ContractType | None = None,
         payment_status: str | None = None,  # "paid" | "partial" | "unpaid"
         branch_id: UUID | None = None,
+        created_by_id: UUID | None = None,
         search: str | None = None,
         limit: int = 20,
         offset: int = 0,
@@ -139,6 +140,8 @@ class ContractRepository(BaseRepository[Contract]):
             clauses.append(Contract.type == type)
         if branch_id is not None:
             clauses.append(Application.branch_id == branch_id)
+        if created_by_id is not None:
+            clauses.append(Contract.created_by_id == created_by_id)
         if payment_status == "paid":
             clauses.append(Contract.paid_amount >= Contract.total_amount)
         elif payment_status == "partial":

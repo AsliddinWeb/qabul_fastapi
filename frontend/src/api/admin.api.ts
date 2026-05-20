@@ -271,7 +271,13 @@ export const adminApi = {
 
   // ---------- Applicants (admin: full CRUD) ----------
   applicants: {
-    list: (params: { region_id?: string; search?: string; page?: number; size?: number } = {}) =>
+    list: (params: {
+      region_id?: string
+      registered_by_id?: string
+      search?: string
+      page?: number
+      size?: number
+    } = {}) =>
       http.get<PageResponse<any>>('/applicants', { params }).then((r) => r.data),
     get: (id: string) => http.get<any>(`/applicants/${id}`).then((r) => r.data),
     create: (payload: any) =>
@@ -310,7 +316,14 @@ export const adminApi = {
 
   // ---------- Contracts (admin) ----------
   contracts: {
-    list: (params: { status?: string; type?: string; search?: string; page?: number; size?: number } = {}) =>
+    list: (params: {
+      status?: string
+      type?: string
+      created_by_id?: string
+      search?: string
+      page?: number
+      size?: number
+    } = {}) =>
       http.get<PageResponse<any>>('/contracts', { params }).then((r) => r.data),
     get: (id: string) =>
       http.get<any>(`/contracts/${id}`).then((r) => r.data),
@@ -351,7 +364,13 @@ export const adminApi = {
 
   // ---------- Payments (admin) ----------
   payments: {
-    list: (params: { status?: string; contract_id?: string; page?: number; size?: number } = {}) =>
+    list: (params: {
+      status?: string
+      contract_id?: string
+      registered_by_id?: string
+      page?: number
+      size?: number
+    } = {}) =>
       http.get<PageResponse<any>>('/payments', { params }).then((r) => r.data),
     listForContract: (contract_id: string) =>
       http.get<any[]>(`/payments/contracts/${contract_id}`).then((r) => r.data),

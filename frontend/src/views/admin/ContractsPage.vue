@@ -9,6 +9,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import { CONTRACT_STATUS, CONTRACT_TYPE, tr } from '@/utils/labels'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
+import { useAuthStore } from '@/stores/auth'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 
@@ -31,6 +32,7 @@ const route = useRoute()
 const panelPrefix = computed(() => route.path.startsWith('/operator/') ? '/operator' : '/admin')
 const isOperatorPanel = computed(() => panelPrefix.value === '/operator')
 const { ask } = useConfirm()
+const auth = useAuthStore()
 
 const items = ref<Contract[]>([])
 const total = ref(0)
@@ -49,6 +51,9 @@ async function load() {
     const res = await adminApi.contracts.list({
       status: filters.status || undefined,
       type: filters.type || undefined,
+      // On the operator panel, only show contracts this operator issued.
+      // Admin/accountant view the full list.
+      created_by_id: isOperatorPanel.value && auth.user?.id ? auth.user.id : undefined,
       search: filters.search || undefined,
       page: filters.page,
       size: filters.size,

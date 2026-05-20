@@ -10,6 +10,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import { PAYMENT_STATUS, tr } from '@/utils/labels'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
+import { useAuthStore } from '@/stores/auth'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 
@@ -31,6 +32,7 @@ const route = useRoute()
 const panelPrefix = computed(() => route.path.startsWith('/operator/') ? '/operator' : '/admin')
 const isOperatorPanel = computed(() => panelPrefix.value === '/operator')
 const { ask } = useConfirm()
+const auth = useAuthStore()
 
 const items = ref<Payment[]>([])
 const total = ref(0)
@@ -42,6 +44,9 @@ async function load() {
   try {
     const res = await adminApi.payments.list({
       status: filters.status || undefined,
+      // Operator panel: only payments this operator logged. Other panels
+      // (admin, accountant) see the full list.
+      registered_by_id: isOperatorPanel.value && auth.user?.id ? auth.user.id : undefined,
       page: filters.page,
       size: filters.size,
     })

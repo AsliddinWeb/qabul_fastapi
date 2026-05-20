@@ -8,6 +8,7 @@ import { downloadCsv } from '@/api/http'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
+import { useAuthStore } from '@/stores/auth'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 
@@ -36,6 +37,7 @@ const isOperatorPanel = computed(() => panelPrefix.value === '/operator')
 const isAccountantPanel = computed(() => panelPrefix.value === '/accountant')
 const toast = useToast()
 const { ask } = useConfirm()
+const auth = useAuthStore()
 
 const items = ref<Applicant[]>([])
 const total = ref(0)
@@ -45,8 +47,16 @@ const filters = reactive({ search: '', page: 1, size: 20 })
 async function load() {
   loading.value = true
   try {
+    // On the operator panel, auto-scope to applicants registered by the
+    // current operator — otherwise an operator sees colleagues' lists,
+    // which is more noise than signal day-to-day. Admin/accountant
+    // panels see everyone (this branch is `undefined` for them).
+    const scopedRegisteredBy = isOperatorPanel.value && auth.user?.id
+      ? auth.user.id
+      : undefined
     const res = await adminApi.applicants.list({
       search: filters.search || undefined,
+      registered_by_id: scopedRegisteredBy,
       page: filters.page,
       size: filters.size,
     })
@@ -92,7 +102,10 @@ const exporting = ref(false)
 async function exportCsv() {
   exporting.value = true
   try {
-    await downloadCsv('/applicants/export.csv', { search: filters.search || undefined })
+    await downloadCsv('/applicants/export.csv', {
+      search: filters.search || undefined,
+      registered_by_id: isOperatorPanel.value && auth.user?.id ? auth.user.id : undefined,
+    })
     toast.success("CSV yuklab olindi")
   } catch (e) {
     const ax = e as AxiosError<{ detail?: string }>

@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { http } from '@/api/http'
+import { useAuthStore } from '@/stores/auth'
 import { usePanelsStore, type NavEntry } from '@/stores/panels'
 
 /**
@@ -86,12 +87,32 @@ export const useSidebarCounts = defineStore('sidebarCounts', {
       const keys = collectKeys(panel.nav)
       if (!keys.size) return
 
+      // On the operator panel the list pages auto-scope to the current
+      // operator. The sidebar badge needs the SAME scope or it'll show
+      // colleagues' counts and confuse the operator. Map each key to its
+      // operator-scope filter param so the totals line up with what the
+      // page actually renders.
+      const isOperator = panels.currentPanel?.key === 'operator'
+      const userId = useAuthStore().user?.id
+      const scoped = isOperator && userId
+      function paramsFor(k: CountKey): Record<string, any> {
+        if (!scoped) return {}
+        switch (k) {
+          case 'leads':         return { assigned_to_id: userId }
+          case 'applicants':    return { registered_by_id: userId }
+          case 'applications':  return { registered_by_id: userId }
+          case 'contracts':     return { created_by_id: userId }
+          case 'payments':      return { registered_by_id: userId }
+          default:              return {}
+        }
+      }
+
       this.loading = true
       try {
         const fresh: CountState = { ...EMPTY }
         await Promise.all(
           Array.from(keys).map(async (k) => {
-            fresh[k] = await totalFor(ENDPOINT_FOR[k])
+            fresh[k] = await totalFor(ENDPOINT_FOR[k], paramsFor(k))
           }),
         )
         // Preserve any count from a previous panel (rare; user role change)

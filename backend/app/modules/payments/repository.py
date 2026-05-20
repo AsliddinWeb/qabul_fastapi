@@ -27,6 +27,7 @@ class PaymentRepository(BaseRepository[Payment]):
         status: PaymentStatus | None = None,
         contract_id: UUID | None = None,
         payment_method_id: UUID | None = None,
+        registered_by_id: UUID | None = None,
         date_from: datetime | None = None,
         date_to: datetime | None = None,
         limit: int = 20,
@@ -42,6 +43,8 @@ class PaymentRepository(BaseRepository[Payment]):
             clauses.append(Payment.contract_id == contract_id)
         if payment_method_id is not None:
             clauses.append(Payment.payment_method_id == payment_method_id)
+        if registered_by_id is not None:
+            clauses.append(Payment.registered_by_id == registered_by_id)
         # Date range matches paid_at when present, else created_at — so a
         # period filter still includes pending/failed rows that have no
         # paid_at yet.

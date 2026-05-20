@@ -33,6 +33,7 @@ async def list_payments(
     status_filter: PaymentStatus | None = Query(default=None, alias="status"),
     contract_id: UUID | None = Query(default=None),
     payment_method_id: UUID | None = Query(default=None),
+    registered_by_id: UUID | None = Query(default=None),
     date_from: datetime | None = Query(default=None),
     date_to: datetime | None = Query(default=None),
     page: int = Query(default=1, ge=1),
@@ -42,6 +43,7 @@ async def list_payments(
     items, total = await svc.list(
         status=status_filter, contract_id=contract_id,
         payment_method_id=payment_method_id,
+        registered_by_id=registered_by_id,
         date_from=date_from, date_to=date_to,
         limit=size, offset=(page - 1) * size,
     )

@@ -223,6 +223,7 @@ async def list_contracts_detailed(
     type: ContractType | None = Query(default=None),
     payment_status: Literal["paid", "partial", "unpaid"] | None = Query(default=None),
     branch_id: UUID | None = Query(default=None),
+    created_by_id: UUID | None = Query(default=None),
     search: str | None = Query(default=None, max_length=100),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=100),
@@ -230,12 +231,13 @@ async def list_contracts_detailed(
 ) -> PageResponse[ContractListItem]:
     """Accountant-facing list: contracts joined with applicant + branch + balance.
 
-    Adds `payment_status` (paid/partial/unpaid), `branch_id`, and a search that
+    Adds `payment_status` (paid/partial/unpaid), `branch_id`, `created_by_id`
+    (to scope to the operator who issued the contract), and a search that
     matches contract_number OR any applicant name field.
     """
     items, total = await svc.list_detailed(
         status=status_filter, type=type, payment_status=payment_status,
-        branch_id=branch_id, search=search,
+        branch_id=branch_id, created_by_id=created_by_id, search=search,
         limit=size, offset=(page - 1) * size,
     )
     return PageResponse[ContractListItem].build(

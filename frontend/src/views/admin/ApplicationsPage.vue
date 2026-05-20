@@ -183,7 +183,12 @@ async function load() {
       consulting_agency_id: canSeeConsulting.value
         ? (filters.consulting_agency_id || undefined)
         : undefined,
-      registered_by_id: filters.registered_by_id || undefined,
+      // On operator panel, force the filter to the current user so the
+      // operator sees their own applications by default. The admin
+      // filter dropdown stays hidden in that mode (see template).
+      registered_by_id: isOperatorPanel.value
+        ? (auth.user?.id || undefined)
+        : (filters.registered_by_id || undefined),
       source: (filters.source_origin as any) || undefined,
       page: filters.page,
       size: filters.size,
