@@ -343,10 +343,16 @@ const stats = [
         </article>
       </div>
 
-      <div v-if="!loading && filtered.length > visibleCount" class="mt-10 text-center">
-        <button class="btn-secondary" @click="visibleCount += 9">
-          Yana {{ filtered.length - visibleCount }} ta ko'rsatish
-        </button>
+      <!-- The home section is a "preview" — every program lives on
+           /programs with its own filters and shareable URL. Send curious
+           visitors there instead of expanding inline. -->
+      <div v-if="!loading && filtered.length" class="mt-10 text-center">
+        <NuxtLink to="/programs" class="btn-secondary">
+          Barcha {{ programs.length }} ta yo'nalishni ko'rish
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="ml-1">
+            <path d="M5 12h14M12 5l7 7-7 7" />
+          </svg>
+        </NuxtLink>
       </div>
     </div>
   </section>

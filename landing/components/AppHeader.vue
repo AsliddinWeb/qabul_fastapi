@@ -32,8 +32,21 @@ const links = [
   { id: 'contact',  label: "Bog'lanish" },
 ]
 
+const route = useRoute()
+const router = useRouter()
+
 function go(id: string) {
   mobileOpen.value = false
+  // From a non-home page, anchor scrolls don't work — route to home
+  // with the hash and let onMounted/onScroll handle the focus on land.
+  if (route.path !== '/') {
+    if (id === 'home') {
+      router.push('/')
+    } else {
+      router.push({ path: '/', hash: `#${id}` })
+    }
+    return
+  }
   if (id === 'home') {
     window.scrollTo({ top: 0, behavior: 'smooth' })
     return
