@@ -35,38 +35,44 @@ const loading = ref(true)
 const search = ref('')
 const branchFilter = ref('')
 const levelFilter = ref('')
-const formFilter = ref('')
 
 // Sync filters to the URL query so back/forward + sharing work.
 const route = useRoute()
 const router = useRouter()
+
+// Hide "sirtqi" (extramural) education forms — business decision: those
+// programs aren't being marketed publicly right now. Match by name with
+// a substring check so any "Sirtqi", "sirtqi ta'lim", etc. all drop.
+function isSirtqi(p: Program): boolean {
+  return (p.education_form_name || '').toLowerCase().includes('sirtqi')
+}
 
 onMounted(async () => {
   // Hydrate from query string if present.
   search.value      = (route.query.q as string) || ''
   branchFilter.value = (route.query.branch as string) || ''
   levelFilter.value  = (route.query.level as string) || ''
-  formFilter.value   = (route.query.form as string) || ''
 
   try {
     const [progRes, branchRes] = await Promise.all([
       fetch(`${apiBase}/programs/programs?active_only=true`).then(r => r.ok ? r.json() : []),
       fetch(`${apiBase}/programs/branches?active_only=true`).then(r => r.ok ? r.json() : []),
     ])
-    programs.value = progRes
+    // Filter out sirtqi at the source so every downstream computed
+    // (filtered, levels, count) reflects the public-facing list.
+    programs.value = (progRes as Program[]).filter(p => !isSirtqi(p))
     branches.value = branchRes
   } catch { /* ignore */ }
   finally { loading.value = false }
 })
 
-watch([search, branchFilter, levelFilter, formFilter], (vals) => {
-  const [q, b, l, f] = vals
+watch([search, branchFilter, levelFilter], (vals) => {
+  const [q, b, l] = vals
   router.replace({
     query: {
       ...(q ? { q } : {}),
       ...(b ? { branch: b } : {}),
       ...(l ? { level: l } : {}),
-      ...(f ? { form: f } : {}),
     },
   })
 })
@@ -79,26 +85,17 @@ const levels = computed(() => {
   return Array.from(m.entries()).map(([id, name]) => ({ id, name }))
 })
 
-const forms = computed(() => {
-  const m = new Map<string, string>()
-  for (const p of programs.value) {
-    if (p.education_form_id && p.education_form_name) m.set(p.education_form_id, p.education_form_name)
-  }
-  return Array.from(m.entries()).map(([id, name]) => ({ id, name }))
-})
-
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase()
   return programs.value.filter(p => {
     if (branchFilter.value && p.branch_id !== branchFilter.value) return false
     if (levelFilter.value && p.education_level_id !== levelFilter.value) return false
-    if (formFilter.value && p.education_form_id !== formFilter.value) return false
     if (q && !p.name.toLowerCase().includes(q) && !(p.code || '').toLowerCase().includes(q)) return false
     return true
   })
 })
 
-const hasFilters = computed(() => !!(search.value || branchFilter.value || levelFilter.value || formFilter.value))
+const hasFilters = computed(() => !!(search.value || branchFilter.value || levelFilter.value))
 
 function fmtPrice(v?: number | string): string {
   if (!v) return '—'
@@ -110,7 +107,6 @@ function clearFilters() {
   search.value = ''
   branchFilter.value = ''
   levelFilter.value = ''
-  formFilter.value = ''
 }
 
 const TONES = [
@@ -201,15 +197,6 @@ function iconUrl(image_id: string | null | undefined): string | null {
           >
             <option value="">Hamma filiallar</option>
             <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
-          </select>
-
-          <select
-            v-model="formFilter"
-            class="h-11 px-3 rounded-xl text-sm border-0 focus:outline-none cursor-pointer min-w-0"
-            :style="{ color: 'rgb(var(--fg))', background: 'rgb(var(--bg-soft))' }"
-          >
-            <option value="">Hamma shakllar</option>
-            <option v-for="f in forms" :key="f.id" :value="f.id">{{ f.name }}</option>
           </select>
 
           <button v-if="hasFilters" class="btn-ghost btn-sm shrink-0" @click="clearFilters">

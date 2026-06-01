@@ -40,7 +40,11 @@ onMounted(async () => {
       fetch(`${apiBase}/programs/programs?active_only=true`).then(r => r.ok ? r.json() : []),
       fetch(`${apiBase}/programs/branches?active_only=true`).then(r => r.ok ? r.json() : []),
     ])
-    programs.value = progRes
+    // Public marketing list hides extramural ("sirtqi") forms — same
+    // filter we apply on the standalone /programs page.
+    programs.value = (progRes as Program[]).filter(
+      (p) => !((p.education_form_name || '').toLowerCase().includes('sirtqi')),
+    )
     branches.value = branchRes
   } catch { /* ignore */ }
   finally { loading.value = false }
