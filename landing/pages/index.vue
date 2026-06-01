@@ -6,7 +6,7 @@ const { open: openLeadModal } = useLeadModal()
 
 useSeoMeta({
   title: 'Xalqaro Innovatsion Universiteti — XIU',
-  description: "Bakalavr va magistratura yo'nalishlari. Halqaro almashinuv dasturlari. Qarshi shahridagi zamonaviy xususiy universitet.",
+  description: "Bakalavr va magistratura yo'nalishlari. Xalqaro almashinuv dasturlari. Qarshi shahridagi zamonaviy xususiy universitet.",
 })
 
 interface Program {
@@ -142,7 +142,7 @@ const stats = [
       </h1>
 
       <p class="lead mx-auto mt-5 sm:mt-7 hero-fade" style="animation-delay: 160ms; max-width: 38rem;">
-        Bakalavr va magistratura yo'nalishlari. Halqaro almashinuv dasturlari.
+        Bakalavr va magistratura yo'nalishlari. Xalqaro almashinuv dasturlari.
         Qarshi shahridagi zamonaviy xususiy universitet.
       </p>
 
@@ -186,7 +186,7 @@ const stats = [
           {{ filtered.length || 0 }} ta faol yo'nalish
         </h2>
         <p class="lead mt-3 sm:mt-4">
-          Bakalavr, magistratura. Kunduzgi, sirtqi va kechki ta'lim shakllari.
+          Bakalavr va magistratura yo'nalishlari. Sizga mos yo'nalishni filtrlardan toping.
         </p>
       </div>
 
@@ -382,7 +382,7 @@ const stats = [
 
         <div class="lg:col-span-7 space-y-3">
           <div v-for="(item, i) in [
-            { title: 'Bakalavr va magistratura', desc: 'Kunduzgi, sirtqi va kechki ta\'lim shakllari. 4 yillik bakalavr, 2 yillik magistratura dasturlari.' },
+            { title: 'Bakalavr va magistratura', desc: '4 yillik bakalavr va 2 yillik magistratura dasturlari, kunduzgi ta\'lim shaklida.' },
             { title: 'Xalqaro hamkorlik', desc: 'Janubiy Koreya, Yaponiya va boshqa davlatlar oliy ta\'lim muassasalari bilan ikki tomonlama almashinuv dasturlari.' },
             { title: 'Innovatsion ta\'lim', desc: 'Loyiha asosida o\'qitish, real biznes keyslar, 4 til ichida o\'qish imkoniyati.' },
           ]" :key="i" class="group card p-5 sm:p-6 flex items-start gap-4 sm:gap-5 transition-all duration-300 hover:border-[rgb(var(--brand)/0.3)]">

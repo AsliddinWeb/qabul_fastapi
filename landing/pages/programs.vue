@@ -144,7 +144,7 @@ function iconUrl(image_id: string | null | undefined): string | null {
           {{ loading ? '...' : programs.length }} ta faol yo'nalish
         </h1>
         <p class="lead mt-3 sm:mt-4 max-w-2xl">
-          Bakalavr, magistratura. Kunduzgi, sirtqi va kechki ta'lim shakllari. Filtrlardan foydalanib mos yo'nalishni tanlang.
+          Bakalavr va magistratura yo'nalishlarining to'liq ro'yxati. Filial va ta'lim darajasi bo'yicha filtrlab, sizga mos yo'nalishni tanlang.
         </p>
       </div>
     </section>
