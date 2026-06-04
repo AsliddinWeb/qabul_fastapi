@@ -182,27 +182,21 @@ class LeadService:
         return existing
 
     async def _round_robin_operator(self) -> UUID | None:
-        """Pick an operator to assign a fresh lead to.
+        """Pick an operator uniformly at random from the active pool.
 
-        The earlier impl sorted by (open_lead_count, user.id) and always
-        broke ties by UUID. In practice that meant the operator with the
-        lexicographically smallest UUID — and a habit of closing leads
-        fast — soaked up nearly every public-form lead, because their
-        open_count kept settling back to the minimum. Reports came in
-        with ~90% concentration on a single user.
+        Originally this preferred the least-loaded operator (with a UUID
+        tie-break) which concentrated public-form leads on whoever's
+        UUID sorted lowest and worked fastest. We tried "least-loaded +
+        random tie-break" next, but the team preferred pure random:
+        every active operator has an equal chance regardless of current
+        load. That sometimes piles a few extra leads on a busy operator
+        for a day, but eliminates the worst-case clustering and is the
+        simplest behaviour to reason about.
 
-        Fix: still prefer the LEAST-loaded operators (so a busy ops
-        person isn't piled on), but break ties RANDOMLY among everyone
-        tied at the minimum. Result: when several operators sit at 0
-        open leads, each new lead has an equal chance of landing on any
-        of them — true even spread without dragging in a stateful
-        "last_assigned_at" column.
-
-        Falls back to admins if no operator exists.
+        Falls back to admins/superadmins if no operator exists.
         """
         import random
 
-        # Get all active operator users
         ops_stmt = select(User).where(
             User.role == UserRole.OPERATOR,
             User.is_active.is_(True),
@@ -218,20 +212,7 @@ class LeadService:
             ops = list((await self.session.scalars(ops_stmt)).all())
         if not ops:
             return None
-
-        from sqlalchemy import func as F  # noqa: N812
-        load_stmt = (
-            select(Lead.assigned_to_id, F.count(Lead.id))
-            .where(Lead.status == LeadStatus.OPEN, Lead.assigned_to_id.isnot(None))
-            .group_by(Lead.assigned_to_id)
-        )
-        loads = dict((await self.session.execute(load_stmt)).all())
-
-        # Find the minimum load and pick uniformly from operators tied
-        # at that level. Equal load → equal chance.
-        min_load = min(loads.get(u.id, 0) for u in ops)
-        candidates = [u for u in ops if loads.get(u.id, 0) == min_load]
-        return random.choice(candidates).id
+        return random.choice(ops).id
 
     # ------------------------------------------------------------------ #
     #  Update simple fields
