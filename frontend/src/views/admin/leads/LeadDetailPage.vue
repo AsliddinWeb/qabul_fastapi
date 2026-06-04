@@ -450,8 +450,22 @@ function statusPill(s: string): string {
                 <span v-if="lead.stage_name" class="pill text-brand-700 bg-brand-50 dark:text-brand-300 dark:bg-brand-500/15">{{ lead.stage_name }}</span>
               </div>
               <h1 class="text-xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 break-words leading-tight">{{ lead.full_name }}</h1>
-              <div v-if="lead.source_name" class="mt-1 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-                Manba: <strong class="text-slate-700 dark:text-slate-300">{{ lead.source_name }}</strong>
+              <div class="mt-1 text-xs sm:text-sm text-slate-500 dark:text-slate-400 flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span v-if="lead.source_name">
+                  Manba: <strong class="text-slate-700 dark:text-slate-300">{{ lead.source_name }}</strong>
+                </span>
+                <!-- Currently-assigned operator. Clickable on admin/sa
+                     so they can jump straight to that user's profile to
+                     audit workload or contact info. -->
+                <span v-if="lead.assigned_to_name" class="inline-flex items-center gap-1">
+                  Operator:
+                  <RouterLink v-if="lead.assigned_to_id && !isOperatorPanel"
+                              :to="`/admin/users/${lead.assigned_to_id}/edit`"
+                              class="text-slate-700 dark:text-slate-300 font-semibold hover:text-brand-600 dark:hover:text-brand-300 hover:underline">
+                    {{ lead.assigned_to_name }}
+                  </RouterLink>
+                  <strong v-else class="text-slate-700 dark:text-slate-300">{{ lead.assigned_to_name }}</strong>
+                </span>
               </div>
             </div>
           </div>
@@ -683,7 +697,12 @@ function statusPill(s: string): string {
               <div class="text-xs text-slate-500 dark:text-slate-400 inline-flex items-center gap-1.5 flex-wrap">
                 <Clock class="w-3 h-3" /> {{ fmtDate(a.created_at) }}
                 <span v-if="a.user_full_name || a.user_phone" class="text-slate-400">·</span>
-                <span v-if="a.user_full_name || a.user_phone" class="text-slate-700 dark:text-slate-300 font-medium">{{ a.user_full_name || a.user_phone }}</span>
+                <RouterLink v-if="(a.user_full_name || a.user_phone) && a.user_id && !isOperatorPanel"
+                            :to="`/admin/users/${a.user_id}/edit`"
+                            class="text-slate-700 dark:text-slate-300 font-medium hover:text-brand-600 dark:hover:text-brand-300 hover:underline">
+                  {{ a.user_full_name || a.user_phone }}
+                </RouterLink>
+                <span v-else-if="a.user_full_name || a.user_phone" class="text-slate-700 dark:text-slate-300 font-medium">{{ a.user_full_name || a.user_phone }}</span>
               </div>
               <div class="mt-1 text-sm font-semibold text-slate-900 dark:text-slate-100">
                 {{ ACTION_LABELS[a.action] || a.action }}

@@ -135,18 +135,49 @@ async def public_capture(
             raise HTTPException(status_code=429, detail="Too fast")
         if elapsed > 30 * 60_000:
             raise HTTPException(status_code=410, detail="Form expired, please reload")
+    else:
+        # No timestamp at all → strongly suspect non-form submission.
+        # Real visitors always carry `t` because it's injected at page-load.
+        raise HTTPException(status_code=400, detail="Invalid submission")
 
-    # ---- IP rate limit ----
+    # ---- Phone format ----
+    # Strict UZ mobile format: +998 + 9 digits, mobile prefixes only. Drops
+    # the most common "spam by raw curl with garbage phone" pattern that's
+    # been hitting the form.
+    import re as _re
+    raw_phone = payload.phone.strip()
+    phone_digits = "".join(c for c in raw_phone if c.isdigit())
+    if not _re.match(r"^998(33|55|61|66|71|77|78|88|90|91|93|94|95|97|98|99)\d{7}$", phone_digits):
+        raise HTTPException(status_code=400, detail="Telefon raqami noto'g'ri")
+    # Re-normalise so downstream sees the canonical "+998..." form.
+    payload.phone = "+" + phone_digits
+
+    # ---- Name sanity ----
+    # Bots like to flood with single-word/glued names. Real applicants give
+    # at least F + I (two words). Also reject digits or URLs in the name.
+    fn = payload.full_name.strip()
+    if len(fn.split()) < 2:
+        raise HTTPException(status_code=400, detail="To'liq ism va familiyani kiriting")
+    if _re.search(r"\d|https?://|<|>", fn):
+        raise HTTPException(status_code=400, detail="Ismda raqam yoki havola bo'lmasin")
+
+    # ---- IP rate limit + per-phone limit ----
     ip = (request.headers.get("x-forwarded-for") or request.client.host if request.client else "unknown").split(",")[0].strip()
     redis = get_redis()
-    k_min = f"lead_pub:ip:{ip}:10m"
-    k_hr  = f"lead_pub:ip:{ip}:1h"
+    k_min   = f"lead_pub:ip:{ip}:10m"
+    k_hr    = f"lead_pub:ip:{ip}:1h"
+    k_phone = f"lead_pub:phone:{phone_digits}:1h"
     try:
         n_min = await redis.incr(k_min)
         if n_min == 1: await redis.expire(k_min, 600)
         n_hr  = await redis.incr(k_hr)
         if n_hr == 1: await redis.expire(k_hr, 3600)
-        if n_min > 3 or n_hr > 10:
+        # Per-phone cap: anything more than 2 submissions/hour on the same
+        # number is overwhelmingly bot retry / form-spam. Real users don't
+        # resubmit that often.
+        n_phone = await redis.incr(k_phone)
+        if n_phone == 1: await redis.expire(k_phone, 3600)
+        if n_min > 3 or n_hr > 10 or n_phone > 2:
             raise HTTPException(status_code=429, detail="Too many requests, try later")
     except HTTPException:
         raise
