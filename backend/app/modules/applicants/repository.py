@@ -13,6 +13,7 @@ from app.modules.applicants.models import (
     InstitutionType,
     TransferDiplom,
 )
+from app.modules.users.models import User
 
 
 class ApplicantRepository(BaseRepository[Applicant]):
@@ -44,13 +45,34 @@ class ApplicantRepository(BaseRepository[Applicant]):
             count_stmt = count_stmt.where(Applicant.registered_by_id == registered_by_id)
         if search:
             like = f"%{search}%"
-            cond = or_(
+            # If the search looks phone-like, also build a digits-only
+            # pattern so "94 202 55 11" matches "+998942025511" stored
+            # on User.phone — operators routinely paste formatted phones.
+            digits = "".join(c for c in search if c.isdigit())
+            phone_like = f"%{digits}%" if digits else None
+
+            # Need User joined for phone search. Add the join and mirror it
+            # on count_stmt so totals stay correct.
+            stmt = stmt.outerjoin(User, Applicant.user_id == User.id)
+            count_stmt = (
+                count_stmt.select_from(Applicant)
+                .outerjoin(User, Applicant.user_id == User.id)
+            )
+
+            or_terms = [
                 Applicant.first_name.ilike(like),
                 Applicant.last_name.ilike(like),
                 Applicant.other_name.ilike(like),
                 Applicant.passport_series.ilike(like),
                 Applicant.pinfl.ilike(like),
-            )
+                Applicant.additional_phone.ilike(like),
+            ]
+            if phone_like:
+                or_terms.extend([
+                    User.phone.ilike(phone_like),
+                    Applicant.additional_phone.ilike(phone_like),
+                ])
+            cond = or_(*or_terms)
             stmt = stmt.where(cond)
             count_stmt = count_stmt.where(cond)
 
