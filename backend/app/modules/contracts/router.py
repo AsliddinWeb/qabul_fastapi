@@ -414,6 +414,38 @@ async def cancel_contract(
     return ContractRead.model_validate(obj)
 
 
+@router.post(
+    "/bulk-cancel",
+    dependencies=[Depends(require_permission(Permission.CONTRACTS_SIGN))],
+)
+async def bulk_cancel_contracts(
+    payload: dict,
+    current: CurrentUser = Depends(get_current_user),
+    svc: ContractsService = Depends(_service),
+) -> dict:
+    """Bulk-cancel contracts. Contracts have no hard delete — cancel is
+    the soft-removal path. Skips contracts that are already cancelled
+    or whose ID doesn't resolve.
+    """
+    ids_raw = payload.get("ids") or []
+    if not isinstance(ids_raw, list) or not ids_raw:
+        raise HTTPException(status_code=400, detail="ids list is required")
+    try:
+        ids = [UUID(str(i)) for i in ids_raw]
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid id in list")
+    cancelled = 0
+    skipped = 0
+    for cid in ids:
+        try:
+            await svc.cancel(cid, actor_id=UUID(current.user_id))
+            cancelled += 1
+        except Exception:
+            skipped += 1
+    await svc.session.commit()
+    return {"cancelled": cancelled, "skipped": skipped}
+
+
 def _pdf_disposition(filename: str) -> str:
     """RFC 5987 Content-Disposition that survives non-ASCII filenames."""
     from urllib.parse import quote

@@ -2,6 +2,8 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { useUrlFilters } from '@/composables/useUrlFilters'
+import { useBulkSelect } from '@/composables/useBulkSelect'
+import BulkActionBar from '@/components/ui/BulkActionBar.vue'
 import { useAuthStore } from '@/stores/auth'
 import {
   Plus, Users as UsersIcon, Search, X as XIcon, LayoutGrid, Filter as FilterIcon,
@@ -32,6 +34,13 @@ const items = ref<Lead[]>([])
 const total = ref(0)
 const stats = ref<LeadStats | null>(null)
 const loading = ref(false)
+
+// Bulk selection — shared across all list pages. Clears whenever the
+// page loads new items (filter/page change) since stale IDs would mean
+// nothing on the now-visible page.
+const bulk = useBulkSelect<Lead>(() => items.value)
+const bulkAssignTarget = ref<string>('')
+const bulkBusy = ref(false)
 
 const pipelines = ref<LeadPipeline[]>([])
 const stages = ref<LeadStage[]>([])
@@ -118,6 +127,7 @@ async function load() {
     })
     items.value = res.items
     total.value = res.total
+    bulk.clear()
     // Stash ordered IDs so the lead-detail page can render prev/next
     // buttons that respect the same filter context the operator was
     // looking at. Scoped key per panel so admin and operator navs don't
@@ -238,6 +248,48 @@ async function deleteLead(l: Lead) {
   } catch (e) {
     const ax = e as AxiosError<{ detail?: string }>
     toast.error(ax.response?.data?.detail || "Xatolik")
+  }
+}
+
+// ----- Bulk actions -----
+async function bulkDeleteSelected() {
+  const ids = bulk.selectedIds.value
+  if (!ids.length) return
+  const ok = await ask({
+    title: `${ids.length} ta lead o'chirilsinmi?`,
+    message: "Konversiya bo'lgan leadlar o'tkazib yuboriladi. Activity (izoh, qo'ng'iroq tarixi) ham o'chadi.",
+    confirmLabel: "O'chirish",
+    tone: 'danger',
+  })
+  if (!ok) return
+  bulkBusy.value = true
+  try {
+    const res = await leadsApi.bulkDelete(ids)
+    toast.success(`${res.deleted} ta o'chirildi${res.skipped ? `, ${res.skipped} ta o'tkazib yuborildi` : ''}`)
+    await Promise.all([load(), loadStats()])
+  } catch (e) {
+    const ax = e as AxiosError<{ error?: { message?: string }; detail?: string }>
+    toast.error(ax.response?.data?.error?.message || ax.response?.data?.detail || "Xatolik")
+  } finally {
+    bulkBusy.value = false
+  }
+}
+
+async function bulkAssignSelected() {
+  const ids = bulk.selectedIds.value
+  if (!ids.length) return
+  bulkBusy.value = true
+  try {
+    const userId = bulkAssignTarget.value || null
+    const res = await leadsApi.bulkAssign(ids, userId)
+    toast.success(`${res.assigned} ta biriktirildi${res.skipped ? `, ${res.skipped} ta o'tkazib yuborildi` : ''}`)
+    bulkAssignTarget.value = ''
+    await load()
+  } catch (e) {
+    const ax = e as AxiosError<{ error?: { message?: string }; detail?: string }>
+    toast.error(ax.response?.data?.error?.message || ax.response?.data?.detail || "Xatolik")
+  } finally {
+    bulkBusy.value = false
   }
 }
 
@@ -494,6 +546,12 @@ function opAvatarTone(name: string | null): string {
           <thead>
             <tr class="border-b border-slate-200 dark:border-slate-800
                        text-[10px] uppercase tracking-[0.08em] text-slate-500 dark:text-slate-400">
+              <th class="px-4 py-3.5 w-8" @click.stop>
+                <input type="checkbox" class="rounded cursor-pointer"
+                       :checked="bulk.allSelected.value"
+                       :indeterminate.prop="bulk.partial.value"
+                       @change="bulk.toggleAll()" />
+              </th>
               <th class="text-left font-semibold px-5 py-3.5">Lead</th>
               <th class="text-left font-semibold px-4 py-3.5 w-44">Bosqich</th>
               <th class="text-left font-semibold px-4 py-3.5 w-32">Manba</th>
@@ -507,7 +565,13 @@ function opAvatarTone(name: string | null): string {
           <tbody>
             <tr v-for="l in items" :key="l.id"
                 class="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors cursor-pointer group"
+                :class="bulk.isSelected(l.id) ? 'bg-brand-50/40 dark:bg-brand-500/10' : ''"
                 @click="router.push(`${panelPrefix}/leads/${l.id}`)">
+              <td class="px-4 py-4" @click.stop>
+                <input type="checkbox" class="rounded cursor-pointer"
+                       :checked="bulk.isSelected(l.id)"
+                       @change="bulk.toggle(l.id)" />
+              </td>
               <td class="px-5 py-4">
                 <div class="flex items-center gap-3.5">
                   <div class="grid place-items-center w-11 h-11 rounded-full bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300 text-sm font-bold shrink-0 ring-2 ring-brand-100/50 dark:ring-brand-700/30">
@@ -600,5 +664,35 @@ function opAvatarTone(name: string | null): string {
         </div>
       </div>
     </div>
+
+    <!-- Bulk action bar — sticks to the bottom when any rows are selected.
+         Admin/superadmin gets the assign dropdown; operators can still
+         delete their own selection. -->
+    <BulkActionBar :count="bulk.count.value"
+                   :label="`${bulk.count.value} ta lead tanlandi`"
+                   @clear="bulk.clear()">
+      <!-- Assign select (admin only — operator can't reassign colleagues) -->
+      <select v-if="!myOnly && operators.length"
+              v-model="bulkAssignTarget"
+              class="h-8 px-2 rounded-lg text-xs bg-white/15 dark:bg-slate-900/15 text-white dark:text-slate-900 border-0 focus:outline-none cursor-pointer">
+        <option value="">— Avto (random) —</option>
+        <option v-for="o in operators" :key="o.id" :value="o.id" class="text-slate-900">
+          {{ o.label }}
+        </option>
+      </select>
+      <button v-if="!myOnly"
+              type="button"
+              class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-brand-500 hover:bg-brand-600 text-white transition disabled:opacity-50"
+              :disabled="bulkBusy"
+              @click="bulkAssignSelected">
+        Biriktirish
+      </button>
+      <button type="button"
+              class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white transition disabled:opacity-50"
+              :disabled="bulkBusy"
+              @click="bulkDeleteSelected">
+        O'chirish
+      </button>
+    </BulkActionBar>
   </div>
 </template>

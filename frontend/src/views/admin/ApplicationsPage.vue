@@ -20,6 +20,8 @@ import SearchSelect from '@/components/ui/SearchSelect.vue'
 import { APPLICATION_STATUS, ADMISSION_TYPE, tr } from '@/utils/labels'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
+import { useBulkSelect } from '@/composables/useBulkSelect'
+import BulkActionBar from '@/components/ui/BulkActionBar.vue'
 
 interface Application {
   id: string
@@ -59,6 +61,9 @@ const loading = ref(false)
 const stats = ref<Record<string, number>>({
   total: 0, topshirildi: 0, korib_chiqilmoqda: 0, qabul_qilindi: 0, rad_etildi: 0,
 })
+
+const bulk = useBulkSelect<Application>(() => items.value)
+const bulkBusy = ref(false)
 
 // Filters persisted in URL so back/forward and sharing work.
 const { filters, clear: clearAllFilters } = useUrlFilters({
@@ -195,6 +200,7 @@ async function load() {
     })
     items.value = res.items as Application[]
     total.value = res.total
+    bulk.clear()
   } catch (e) {
     const ax = e as AxiosError<{ error?: { message?: string } }>
     toast.error(ax.response?.data?.error?.message || "Yuklab bo'lmadi")
@@ -376,6 +382,29 @@ const reviewedPercent = computed(() => {
   if (!total) return 0
   return Math.round(((stats.value.qabul_qilindi || 0) + (stats.value.rad_etildi || 0)) / total * 100)
 })
+
+async function bulkDeleteSelected() {
+  const ids = bulk.selectedIds.value
+  if (!ids.length) return
+  const ok = await ask({
+    title: `${ids.length} ta ariza o'chirilsinmi?`,
+    message: "Shartnomalari, to'lovlari va status tarixi ham o'chiriladi (cascade). Bu amalni qaytarib bo'lmaydi.",
+    confirmLabel: "O'chirish",
+    tone: 'danger',
+  })
+  if (!ok) return
+  bulkBusy.value = true
+  try {
+    const res = await adminApi.applications.bulkDelete(ids)
+    toast.success(`${res.deleted} ta o'chirildi${res.skipped ? `, ${res.skipped} ta o'tkazib yuborildi` : ''}`)
+    await Promise.all([load(), loadStats()])
+  } catch (e) {
+    const ax = e as AxiosError<{ error?: { message?: string }; detail?: string }>
+    toast.error(ax.response?.data?.error?.message || ax.response?.data?.detail || "Xatolik")
+  } finally {
+    bulkBusy.value = false
+  }
+}
 </script>
 
 <template>
@@ -587,6 +616,12 @@ const reviewedPercent = computed(() => {
             <tr class="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800
                        text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
               <th class="w-1"></th>
+              <th v-if="!isOperatorPanel && !isAccountantPanel" class="w-8 px-3 py-3">
+                <input type="checkbox" class="rounded cursor-pointer"
+                       :checked="bulk.allSelected.value"
+                       :indeterminate.prop="bulk.partial.value"
+                       @change="bulk.toggleAll()" />
+              </th>
               <th class="text-left font-semibold px-4 py-3">Abituriyent</th>
               <th class="text-left font-semibold px-4 py-3">Yo'nalish</th>
               <th class="text-left font-semibold px-4 py-3 w-32">Qabul turi</th>
@@ -601,10 +636,17 @@ const reviewedPercent = computed(() => {
             <tr v-for="a in filtered" :key="a.id"
                 class="border-b border-slate-100 dark:border-slate-800/60
                        hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors cursor-pointer group"
+                :class="bulk.isSelected(a.id) ? 'bg-brand-50/40 dark:bg-brand-500/10' : ''"
                 @click="router.push(`${panelPrefix}/applications/${a.id}`)">
               <!-- Status ribbon -->
               <td class="p-0">
                 <div class="w-1 h-12 rounded-r-full" :class="STATUS_BAR[a.status] || 'bg-slate-300 dark:bg-slate-700'"></div>
+              </td>
+
+              <td v-if="!isOperatorPanel && !isAccountantPanel" class="px-3 py-3" @click.stop>
+                <input type="checkbox" class="rounded cursor-pointer"
+                       :checked="bulk.isSelected(a.id)"
+                       @change="bulk.toggle(a.id)" />
               </td>
 
               <!-- Abituriyent -->
@@ -747,5 +789,17 @@ const reviewedPercent = computed(() => {
         </div>
       </div>
     </div>
+
+    <BulkActionBar v-if="!isOperatorPanel && !isAccountantPanel"
+                   :count="bulk.count.value"
+                   :label="`${bulk.count.value} ta ariza tanlandi`"
+                   @clear="bulk.clear()">
+      <button type="button"
+              class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white transition disabled:opacity-50"
+              :disabled="bulkBusy"
+              @click="bulkDeleteSelected">
+        O'chirish
+      </button>
+    </BulkActionBar>
   </div>
 </template>

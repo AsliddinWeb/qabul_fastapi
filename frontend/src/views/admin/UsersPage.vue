@@ -15,6 +15,8 @@ import { ROLE } from '@/utils/labels'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useUrlFilters } from '@/composables/useUrlFilters'
+import { useBulkSelect } from '@/composables/useBulkSelect'
+import BulkActionBar from '@/components/ui/BulkActionBar.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import { formatPhone } from '@/utils/validators'
@@ -26,6 +28,9 @@ const { ask } = useConfirm()
 const items = ref<UserRead[]>([])
 const total = ref(0)
 const loading = ref(false)
+
+const bulk = useBulkSelect<UserRead>(() => items.value)
+const bulkBusy = ref(false)
 
 // Filters live in the URL → back/forward restores them.
 const { filters, clear: clearAllFilters } = useUrlFilters({
@@ -54,6 +59,7 @@ async function load() {
       size: filters.size,
     })
     items.value = res.items
+    bulk.clear()
     total.value = res.total
   } catch (e) {
     const ax = e as AxiosError<{ error?: { message?: string } }>
@@ -182,6 +188,48 @@ const ROLE_OPTIONS = [
   { value: 'accountant', label: 'Buxgalter' },
   { value: 'applicant',  label: 'Abituriyent' },
 ]
+
+async function bulkSetActive(active: boolean) {
+  const ids = bulk.selectedIds.value
+  if (!ids.length) return
+  bulkBusy.value = true
+  try {
+    const res = await adminApi.users.bulkSetActive(ids, active)
+    toast.success(
+      `${res.updated} ta ${active ? 'faollashtirildi' : 'faolsizlantirildi'}` +
+      (res.skipped ? `, ${res.skipped} ta o'tkazib yuborildi` : ''),
+    )
+    await load()
+  } catch (e) {
+    const ax = e as AxiosError<{ error?: { message?: string }; detail?: string }>
+    toast.error(ax.response?.data?.error?.message || ax.response?.data?.detail || "Xatolik")
+  } finally {
+    bulkBusy.value = false
+  }
+}
+
+async function bulkDeleteSelected() {
+  const ids = bulk.selectedIds.value
+  if (!ids.length) return
+  const ok = await ask({
+    title: `${ids.length} ta foydalanuvchi o'chirilsinmi?`,
+    message: "Foydalanuvchilarning hisobi va ularga tegishli bo'lgan ma'lumotlari cascade tarzda o'chiriladi. Superadmin'ni o'chirib bo'lmaydi.",
+    confirmLabel: "O'chirish",
+    tone: 'danger',
+  })
+  if (!ok) return
+  bulkBusy.value = true
+  try {
+    const res = await adminApi.users.bulkDelete(ids)
+    toast.success(`${res.deleted} ta o'chirildi${res.skipped ? `, ${res.skipped} ta o'tkazib yuborildi` : ''}`)
+    await load()
+  } catch (e) {
+    const ax = e as AxiosError<{ error?: { message?: string }; detail?: string }>
+    toast.error(ax.response?.data?.error?.message || ax.response?.data?.detail || "Xatolik")
+  } finally {
+    bulkBusy.value = false
+  }
+}
 </script>
 
 <template>
@@ -256,6 +304,12 @@ const ROLE_OPTIONS = [
         <table class="w-full text-sm">
           <thead class="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
             <tr>
+              <th class="w-8 px-4 py-3.5">
+                <input type="checkbox" class="rounded cursor-pointer"
+                       :checked="bulk.allSelected.value"
+                       :indeterminate.prop="bulk.partial.value"
+                       @change="bulk.toggleAll()" />
+              </th>
               <th class="text-left font-semibold px-5 py-3.5">Foydalanuvchi</th>
               <th class="text-left font-semibold px-4 py-3.5 w-44">Rol</th>
               <th class="text-left font-semibold px-4 py-3.5 w-28">Holati</th>
@@ -266,7 +320,13 @@ const ROLE_OPTIONS = [
           <tbody>
             <tr v-for="u in items" :key="u.id"
                 class="border-b border-slate-100 dark:border-slate-800/60 hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors cursor-pointer"
+                :class="bulk.isSelected(u.id) ? 'bg-brand-50/40 dark:bg-brand-500/10' : ''"
                 @click="router.push(`/admin/users/${u.id}/edit`)">
+              <td class="px-4 py-3.5" @click.stop>
+                <input type="checkbox" class="rounded cursor-pointer"
+                       :checked="bulk.isSelected(u.id)"
+                       @change="bulk.toggle(u.id)" />
+              </td>
               <!-- User cell — avatar + name + phone -->
               <td class="px-5 py-3.5">
                 <div class="flex items-center gap-3">
@@ -357,5 +417,28 @@ const ROLE_OPTIONS = [
         </div>
       </div>
     </div>
+
+    <BulkActionBar :count="bulk.count.value"
+                   :label="`${bulk.count.value} ta foydalanuvchi tanlandi`"
+                   @clear="bulk.clear()">
+      <button type="button"
+              class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500 hover:bg-emerald-600 text-white transition disabled:opacity-50"
+              :disabled="bulkBusy"
+              @click="bulkSetActive(true)">
+        Faollashtirish
+      </button>
+      <button type="button"
+              class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white transition disabled:opacity-50"
+              :disabled="bulkBusy"
+              @click="bulkSetActive(false)">
+        Faolsizlantirish
+      </button>
+      <button type="button"
+              class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white transition disabled:opacity-50"
+              :disabled="bulkBusy"
+              @click="bulkDeleteSelected">
+        O'chirish
+      </button>
+    </BulkActionBar>
   </div>
 </template>

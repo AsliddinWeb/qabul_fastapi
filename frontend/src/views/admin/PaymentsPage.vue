@@ -11,6 +11,8 @@ import { PAYMENT_STATUS, tr } from '@/utils/labels'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useAuthStore } from '@/stores/auth'
+import { useBulkSelect } from '@/composables/useBulkSelect'
+import BulkActionBar from '@/components/ui/BulkActionBar.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 
@@ -39,6 +41,9 @@ const total = ref(0)
 const loading = ref(false)
 const filters = reactive({ status: '', page: 1, size: 20 })
 
+const bulk = useBulkSelect<Payment>(() => items.value)
+const bulkBusy = ref(false)
+
 async function load() {
   loading.value = true
   try {
@@ -52,6 +57,7 @@ async function load() {
     })
     items.value = res.items as Payment[]
     total.value = res.total
+    bulk.clear()
   } catch (e) {
     const ax = e as AxiosError<{ error?: { message?: string } }>
     toast.error(ax.response?.data?.error?.message || "Yuklab bo'lmadi")
@@ -130,6 +136,29 @@ async function exportCsv() {
     exporting.value = false
   }
 }
+
+async function bulkConfirmSelected() {
+  const ids = bulk.selectedIds.value
+  if (!ids.length) return
+  const ok = await ask({
+    title: `${ids.length} ta to'lov tasdiqlansinmi?`,
+    message: "Statusi 'pending' bo'lgan to'lovlar tasdiqlanadi. Boshqalari o'tkazib yuboriladi.",
+    confirmLabel: 'Tasdiqlash',
+    tone: 'primary',
+  })
+  if (!ok) return
+  bulkBusy.value = true
+  try {
+    const res = await adminApi.payments.bulkConfirm(ids)
+    toast.success(`${res.confirmed} ta tasdiqlandi${res.skipped ? `, ${res.skipped} ta o'tkazib yuborildi` : ''}`)
+    await load()
+  } catch (e) {
+    const ax = e as AxiosError<{ error?: { message?: string }; detail?: string }>
+    toast.error(ax.response?.data?.error?.message || ax.response?.data?.detail || "Xatolik")
+  } finally {
+    bulkBusy.value = false
+  }
+}
 </script>
 
 <template>
@@ -162,6 +191,12 @@ async function exportCsv() {
       <table class="data-table">
         <thead>
           <tr>
+            <th class="w-8 px-3">
+              <input type="checkbox" class="rounded cursor-pointer"
+                     :checked="bulk.allSelected.value"
+                     :indeterminate.prop="bulk.partial.value"
+                     @change="bulk.toggleAll()" />
+            </th>
             <th>To'lov №</th>
             <th class="w-44">Summa</th>
             <th>Reference</th>
@@ -183,7 +218,13 @@ async function exportCsv() {
               <EmptyState :icon="CreditCard" title="To'lovlar yo'q" />
             </td>
           </tr>
-          <tr v-for="p in items" :key="p.id">
+          <tr v-for="p in items" :key="p.id"
+              :class="bulk.isSelected(p.id) ? 'bg-brand-50/40 dark:bg-brand-500/10' : ''">
+            <td class="px-3">
+              <input type="checkbox" class="rounded cursor-pointer"
+                     :checked="bulk.isSelected(p.id)"
+                     @change="bulk.toggle(p.id)" />
+            </td>
             <td class="font-mono text-xs text-slate-600 dark:text-slate-300">{{ p.payment_number }}</td>
             <td class="text-slate-900 dark:text-slate-100 font-medium">
               {{ Number(p.amount).toLocaleString('uz-UZ') }}
@@ -225,5 +266,16 @@ async function exportCsv() {
         </div>
       </div>
     </div>
+
+    <BulkActionBar :count="bulk.count.value"
+                   :label="`${bulk.count.value} ta to'lov tanlandi`"
+                   @clear="bulk.clear()">
+      <button type="button"
+              class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition disabled:opacity-50"
+              :disabled="bulkBusy"
+              @click="bulkConfirmSelected">
+        Tasdiqlash
+      </button>
+    </BulkActionBar>
   </div>
 </template>

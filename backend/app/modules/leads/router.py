@@ -808,10 +808,97 @@ async def delete_lead(
     if not obj:
         raise HTTPException(status_code=404, detail="Lead not found")
     if obj.application_id is not None:
-        raise HTTPException(status_code=400, detail="Cannot delete a converted lead")
+        raise HTTPException(status_code=400, detail="Konversiya bo'lgan lead'ni o'chirib bo'lmaydi")
     await svc.session.delete(obj)
     await svc.session.commit()
     return None
+
+
+@router.post(
+    "/bulk-delete",
+    dependencies=[Depends(require_permission(Permission.LEADS_DELETE))],
+)
+async def bulk_delete_leads(
+    payload: dict,
+    current: CurrentUser = Depends(get_current_user),
+    svc: LeadService = Depends(_service),
+) -> dict:
+    """Bulk-delete leads. Skips any lead already converted to an
+    application (those can't be deleted individually either). Returns
+    {deleted, skipped} counts so the UI can show "5 ta o'chirildi, 2 ta
+    o'tkazib yuborildi (konversiya bo'lgan)".
+    """
+    ids_raw = payload.get("ids") or []
+    if not isinstance(ids_raw, list) or not ids_raw:
+        raise HTTPException(status_code=400, detail="ids list is required")
+    try:
+        ids = [UUID(str(i)) for i in ids_raw]
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid id in list")
+
+    deleted = 0
+    skipped = 0
+    for lead_id in ids:
+        obj = await svc.leads.get(lead_id)
+        if not obj:
+            skipped += 1
+            continue
+        if obj.application_id is not None:
+            skipped += 1
+            continue
+        await svc.session.delete(obj)
+        deleted += 1
+    await svc.session.commit()
+    return {"deleted": deleted, "skipped": skipped}
+
+
+@router.post(
+    "/bulk-assign",
+    dependencies=[Depends(require_permission(Permission.LEADS_ASSIGN))],
+)
+async def bulk_assign_leads(
+    payload: dict,
+    current: CurrentUser = Depends(get_current_user),
+    svc: LeadService = Depends(_service),
+) -> dict:
+    """Bulk-reassign leads to one operator (or auto-assign each
+    individually if user_id is null). Skips closed leads — assign is an
+    OPEN-only operation, same as the per-row endpoint.
+    """
+    ids_raw = payload.get("ids") or []
+    user_id_raw = payload.get("user_id")
+    if not isinstance(ids_raw, list) or not ids_raw:
+        raise HTTPException(status_code=400, detail="ids list is required")
+    try:
+        ids = [UUID(str(i)) for i in ids_raw]
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid id in list")
+    target_user_id: UUID | None = None
+    if user_id_raw:
+        try:
+            target_user_id = UUID(str(user_id_raw))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="Invalid user_id")
+
+    assigned = 0
+    skipped = 0
+    for lead_id in ids:
+        obj = await svc.leads.get(lead_id)
+        if not obj or obj.status != LeadStatus.OPEN:
+            skipped += 1
+            continue
+        # Reuse the per-row assign so the activity log gets a row each
+        # time — bulk should be just as visible in the timeline as
+        # individual reassignment.
+        from app.modules.leads.schemas import LeadAssign
+        await svc.assign(
+            lead_id,
+            payload=LeadAssign(user_id=target_user_id, auto_assign=target_user_id is None),
+            actor_id=UUID(current.user_id),
+        )
+        assigned += 1
+    await svc.session.commit()
+    return {"assigned": assigned, "skipped": skipped}
 
 
 # --------------------------------------------------------------------------- #

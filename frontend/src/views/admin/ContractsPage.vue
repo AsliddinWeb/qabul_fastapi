@@ -10,6 +10,8 @@ import { CONTRACT_STATUS, CONTRACT_TYPE, tr } from '@/utils/labels'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useAuthStore } from '@/stores/auth'
+import { useBulkSelect } from '@/composables/useBulkSelect'
+import BulkActionBar from '@/components/ui/BulkActionBar.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 
@@ -37,6 +39,9 @@ const auth = useAuthStore()
 const items = ref<Contract[]>([])
 const total = ref(0)
 const loading = ref(false)
+
+const bulk = useBulkSelect<Contract>(() => items.value)
+const bulkBusy = ref(false)
 const filters = reactive({
   status: '' as string,
   type: '' as string,
@@ -60,6 +65,7 @@ async function load() {
     })
     items.value = res.items as Contract[]
     total.value = res.total
+    bulk.clear()
   } catch (e) {
     const ax = e as AxiosError<{ error?: { message?: string } }>
     toast.error(ax.response?.data?.error?.message || "Yuklab bo'lmadi")
@@ -115,6 +121,29 @@ async function cancel(c: Contract) {
 }
 
 const lastPage = () => Math.max(1, Math.ceil(total.value / filters.size))
+
+async function bulkCancelSelected() {
+  const ids = bulk.selectedIds.value
+  if (!ids.length) return
+  const ok = await ask({
+    title: `${ids.length} ta shartnoma bekor qilinsinmi?`,
+    message: "Shartnomalarning statusi 'cancelled' ga o'tadi. Hard delete amalga oshirilmaydi — to'lov va audit tarixi saqlanib qoladi.",
+    confirmLabel: 'Bekor qilish',
+    tone: 'danger',
+  })
+  if (!ok) return
+  bulkBusy.value = true
+  try {
+    const res = await adminApi.contracts.bulkCancel(ids)
+    toast.success(`${res.cancelled} ta bekor qilindi${res.skipped ? `, ${res.skipped} ta o'tkazib yuborildi` : ''}`)
+    await load()
+  } catch (e) {
+    const ax = e as AxiosError<{ error?: { message?: string }; detail?: string }>
+    toast.error(ax.response?.data?.error?.message || ax.response?.data?.detail || "Xatolik")
+  } finally {
+    bulkBusy.value = false
+  }
+}
 </script>
 
 <template>
@@ -155,6 +184,12 @@ const lastPage = () => Math.max(1, Math.ceil(total.value / filters.size))
       <table class="data-table">
         <thead>
           <tr>
+            <th v-if="!isOperatorPanel" class="w-8 px-3">
+              <input type="checkbox" class="rounded cursor-pointer"
+                     :checked="bulk.allSelected.value"
+                     :indeterminate.prop="bulk.partial.value"
+                     @change="bulk.toggleAll()" />
+            </th>
             <th>Shartnoma №</th>
             <th class="w-32">Turi</th>
             <th class="w-44">Summa</th>
@@ -176,7 +211,13 @@ const lastPage = () => Math.max(1, Math.ceil(total.value / filters.size))
               <EmptyState :icon="FileText" title="Shartnomalar yo'q" />
             </td>
           </tr>
-          <tr v-for="c in items" :key="c.id">
+          <tr v-for="c in items" :key="c.id"
+              :class="bulk.isSelected(c.id) ? 'bg-brand-50/40 dark:bg-brand-500/10' : ''">
+            <td v-if="!isOperatorPanel" class="px-3">
+              <input type="checkbox" class="rounded cursor-pointer"
+                     :checked="bulk.isSelected(c.id)"
+                     @change="bulk.toggle(c.id)" />
+            </td>
             <td class="font-mono text-xs text-slate-600 dark:text-slate-300">{{ c.contract_number }}</td>
             <td class="text-xs">{{ tr(CONTRACT_TYPE, c.type) }}</td>
             <td class="text-slate-900 dark:text-slate-100">
@@ -221,5 +262,17 @@ const lastPage = () => Math.max(1, Math.ceil(total.value / filters.size))
         </div>
       </div>
     </div>
+
+    <BulkActionBar v-if="!isOperatorPanel"
+                   :count="bulk.count.value"
+                   :label="`${bulk.count.value} ta shartnoma tanlandi`"
+                   @clear="bulk.clear()">
+      <button type="button"
+              class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white transition disabled:opacity-50"
+              :disabled="bulkBusy"
+              @click="bulkCancelSelected">
+        Bekor qilish
+      </button>
+    </BulkActionBar>
   </div>
 </template>

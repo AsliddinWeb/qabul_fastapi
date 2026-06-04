@@ -9,6 +9,8 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useAuthStore } from '@/stores/auth'
+import { useBulkSelect } from '@/composables/useBulkSelect'
+import BulkActionBar from '@/components/ui/BulkActionBar.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 
@@ -44,6 +46,9 @@ const total = ref(0)
 const loading = ref(false)
 const filters = reactive({ search: '', page: 1, size: 20 })
 
+const bulk = useBulkSelect<Applicant>(() => items.value)
+const bulkBusy = ref(false)
+
 async function load() {
   loading.value = true
   try {
@@ -62,11 +67,35 @@ async function load() {
     })
     items.value = res.items as Applicant[]
     total.value = res.total
+    bulk.clear()
   } catch (e) {
     const ax = e as AxiosError<{ error?: { message?: string } }>
     toast.error(ax.response?.data?.error?.message || "Yuklab bo'lmadi")
   } finally {
     loading.value = false
+  }
+}
+
+async function bulkDeleteSelected() {
+  const ids = bulk.selectedIds.value
+  if (!ids.length) return
+  const ok = await ask({
+    title: `${ids.length} ta abituriyent o'chirilsinmi?`,
+    message: "Diplomlari, arizalari, shartnomalari va to'lovlari ham o'chiriladi (cascade). Bu amalni qaytarib bo'lmaydi.",
+    confirmLabel: "O'chirish",
+    tone: 'danger',
+  })
+  if (!ok) return
+  bulkBusy.value = true
+  try {
+    const res = await adminApi.applicants.bulkDelete(ids)
+    toast.success(`${res.deleted} ta o'chirildi${res.skipped ? `, ${res.skipped} ta o'tkazib yuborildi` : ''}`)
+    await load()
+  } catch (e) {
+    const ax = e as AxiosError<{ error?: { message?: string }; detail?: string }>
+    toast.error(ax.response?.data?.error?.message || ax.response?.data?.detail || "Xatolik")
+  } finally {
+    bulkBusy.value = false
   }
 }
 
@@ -167,6 +196,12 @@ function age(birth: string): number {
       <table class="data-table">
         <thead>
           <tr>
+            <th v-if="!isOperatorPanel && !isAccountantPanel" class="w-8 px-3">
+              <input type="checkbox" class="rounded cursor-pointer"
+                     :checked="bulk.allSelected.value"
+                     :indeterminate.prop="bulk.partial.value"
+                     @change="bulk.toggleAll()" />
+            </th>
             <th>Abituriyent</th>
             <th class="w-44">Pasport / PINFL</th>
             <th class="w-40">Tug'ilgan sana</th>
@@ -189,7 +224,13 @@ function age(birth: string): number {
             </td>
           </tr>
           <tr v-for="a in items" :key="a.id" class="cursor-pointer"
+              :class="bulk.isSelected(a.id) ? 'bg-brand-50/40 dark:bg-brand-500/10' : ''"
               @click="router.push(`${panelPrefix}/applicants/${a.id}`)">
+            <td v-if="!isOperatorPanel && !isAccountantPanel" class="px-3" @click.stop>
+              <input type="checkbox" class="rounded cursor-pointer"
+                     :checked="bulk.isSelected(a.id)"
+                     @change="bulk.toggle(a.id)" />
+            </td>
             <td>
               <div class="flex items-center gap-3">
                 <div class="avatar bg-gradient-to-br text-white" :class="avatarColor(a.id)">
@@ -242,5 +283,17 @@ function age(birth: string): number {
         </div>
       </div>
     </div>
+
+    <BulkActionBar v-if="!isOperatorPanel && !isAccountantPanel"
+                   :count="bulk.count.value"
+                   :label="`${bulk.count.value} ta abituriyent tanlandi`"
+                   @clear="bulk.clear()">
+      <button type="button"
+              class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white transition disabled:opacity-50"
+              :disabled="bulkBusy"
+              @click="bulkDeleteSelected">
+        O'chirish
+      </button>
+    </BulkActionBar>
   </div>
 </template>

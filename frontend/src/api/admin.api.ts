@@ -116,6 +116,10 @@ export const adminApi = {
       http.post<UserRead>(`/users/${id}/password`, { new_password }).then((r) => r.data),
     delete: (id: string) =>
       http.delete(`/users/${id}`).then((r) => r.data),
+    bulkDelete: (ids: string[]) =>
+      http.post<{ deleted: number; skipped: number }>('/users/bulk-delete', { ids }).then(r => r.data),
+    bulkSetActive: (ids: string[], active: boolean) =>
+      http.post<{ updated: number; skipped: number }>('/users/bulk-set-active', { ids, active }).then(r => r.data),
   },
 
   dictionaries: {
@@ -286,6 +290,8 @@ export const adminApi = {
       http.patch<any>(`/applicants/${id}`, payload).then((r) => r.data),
     delete: (id: string) =>
       http.delete(`/applicants/${id}`).then((r) => r.data),
+    bulkDelete: (ids: string[]) =>
+      http.post<{ deleted: number; skipped: number }>('/applicants/bulk-delete', { ids }).then(r => r.data),
   },
 
   // ---------- Applications (admin: full CRUD) ----------
@@ -316,6 +322,8 @@ export const adminApi = {
       http.post<any>(`/applications/${id}/start-review`).then((r) => r.data),
     delete: (id: string) =>
       http.delete(`/applications/${id}`).then((r) => r.data),
+    bulkDelete: (ids: string[]) =>
+      http.post<{ deleted: number; skipped: number }>('/applications/bulk-delete', { ids }).then(r => r.data),
   },
 
   // ---------- Contracts (admin) ----------
@@ -335,6 +343,8 @@ export const adminApi = {
       http.post<any>(`/contracts/${id}/sign`, { notes: null }).then((r) => r.data),
     cancel: (id: string) =>
       http.post<any>(`/contracts/${id}/cancel`).then((r) => r.data),
+    bulkCancel: (ids: string[]) =>
+      http.post<{ cancelled: number; skipped: number }>('/contracts/bulk-cancel', { ids }).then(r => r.data),
     openPdf: async (id: string) => {
       const res = await http.get(`/contracts/${id}/pdf`, { responseType: 'blob' })
       const blob = new Blob([res.data], { type: 'application/pdf' })
@@ -384,6 +394,8 @@ export const adminApi = {
       http.post<any>(`/payments/${id}/fail`, null, { params: { reason } }).then((r) => r.data),
     refund: (id: string, reason?: string) =>
       http.post<any>(`/payments/${id}/refund`, null, { params: { reason } }).then((r) => r.data),
+    bulkConfirm: (ids: string[]) =>
+      http.post<{ confirmed: number; skipped: number }>('/payments/bulk-confirm', { ids }).then(r => r.data),
   },
 
   // ---------- Analytics ----------

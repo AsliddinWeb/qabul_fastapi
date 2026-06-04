@@ -174,6 +174,10 @@ export const leadsApi = {
     }>('/leads/check-phone', { params: { phone } }).then(r => r.data),
   update: (id: string, payload: Partial<LeadCreatePayload>) => http.patch<Lead>(`/leads/${id}`, payload).then(r => r.data),
   delete: (id: string) => http.delete(`/leads/${id}`).then(r => r.data),
+  bulkDelete: (ids: string[]) =>
+    http.post<{ deleted: number; skipped: number }>('/leads/bulk-delete', { ids }).then(r => r.data),
+  bulkAssign: (ids: string[], user_id: string | null) =>
+    http.post<{ assigned: number; skipped: number }>('/leads/bulk-assign', { ids, user_id }).then(r => r.data),
 
   move: (id: string, stage_id: string, comment?: string) =>
     http.post<Lead>(`/leads/${id}/move`, { stage_id, comment }).then(r => r.data),

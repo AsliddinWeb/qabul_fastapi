@@ -396,6 +396,38 @@ async def confirm_payment(
 
 
 @router.post(
+    "/bulk-confirm",
+    dependencies=[Depends(require_permission(Permission.PAYMENTS_CONFIRM))],
+)
+async def bulk_confirm_payments(
+    payload: dict,
+    svc: PaymentsService = Depends(_service),
+) -> dict:
+    """Bulk-confirm pending payments. Each row uses an empty
+    PaymentConfirm body — no reference text, no notes — to keep the bulk
+    path simple. Rows that are already confirmed or invalid are
+    skipped.
+    """
+    ids_raw = payload.get("ids") or []
+    if not isinstance(ids_raw, list) or not ids_raw:
+        raise HTTPException(status_code=400, detail="ids list is required")
+    try:
+        ids = [UUID(str(i)) for i in ids_raw]
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid id in list")
+    confirmed = 0
+    skipped = 0
+    for pid in ids:
+        try:
+            await svc.confirm(pid, PaymentConfirm())
+            confirmed += 1
+        except Exception:
+            skipped += 1
+    await svc.session.commit()
+    return {"confirmed": confirmed, "skipped": skipped}
+
+
+@router.post(
     "/{payment_id}/fail",
     response_model=PaymentRead,
     dependencies=[Depends(require_permission(Permission.PAYMENTS_FAIL))],

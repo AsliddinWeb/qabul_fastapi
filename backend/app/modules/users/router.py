@@ -245,3 +245,63 @@ async def delete_user(
     )
     await svc.session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/bulk-delete",
+    dependencies=[Depends(require_permission(Permission.USERS_DELETE))],
+)
+async def bulk_delete_users(
+    payload: dict,
+    svc: UserService = Depends(_service),
+) -> dict:
+    """Bulk-delete users. Soft-delete via cascade (same as the per-row
+    endpoint). Skips IDs that fail (e.g. attempting to delete a
+    superadmin — service-layer guard rejects it)."""
+    ids_raw = payload.get("ids") or []
+    if not isinstance(ids_raw, list) or not ids_raw:
+        raise HTTPException(status_code=400, detail="ids list is required")
+    try:
+        ids = [UUID(str(i)) for i in ids_raw]
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid id in list")
+    deleted = 0
+    skipped = 0
+    for uid in ids:
+        try:
+            await svc.soft_delete(uid)
+            deleted += 1
+        except Exception:
+            skipped += 1
+    await svc.session.commit()
+    return {"deleted": deleted, "skipped": skipped}
+
+
+@router.post(
+    "/bulk-set-active",
+    dependencies=[Depends(require_permission(Permission.USERS_UPDATE))],
+)
+async def bulk_set_active(
+    payload: dict,
+    svc: UserService = Depends(_service),
+) -> dict:
+    """Bulk activate/deactivate users. payload = {ids: [...], active: bool}."""
+    from app.modules.users.schemas import UserUpdate
+    ids_raw = payload.get("ids") or []
+    active = bool(payload.get("active"))
+    if not isinstance(ids_raw, list) or not ids_raw:
+        raise HTTPException(status_code=400, detail="ids list is required")
+    try:
+        ids = [UUID(str(i)) for i in ids_raw]
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid id in list")
+    updated = 0
+    skipped = 0
+    for uid in ids:
+        try:
+            await svc.update(uid, UserUpdate(is_active=active))
+            updated += 1
+        except Exception:
+            skipped += 1
+    await svc.session.commit()
+    return {"updated": updated, "skipped": skipped}

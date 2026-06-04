@@ -398,6 +398,39 @@ async def staff_delete_application(
 
 
 @router.post(
+    "/bulk-delete",
+    dependencies=[Depends(require_permission(Permission.APPLICATIONS_REVIEW))],
+)
+async def bulk_delete_applications(
+    payload: dict,
+    svc: ApplicationsService = Depends(_service),
+) -> dict:
+    """Bulk-delete applications. Lighter than the per-row endpoint —
+    skips the rich audit snapshot for each row because writing N
+    audit_logs on a bulk action floods the timeline. The action itself
+    is unmistakable; if forensic detail per row is needed, do them one
+    by one.
+    """
+    ids_raw = payload.get("ids") or []
+    if not isinstance(ids_raw, list) or not ids_raw:
+        raise HTTPException(status_code=400, detail="ids list is required")
+    try:
+        ids = [UUID(str(i)) for i in ids_raw]
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid id in list")
+    deleted = 0
+    skipped = 0
+    for app_id in ids:
+        try:
+            await svc.delete(app_id)
+            deleted += 1
+        except Exception:
+            skipped += 1
+    await svc.session.commit()
+    return {"deleted": deleted, "skipped": skipped}
+
+
+@router.post(
     "/{application_id}/review",
     response_model=ApplicationRead,
     dependencies=[Depends(require_permission(Permission.APPLICATIONS_REVIEW))],

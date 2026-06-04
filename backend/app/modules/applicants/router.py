@@ -647,3 +647,34 @@ async def staff_delete_applicant(
     await svc.session.commit()
 
 
+@router.post(
+    "/bulk-delete",
+    dependencies=[Depends(require_permission(Permission.APPLICANTS_WRITE))],
+)
+async def bulk_delete_applicants(
+    payload: dict,
+    svc: ApplicantsService = Depends(_service),
+) -> dict:
+    """Bulk-delete applicants. Each delete cascades through the FK chain
+    (diploms, applications, contracts, payments) per migration 03 — same
+    as the per-row endpoint.
+    """
+    ids_raw = payload.get("ids") or []
+    if not isinstance(ids_raw, list) or not ids_raw:
+        raise HTTPException(status_code=400, detail="ids list is required")
+    try:
+        ids = [UUID(str(i)) for i in ids_raw]
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid id in list")
+    deleted = 0
+    skipped = 0
+    for aid in ids:
+        try:
+            await svc.delete(aid)
+            deleted += 1
+        except Exception:
+            skipped += 1
+    await svc.session.commit()
+    return {"deleted": deleted, "skipped": skipped}
+
+
