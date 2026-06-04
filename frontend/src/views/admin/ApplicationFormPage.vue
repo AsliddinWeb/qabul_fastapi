@@ -202,8 +202,30 @@ async function createApplicantInline() {
     showInlineCreate.value = false
     await selectApplicant(created)
   } catch (e) {
-    const ax = e as AxiosError<{ error?: { message?: string } }>
-    toast.error(ax.response?.data?.error?.message || "Yaratib bo'lmadi")
+    const ax = e as AxiosError<{ error?: { code?: string; message?: string } }>
+    // Common case when converting from a lead: an applicant with this
+    // phone (or PINFL) already exists. Instead of dead-ending the
+    // operator with an English-looking conflict toast, look the existing
+    // applicant up and auto-select it so the form continues.
+    const isConflict =
+      ax.response?.status === 409 ||
+      ax.response?.data?.error?.code === 'conflict'
+    if (isConflict) {
+      try {
+        const lookupQ = inlineApplicant.pinfl || compactPhone(inlineApplicant.phone)
+        const res = await adminApi.applicants.list({ search: lookupQ, page: 1, size: 1 })
+        const existing = res.items?.[0]
+        if (existing) {
+          toast.success(
+            "Bu raqamga ega abituriyent mavjud edi — mavjud abituriyent tanlandi",
+          )
+          showInlineCreate.value = false
+          await selectApplicant(existing)
+          return
+        }
+      } catch { /* fall through to the generic error toast */ }
+    }
+    toast.error(ax.response?.data?.error?.message || "Abituriyentni yaratib bo'lmadi")
   } finally {
     creatingApplicant.value = false
   }

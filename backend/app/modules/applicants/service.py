@@ -104,11 +104,11 @@ class ApplicantsService:
         registered_by_id: UUID | None = None,
     ) -> Applicant:
         if await self.applicants.get_by_user_id(user_id):
-            raise ConflictError("Applicant profile already exists for this user")
+            raise ConflictError("Bu foydalanuvchining abituriyent profili allaqachon mavjud")
         data = _normalize_applicant(payload.model_dump())
         referrer_code = data.pop("referrer_code", None)
         if data.get("pinfl") and await self.applicants.get_by_pinfl(data["pinfl"]):
-            raise ConflictError("Applicant with this PINFL already exists")
+            raise ConflictError("Bu JSHSHIR raqamiga ega abituriyent allaqachon mavjud")
         applicant = await self.applicants.create(
             user_id=user_id,
             registered_by_id=registered_by_id,
@@ -143,13 +143,17 @@ class ApplicantsService:
         else:
             if user.role != UserRole.APPLICANT:
                 raise ConflictError(
-                    "Phone is already used by a staff account; cannot register applicant"
+                    "Bu telefon raqami xodim hisobiga biriktirilgan; abituriyent sifatida ro'yxatdan o'tkazib bo'lmaydi"
                 )
             if await self.applicants.get_by_user_id(user.id):
-                raise ConflictError("Applicant with this phone already exists")
+                raise ConflictError(
+                    "Bu telefon raqamiga ega abituriyent allaqachon mavjud"
+                )
 
         if data.get("pinfl") and await self.applicants.get_by_pinfl(data["pinfl"]):
-            raise ConflictError("Applicant with this PINFL already exists")
+            raise ConflictError(
+                "Bu JSHSHIR raqamiga ega abituriyent allaqachon mavjud"
+            )
 
         applicant = await self.applicants.create(
             user_id=user.id,
