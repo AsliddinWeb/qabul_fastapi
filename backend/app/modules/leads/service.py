@@ -182,37 +182,77 @@ class LeadService:
         return existing
 
     async def _round_robin_operator(self) -> UUID | None:
-        """Pick an operator uniformly at random from the active pool.
+        """True sequential round-robin via a Redis-backed counter.
 
-        Originally this preferred the least-loaded operator (with a UUID
-        tie-break) which concentrated public-form leads on whoever's
-        UUID sorted lowest and worked fastest. We tried "least-loaded +
-        random tie-break" next, but the team preferred pure random:
-        every active operator has an equal chance regardless of current
-        load. That sometimes piles a few extra leads on a busy operator
-        for a day, but eliminates the worst-case clustering and is the
-        simplest behaviour to reason about.
+        Operators are sorted by `created_at` so the rotation order stays
+        the same across processes and restarts. On each assignment we
+        atomically INCR a Redis counter and pick
+        `operators[(counter - 1) % N]` — first assignment → op #1,
+        second → op #2, …, N-th → op #N, (N+1)-th wraps back to op #1.
+
+        We tried "least-loaded with UUID tie-break" (biased) and "pure
+        random" (uneven over small windows). The team asked for explicit
+        sequential rotation so every operator gets exactly the same
+        share over time regardless of how fast each closes their leads.
+
+        If Redis is down we fall back to picking the operator whose
+        most-recently-assigned lead is the OLDEST — a stateless LRU
+        approximation that's still much fairer than random. The Redis
+        path is the common case; the LRU path is the degraded mode.
 
         Falls back to admins/superadmins if no operator exists.
         """
-        import random
+        from sqlalchemy import func as F  # noqa: N812
 
-        ops_stmt = select(User).where(
-            User.role == UserRole.OPERATOR,
-            User.is_active.is_(True),
-            User.deleted_at.is_(None),
+        ops_stmt = (
+            select(User)
+            .where(
+                User.role == UserRole.OPERATOR,
+                User.is_active.is_(True),
+                User.deleted_at.is_(None),
+            )
+            .order_by(User.created_at.asc(), User.id.asc())
         )
         ops = list((await self.session.scalars(ops_stmt)).all())
         if not ops:
-            ops_stmt = select(User).where(
-                User.role.in_([UserRole.ADMIN, UserRole.SUPERADMIN]),
-                User.is_active.is_(True),
-                User.deleted_at.is_(None),
+            ops_stmt = (
+                select(User)
+                .where(
+                    User.role.in_([UserRole.ADMIN, UserRole.SUPERADMIN]),
+                    User.is_active.is_(True),
+                    User.deleted_at.is_(None),
+                )
+                .order_by(User.created_at.asc(), User.id.asc())
             )
             ops = list((await self.session.scalars(ops_stmt)).all())
         if not ops:
             return None
-        return random.choice(ops).id
+
+        # --- Primary path: Redis counter ---
+        try:
+            from app.core.redis import get_redis
+            redis = get_redis()
+            # Key is namespaced so this counter never clashes with other
+            # rate-limit keys, and so we can monitor / reset it easily.
+            counter = await redis.incr("lead_assign:round_robin_counter")
+            idx = (int(counter) - 1) % len(ops)
+            return ops[idx].id
+        except Exception:
+            # --- Fallback: pick the operator with the oldest "last
+            # assigned" lead. Equivalent to "longest-idle operator next",
+            # which keeps the rotation reasonably fair even with no
+            # counter to consult. Operators who've never been assigned
+            # anything sort first (NULL).
+            last_assigned_stmt = (
+                select(Lead.assigned_to_id, F.max(Lead.created_at).label("last"))
+                .where(Lead.assigned_to_id.isnot(None))
+                .group_by(Lead.assigned_to_id)
+            )
+            last_map = {uid: ts for uid, ts in (await self.session.execute(last_assigned_stmt)).all()}
+            # Sort by (no_assignment first, then oldest-first). Tie-break
+            # on the canonical created_at order to stay deterministic.
+            ops.sort(key=lambda u: (last_map.get(u.id) is not None, last_map.get(u.id) or u.created_at))
+            return ops[0].id
 
     # ------------------------------------------------------------------ #
     #  Update simple fields
