@@ -25,6 +25,7 @@ import {
   Inbox,
   LayoutGrid,
   Gift,
+  Target,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 
@@ -132,6 +133,7 @@ const OPERATOR_NAV: NavEntry[] = [
   group('crm', 'CRM', UsersIcon, [
     leaf('/operator/leads',          "Mening lead'larim", UsersIcon,     'violet'),
     leaf('/operator/leads/board',    'Varonka',            LayoutDashboard, 'sky'),
+    leaf('/operator/tasks',          'Vazifalarim',        Target,          'rose'),
     leaf('/operator/stats',          'Mening statistikam', BarChart3,     'amber'),
   ]),
   group('admission', 'Qabul', ClipboardList, [

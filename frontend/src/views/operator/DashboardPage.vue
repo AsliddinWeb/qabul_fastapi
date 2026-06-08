@@ -423,6 +423,10 @@ void _unused
             <span v-if="lastRefreshAt" class="hidden sm:inline text-[10px] text-slate-400 dark:text-slate-500">
               {{ fmtLastRefresh() }} da yangilandi
             </span>
+            <RouterLink to="/operator/tasks"
+                        class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-500/30 transition">
+              Hammasini ko'rish →
+            </RouterLink>
             <button type="button"
                     class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition disabled:opacity-50"
                     :disabled="refreshing"

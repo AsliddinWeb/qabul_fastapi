@@ -70,6 +70,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'leads/board',    name: 'operator-leads-board',   component: () => import('@/views/admin/leads/LeadsBoardPage.vue'), meta: { title: 'Kanban',              myOnly: true } },
       { path: 'leads/new',      name: 'operator-leads-new',     component: () => import('@/views/admin/leads/LeadNewPage.vue'),    meta: { title: 'Yangi lead' } },
       { path: 'leads/:id',      name: 'operator-leads-detail',  component: () => import('@/views/admin/leads/LeadDetailPage.vue'), meta: { title: 'Lead' } },
+      { path: 'tasks',          name: 'operator-tasks',         component: () => import('@/views/operator/OperatorTasksPage.vue'), meta: { title: 'Vazifalarim' } },
       { path: 'stats',          name: 'operator-stats',         component: () => import('@/views/operator/MyStatsPage.vue'),       meta: { title: 'Mening statistikam' } },
     ],
   },
