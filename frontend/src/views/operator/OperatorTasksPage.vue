@@ -28,17 +28,28 @@ const search = ref('')
 async function fetchTasks(showSpinner = true) {
   if (showSpinner) refreshing.value = true
   try {
-    // Pull a big window of the operator's open leads and filter client-side
-    // to those with next_contact_at set. Operators rarely carry >500 open
-    // leads at once; if the cap is ever hit we can shift to a dedicated
-    // backend filter (?has_next_contact=true) without changing this page.
-    const r = await leadsApi.list({
-      assigned_to_id: meId.value,
-      status: 'open',
-      page: 1,
-      size: 500,
-    })
-    allLeads.value = (r.items || []).filter(l => !!l.next_contact_at)
+    // Backend caps `size` at 200, so we page through results — most
+    // operators stay well under that, but we keep looping until we've
+    // pulled every open lead with a scheduled callback. Stop conditions:
+    // empty page, smaller-than-max page (last page), or a hard safety
+    // ceiling at 1000 rows (5 round-trips).
+    const PAGE_SIZE = 200
+    const MAX_ROWS = 1000
+    const out: Lead[] = []
+    let page = 1
+    while (out.length < MAX_ROWS) {
+      const r = await leadsApi.list({
+        assigned_to_id: meId.value,
+        status: 'open',
+        page,
+        size: PAGE_SIZE,
+      })
+      const items = r.items || []
+      out.push(...items.filter(l => !!l.next_contact_at))
+      if (items.length < PAGE_SIZE) break  // last page
+      page += 1
+    }
+    allLeads.value = out
     lastRefreshAt.value = new Date()
   } catch {
     toast.error("Vazifalarni yuklab bo'lmadi")
