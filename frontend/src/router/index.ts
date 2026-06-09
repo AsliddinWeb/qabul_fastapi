@@ -191,9 +191,26 @@ const router = createRouter({
   scrollBehavior: () => ({ top: 0 }),
 })
 
+// Top-of-page progress bar — gives operators a visible cue that a
+// navigation is happening. start() fires on every route change attempt;
+// done() fires once it's resolved (whether it succeeded, redirected, or
+// failed). Mounted in AppShell via <RouteProgress />.
+import { useRouteProgress } from '@/composables/useRouteProgress'
+const progress = useRouteProgress()
+
+router.beforeEach((_to, _from, next) => {
+  progress.start()
+  next()
+})
+
 router.afterEach((to) => {
   const title = (to.meta?.title as string) || 'XIU Qabul'
   document.title = `${title} — XIU Qabul`
+  progress.done()
+})
+
+router.onError(() => {
+  progress.done()
 })
 
 export { requireAuth }

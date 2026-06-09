@@ -6,6 +6,7 @@ import ProfileMenu from '@/components/ui/ProfileMenu.vue'
 import ThemeButton from '@/components/ui/ThemeButton.vue'
 import NotificationBell from '@/components/ui/NotificationBell.vue'
 import SidebarNav from '@/components/ui/SidebarNav.vue'
+import RouteProgress from '@/components/ui/RouteProgress.vue'
 import ToastHost from '@/components/ui/ToastHost.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import MobileBottomNav from '@/components/ui/MobileBottomNav.vue'
@@ -91,6 +92,10 @@ if (typeof document !== 'undefined') {
 </script>
 
 <template>
+  <!-- Thin animated bar at the top of the viewport that runs on every
+       route change. Sits above everything via its own z-index. -->
+  <RouteProgress />
+
   <div class="min-h-screen flex bg-slate-50 dark:bg-slate-950">
     <!-- Sidebar (collapsible). On desktop it's `sticky top-0 h-screen` so
          scrolling the page content doesn't drag the sidebar up with it —
