@@ -92,11 +92,16 @@ if (typeof document !== 'undefined') {
 
 <template>
   <div class="min-h-screen flex bg-slate-50 dark:bg-slate-950">
-    <!-- Sidebar (collapsible) -->
+    <!-- Sidebar (collapsible). On desktop it's `sticky top-0 h-screen` so
+         scrolling the page content doesn't drag the sidebar up with it —
+         operators wanted the nav anchored. Mobile keeps the fixed drawer
+         behaviour. `self-start` prevents flex from stretching the
+         sidebar past h-screen. -->
     <aside
       class="fixed inset-y-0 left-0 z-30 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800
              transition-[width,transform] duration-200 ease-out
-             flex flex-col md:relative md:translate-x-0"
+             flex flex-col
+             md:sticky md:top-0 md:left-auto md:inset-y-auto md:h-screen md:self-start md:translate-x-0"
       :class="[
         ui.sidebarCollapsed ? 'w-[68px]' : 'w-64',
         sidebarOpen ? 'translate-x-0 w-64' : '-translate-x-full md:translate-x-0',
