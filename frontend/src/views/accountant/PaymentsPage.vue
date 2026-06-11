@@ -9,6 +9,8 @@ import {
 import { contractsApi, type ContractDetailed } from '@/api/contracts.api'
 import { paymentsApi, type PaymentRead, type PaymentStatus } from '@/api/payments.api'
 import { dictionariesApi, type DictionaryItem } from '@/api/dictionaries.api'
+import { staffApi } from '@/api/staff.api'
+import type { ApplicationDetailed } from '@/api/applications.api'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
@@ -27,9 +29,24 @@ const { ask } = useConfirm()
 const contractId = computed(() => route.params.contractId as string)
 
 const contract = ref<ContractDetailed | null>(null)
+const application = ref<ApplicationDetailed | null>(null)
 const payments = ref<PaymentRead[]>([])
 const methods = ref<DictionaryItem[]>([])
 const loading = ref(true)
+const openingPdf = ref(false)
+
+const hasPdf = computed(() => !!contract.value?.pdf_file_id && !!contract.value?.signed_at)
+
+// The student party row carries the applicant's name on the contract
+// itself — fall back to it when the application fetch hasn't resolved.
+const applicantName = computed(() => {
+  if (application.value) {
+    const a: any = application.value
+    if (a.applicant_full_name) return a.applicant_full_name as string
+  }
+  const student = contract.value?.parties?.find(p => p.party_role === 'student')
+  return student?.full_name || null
+})
 
 const newPayment = reactive({
   amount: '' as string,
@@ -53,6 +70,12 @@ async function loadAll() {
     contract.value = c
     payments.value = ps
     methods.value = ms
+    // Pull the application separately so we can surface
+    // applicant_full_name / program_name / branch_name in the header.
+    // Don't block the whole page on it — fail silently if forbidden.
+    staffApi.applications.get(c.application_id)
+      .then(a => { application.value = a })
+      .catch(() => { /* ignore — header just falls back to the contract.parties student name */ })
     // Pre-fill amount with the remaining balance for convenience
     const balance = Number(c.total_amount) - Number(c.paid_amount)
     newPayment.amount = balance > 0 ? String(balance) : ''
@@ -61,6 +84,19 @@ async function loadAll() {
     toast.error(ax.response?.data?.detail || "Yuklab bo'lmadi")
   } finally {
     loading.value = false
+  }
+}
+
+async function openContractPdf() {
+  if (!contract.value || !hasPdf.value) return
+  openingPdf.value = true
+  try {
+    await contractsApi.openPdf(contract.value.id)
+  } catch (e) {
+    const ax = e as AxiosError<{ detail?: string }>
+    toast.error(ax.response?.data?.detail || "PDF ochib bo'lmadi")
+  } finally {
+    openingPdf.value = false
   }
 }
 
@@ -224,10 +260,58 @@ function statusTone(s: PaymentStatus): string {
         { label: contract.contract_number },
       ]"
     >
+      <button v-if="hasPdf" class="btn-outline" :disabled="openingPdf" @click="openContractPdf">
+        <FileText class="w-4 h-4" />
+        {{ openingPdf ? 'Ochilmoqda...' : 'PDF ni ochish' }}
+      </button>
       <button class="btn-ghost" @click="router.back()">
         <ArrowLeft class="w-4 h-4" /> Ortga
       </button>
     </PageHeader>
+
+    <!-- Applicant identity card — accountant needs to see WHO this
+         contract belongs to without a detour to the contract detail
+         page. F.I.Sh. + Yo'nalish + Filial + PDF in one place. -->
+    <section class="card p-4 sm:p-5">
+      <div class="flex items-start justify-between gap-4 flex-wrap">
+        <div class="flex items-center gap-3 min-w-0 flex-1">
+          <div class="grid place-items-center w-12 h-12 rounded-xl bg-gradient-to-br from-brand-500 to-violet-500 text-white text-base font-bold shrink-0 shadow-sm">
+            {{ (applicantName || '?').split(/\s+/).slice(0, 2).map(s => s[0]).join('').toUpperCase() }}
+          </div>
+          <div class="min-w-0">
+            <div class="text-lg font-bold text-slate-900 dark:text-slate-100 truncate">
+              {{ applicantName || '—' }}
+            </div>
+            <div class="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+              <span v-if="application?.program_name" class="inline-flex items-center gap-1">
+                <span class="font-medium text-slate-700 dark:text-slate-300">{{ application.program_name }}</span>
+              </span>
+              <span v-if="application?.branch_name">· {{ application.branch_name }}</span>
+              <span v-if="application?.education_level_name">· {{ application.education_level_name }}</span>
+              <span v-if="application?.education_form_name">· {{ application.education_form_name }}</span>
+            </div>
+            <div v-if="application?.application_number" class="mt-1 text-[11px] font-mono text-slate-400 dark:text-slate-500">
+              Ariza №: {{ application.application_number }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Side-rail: PDF + status quick states -->
+        <div v-if="hasPdf || !contract.signed_at" class="shrink-0">
+          <button v-if="hasPdf" type="button"
+                  class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300 dark:hover:bg-rose-500/25 transition"
+                  :disabled="openingPdf"
+                  @click="openContractPdf">
+            <FileText class="w-4 h-4" />
+            {{ openingPdf ? 'Ochilmoqda...' : 'Shartnoma PDF' }}
+          </button>
+          <div v-else class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300">
+            <AlertTriangle class="w-3.5 h-3.5" />
+            PDF imzodan keyin yuklanadi
+          </div>
+        </div>
+      </div>
+    </section>
 
     <!-- Contract balance summary -->
     <section class="card p-4 sm:p-6">
