@@ -9,7 +9,9 @@ from app.db.enums import AdmissionType, ApplicationStatus
 from app.modules.applicants.models import Applicant
 from app.modules.applications.models import Application, ApplicationStatusHistory
 from app.modules.consulting.models import ConsultingAgency
+from app.modules.contracts.models import Contract
 from app.modules.programs.models import Branch, EducationForm, EducationLevel, Program
+from app.modules.regions.models import District, Region
 from app.modules.users.models import User
 
 
@@ -221,6 +223,152 @@ class ApplicationRepository(BaseRepository[Application]):
             })
             result.append(data)
         return result
+
+    async def list_for_export(
+        self,
+        *,
+        status: ApplicationStatus | None = None,
+        admission_type: AdmissionType | None = None,
+        program_id: UUID | None = None,
+        branch_id: UUID | None = None,
+        education_level_id: UUID | None = None,
+        education_form_id: UUID | None = None,
+        consulting_agency_id: UUID | None = None,
+        registered_by_id: UUID | None = None,
+        source: str | None = None,
+        limit: int = 20_000,
+    ) -> list[dict]:
+        """Return every field the Excel exporter wants — one row per application.
+
+        Joins are LEFT for everything optional (region/district/contract/agency
+        /operator) so orphan rows still appear in the export instead of being
+        silently dropped by the INNER joins ``list_detailed`` uses. The trade-
+        off is that orphan rows show empty cells; for an export that's fine,
+        the user can spot and fix them.
+        """
+        # User table is needed twice: once for the applicant's own login row
+        # (phone), once for the operator who registered them (full_name).
+        # Aliased to disambiguate.
+        from sqlalchemy.orm import aliased
+        OperatorUser = aliased(User)
+
+        stmt = (
+            select(
+                Application,
+                Applicant,
+                User.phone.label("applicant_phone"),
+                Program.name.label("program_name"),
+                Program.code.label("program_code"),
+                Program.tuition_fee.label("program_tuition_fee"),
+                Branch.name.label("branch_name"),
+                EducationLevel.name.label("education_level_name"),
+                EducationForm.name.label("education_form_name"),
+                Region.name.label("region_name"),
+                District.name.label("district_name"),
+                ConsultingAgency.name.label("consulting_agency_name"),
+                OperatorUser.full_name.label("operator_full_name"),
+                Contract.contract_number.label("contract_number"),
+                Contract.status.label("contract_status"),
+                Contract.signed_at.label("contract_signed_at"),
+                Contract.total_amount.label("contract_total_amount"),
+            )
+            .join(Applicant, Application.applicant_id == Applicant.id)
+            .outerjoin(User, Applicant.user_id == User.id)
+            .join(Program, Application.program_id == Program.id)
+            .join(Branch, Application.branch_id == Branch.id)
+            .join(EducationLevel, Application.education_level_id == EducationLevel.id)
+            .join(EducationForm, Application.education_form_id == EducationForm.id)
+            .outerjoin(Region, Applicant.region_id == Region.id)
+            .outerjoin(District, Applicant.district_id == District.id)
+            .outerjoin(ConsultingAgency, Application.consulting_agency_id == ConsultingAgency.id)
+            .outerjoin(OperatorUser, Applicant.registered_by_id == OperatorUser.id)
+            # Contract is 0-or-1 per application; outerjoin keeps unsigned/no-
+            # contract applications visible in the export.
+            .outerjoin(Contract, Contract.application_id == Application.id)
+        )
+
+        clauses = []
+        if status is not None:
+            clauses.append(Application.status == status)
+        if admission_type is not None:
+            clauses.append(Application.admission_type == admission_type)
+        if program_id is not None:
+            clauses.append(Application.program_id == program_id)
+        if branch_id is not None:
+            clauses.append(Application.branch_id == branch_id)
+        if education_level_id is not None:
+            clauses.append(Application.education_level_id == education_level_id)
+        if education_form_id is not None:
+            clauses.append(Application.education_form_id == education_form_id)
+        if consulting_agency_id is not None:
+            clauses.append(Application.consulting_agency_id == consulting_agency_id)
+        if registered_by_id is not None:
+            clauses.append(Applicant.registered_by_id == registered_by_id)
+        if source == "lead":
+            clauses.append(Application.lead_id.isnot(None))
+        elif source == "direct":
+            clauses.append(Application.lead_id.is_(None))
+        for c in clauses:
+            stmt = stmt.where(c)
+
+        stmt = stmt.order_by(Application.created_at.desc()).limit(limit)
+        rows = (await self.session.execute(stmt)).all()
+
+        out: list[dict] = []
+        for row in rows:
+            (app, applicant, applicant_phone, p_name, p_code, p_fee, b_name,
+             lvl_name, form_name, region_name, district_name, ca_name,
+             operator_name, ct_num, ct_status, ct_signed_at, ct_total) = row
+            full_name = " ".join(
+                filter(None, [applicant.last_name, applicant.first_name, applicant.other_name])
+            ).strip() or None
+            out.append({
+                "application_id": app.id,
+                "application_number": app.application_number,
+                "status": app.status,
+                "admission_type": app.admission_type,
+                "source": "lead" if app.lead_id else "direct",
+                "lead_source_code": app.lead_source_code,
+                "notes": app.notes,
+                "rejection_reason": app.rejection_reason,
+                "created_at": app.created_at,
+                "submitted_at": app.submitted_at,
+                "reviewed_at": app.reviewed_at,
+                # Applicant identity & contact
+                "applicant_id": applicant.id,
+                "applicant_full_name": full_name,
+                "last_name": applicant.last_name,
+                "first_name": applicant.first_name,
+                "other_name": applicant.other_name,
+                "birth_date": applicant.birth_date,
+                "gender": applicant.gender,
+                "nationality": applicant.nationality,
+                "pinfl": applicant.pinfl,
+                "passport_series": applicant.passport_series,
+                "phone": applicant_phone,
+                "additional_phone": applicant.additional_phone,
+                "email": applicant.email,
+                "telegram_username": applicant.telegram_username,
+                "region_name": region_name,
+                "district_name": district_name,
+                "address": applicant.address,
+                # Academic
+                "program_name": p_name,
+                "program_code": p_code,
+                "program_tuition_fee": p_fee,
+                "branch_name": b_name,
+                "education_level_name": lvl_name,
+                "education_form_name": form_name,
+                # Attribution
+                "consulting_agency_name": ca_name,
+                "operator_full_name": operator_name,
+                # Contract (1-to-0/1)
+                "contract_number": ct_num,
+                "contract_status": ct_status,
+                "contract_signed_at": ct_signed_at,
+                "contract_total_amount": ct_total,
+            })
+        return out
 
 
 class ApplicationStatusHistoryRepository(BaseRepository[ApplicationStatusHistory]):

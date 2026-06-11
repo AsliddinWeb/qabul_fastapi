@@ -56,24 +56,47 @@ http.interceptors.request.use((config) => {
 })
 
 /**
- * Fetch a CSV (or any file) from the API and trigger a browser download.
- * Reads the server's Content-Disposition for the filename when available.
+ * Fetch a binary file from the API and trigger a browser download.
+ * Reads the server's Content-Disposition for the filename when available,
+ * falls back to fallbackName, then to a timestamp-based name.
+ *
+ * Use this for any non-CSV download — xlsx, PDF, zip, etc. The mime
+ * type defaults to octet-stream so the browser respects whatever the
+ * server's Content-Type header said.
+ */
+export async function downloadFile(
+  path: string,
+  params: Record<string, any> = {},
+  opts: { fallbackName?: string; mimeType?: string } = {},
+): Promise<void> {
+  const res = await http.get(path, { params, responseType: 'blob' })
+  const blob = new Blob([res.data], { type: opts.mimeType || 'application/octet-stream' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  const cd = (res.headers as any)['content-disposition'] as string | undefined
+  const m = cd?.match(/filename="?([^";]+)"?/i)
+  a.href = url
+  a.download = m?.[1] || opts.fallbackName || `download-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}`
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 30_000)
+}
+
+/**
+ * Fetch a CSV from the API and trigger a browser download. Thin wrapper
+ * around downloadFile that hardcodes the mime type to text/csv and the
+ * fallback extension to .csv. Kept for the older list pages that still
+ * export CSV (users, applicants) — new pages should use downloadFile
+ * with their actual format.
  */
 export async function downloadCsv(
   path: string,
   params: Record<string, any> = {},
   fallbackName?: string,
 ): Promise<void> {
-  const res = await http.get(path, { params, responseType: 'blob' })
-  const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  const cd = (res.headers as any)['content-disposition'] as string | undefined
-  const m = cd?.match(/filename="?([^";]+)"?/i)
-  a.href = url
-  a.download = m?.[1] || fallbackName || `export-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.csv`
-  a.click()
-  setTimeout(() => URL.revokeObjectURL(url), 30_000)
+  await downloadFile(path, params, {
+    mimeType: 'text/csv;charset=utf-8',
+    fallbackName: fallbackName || `export-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.csv`,
+  })
 }
 
 http.interceptors.response.use(

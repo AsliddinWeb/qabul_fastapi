@@ -7,7 +7,7 @@ import {
   Search, Clock, Inbox, FileCheck, FileX, Eye, Filter as FilterIcon,
   ArrowUpRight, MoreVertical, X as XIcon, ChevronDown, Check, Download,
 } from 'lucide-vue-next'
-import { downloadCsv } from '@/api/http'
+import { downloadFile } from '@/api/http'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import { AxiosError } from 'axios'
@@ -156,10 +156,10 @@ async function loadStats() {
 }
 
 const exporting = ref(false)
-async function exportCsv() {
+async function exportXlsx() {
   exporting.value = true
   try {
-    await downloadCsv('/applications/export.csv', {
+    await downloadFile('/applications/export.xlsx', {
       status: filters.status || undefined,
       admission_type: filters.admission_type || undefined,
       branch_id: filters.branch_id || undefined,
@@ -167,8 +167,11 @@ async function exportCsv() {
       education_form_id: filters.education_form_id || undefined,
       program_id: filters.program_id || undefined,
       consulting_agency_id: canSeeConsulting.value ? (filters.consulting_agency_id || undefined) : undefined,
+    }, {
+      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      fallbackName: `arizalar-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.xlsx`,
     })
-    toast.success("CSV yuklab olindi")
+    toast.success("Excel yuklab olindi")
   } catch (e) {
     const ax = e as AxiosError<{ detail?: string }>
     toast.error(ax.response?.data?.detail || "Eksport qilib bo'lmadi")
@@ -418,8 +421,9 @@ async function bulkDeleteSelected() {
         <span>Tahlil qilingan</span>
         <strong class="text-slate-900 dark:text-slate-100">{{ reviewedPercent }}%</strong>
       </div>
-      <button class="btn-outline" :disabled="exporting" @click="exportCsv">
-        <Download class="w-4 h-4" /> {{ exporting ? '...' : 'CSV' }}
+      <button class="btn-outline" :disabled="exporting" @click="exportXlsx"
+              title="Filtr qoʻllangan barcha arizalarni Excel jadvali (.xlsx) sifatida yuklab olish — hamma ustun bilan, sarlavhasi rangli">
+        <Download class="w-4 h-4" /> {{ exporting ? '...' : 'Excel' }}
       </button>
       <RouterLink v-if="!isAccountantPanel" :to="`${panelPrefix}/applications/new`" class="btn-primary">
         <Plus class="w-4 h-4" /> Yangi ariza

@@ -64,6 +64,9 @@ class ApplicationsService:
     async def list_detailed(self, **filters) -> tuple[list[dict], int]:
         return await self.repo.list_detailed(**filters)
 
+    async def list_for_export(self, **filters) -> list[dict]:
+        return await self.repo.list_for_export(**filters)
+
     async def status_counts(self) -> dict[str, int]:
         return await self.repo.status_counts()
 

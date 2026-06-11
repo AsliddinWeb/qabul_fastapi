@@ -261,6 +261,179 @@ async def export_applications_csv(
     )
 
 
+# Human-readable labels used as XLSX header row. Order here drives the
+# column order in the file — keep tightly grouped (identity → contact →
+# academic → attribution → contract) so the export reads top-to-bottom
+# the same way a printed application packet does.
+_XLSX_COLUMNS: list[tuple[str, str]] = [
+    ("application_number",     "Ariza №"),
+    ("application_id",         "Ariza ID"),
+    ("status",                 "Holati"),
+    ("admission_type",         "Topshirish turi"),
+    ("source",                 "Manba"),
+    ("lead_source_code",       "Lead manba kodi"),
+    ("created_at",             "Yaratilgan"),
+    ("submitted_at",           "Topshirilgan"),
+    ("reviewed_at",            "Ko'rib chiqilgan"),
+    ("rejection_reason",       "Rad etish sababi"),
+    ("notes",                  "Izoh"),
+    # Identity
+    ("applicant_full_name",    "F.I.Sh."),
+    ("last_name",              "Familiya"),
+    ("first_name",             "Ism"),
+    ("other_name",             "Otasining ismi"),
+    ("birth_date",             "Tug'ilgan sana"),
+    ("gender",                 "Jinsi"),
+    ("nationality",            "Millati"),
+    ("pinfl",                  "JSHSHIR (PINFL)"),
+    ("passport_series",        "Pasport"),
+    # Contact
+    ("phone",                  "Telefon"),
+    ("additional_phone",       "Qo'shimcha telefon"),
+    ("email",                  "Email"),
+    ("telegram_username",      "Telegram"),
+    ("region_name",            "Viloyat"),
+    ("district_name",          "Tuman"),
+    ("address",                "Manzil"),
+    # Academic
+    ("program_code",           "Yo'nalish kodi"),
+    ("program_name",           "Yo'nalish"),
+    ("branch_name",            "Filial"),
+    ("education_level_name",   "Ta'lim darajasi"),
+    ("education_form_name",    "Ta'lim shakli"),
+    ("program_tuition_fee",    "Kontrakt summasi (yo'nalish)"),
+    # Attribution
+    ("consulting_agency_name", "Konsalting agentligi"),
+    ("operator_full_name",     "Operator"),
+    # Contract
+    ("contract_number",        "Shartnoma №"),
+    ("contract_status",        "Shartnoma holati"),
+    ("contract_signed_at",     "Imzolangan sana"),
+    ("contract_total_amount",  "Shartnoma summasi"),
+]
+
+
+def _xlsx_cell_value(key: str, value):
+    """Coerce repo values into XLSX-friendly types.
+
+    Enums → .value, datetimes → naive (Excel can't store tz info), Decimal
+    → float so it shows as a number not text, None → empty cell.
+    """
+    if value is None:
+        return ""
+    if hasattr(value, "value") and not isinstance(value, (str, int, float, bool)):
+        return value.value
+    # SQLAlchemy DateTime(timezone=True) returns tz-aware datetimes; openpyxl
+    # writes a TypeError on those, so strip tz. We lose tz info but every
+    # value in this DB is UTC so it's not ambiguous.
+    if isinstance(value, datetime) and value.tzinfo is not None:
+        return value.replace(tzinfo=None)
+    return value
+
+
+@router.get(
+    "/export.xlsx",
+    dependencies=[Depends(require_permission(Permission.APPLICATIONS_LIST))],
+)
+async def export_applications_xlsx(
+    status_filter: ApplicationStatus | None = Query(default=None, alias="status"),
+    admission_type: AdmissionType | None = Query(default=None),
+    program_id: UUID | None = Query(default=None),
+    branch_id: UUID | None = Query(default=None),
+    education_level_id: UUID | None = Query(default=None),
+    education_form_id: UUID | None = Query(default=None),
+    consulting_agency_id: UUID | None = Query(default=None),
+    registered_by_id: UUID | None = Query(default=None),
+    source: str | None = Query(default=None),
+    svc: ApplicationsService = Depends(_service),
+) -> Response:
+    """Export filtered applications to a styled Excel (.xlsx) workbook.
+
+    Heavy lift in three places:
+      1. Repository.list_for_export does ONE query with all the joins
+         (region/district/contract/operator) so the endpoint is a thin
+         formatting layer, not a per-row N+1.
+      2. Header row gets a brand-coloured fill + bold white text + frozen
+         pane so it stays visible as the user scrolls 388 rows.
+      3. Column widths are sized from the actual content rather than a
+         fixed value — long phone numbers and F.I.Sh. strings would
+         otherwise spill or truncate visibly in Excel's default 8.43ch.
+    """
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    rows = await svc.list_for_export(
+        status=status_filter,
+        admission_type=admission_type,
+        program_id=program_id,
+        branch_id=branch_id,
+        education_level_id=education_level_id,
+        education_form_id=education_form_id,
+        consulting_agency_id=consulting_agency_id,
+        registered_by_id=registered_by_id,
+        source=source,
+    )
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Arizalar"
+
+    header_fill = PatternFill("solid", fgColor="4F46E5")  # indigo-600 — brand
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    header_align = Alignment(horizontal="left", vertical="center", wrap_text=True)
+
+    # Header row
+    headers = [label for _, label in _XLSX_COLUMNS]
+    ws.append(headers)
+    for col_idx in range(1, len(headers) + 1):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = header_align
+    ws.row_dimensions[1].height = 28
+    ws.freeze_panes = "A2"  # keep header visible on scroll
+    ws.auto_filter.ref = f"A1:{get_column_letter(len(headers))}1"
+
+    # Data rows
+    keys = [k for k, _ in _XLSX_COLUMNS]
+    for row in rows:
+        ws.append([_xlsx_cell_value(k, row.get(k)) for k in keys])
+
+    # Column widths — fit to the longest value in each column, capped at 50
+    # so a stray 500-char "notes" doesn't blow up the whole sheet.
+    for col_idx, key in enumerate(keys, start=1):
+        max_len = len(headers[col_idx - 1])
+        for row in rows:
+            v = row.get(key)
+            if v is None:
+                continue
+            s = str(v.value) if hasattr(v, "value") and not isinstance(v, (str, int, float, bool)) else str(v)
+            if len(s) > max_len:
+                max_len = len(s)
+        ws.column_dimensions[get_column_letter(col_idx)].width = min(max_len + 2, 50)
+
+    # Row banding via alternating fill — easier to follow a single row across
+    # 35+ columns. openpyxl has no built-in zebra so we set it per cell;
+    # cheap enough at this row count.
+    band_fill = PatternFill("solid", fgColor="F8FAFC")  # slate-50
+    for r in range(2, ws.max_row + 1):
+        if r % 2 == 0:
+            for c in range(1, len(headers) + 1):
+                ws.cell(row=r, column=c).fill = band_fill
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    fn = f"arizalar-{datetime.now().strftime('%Y%m%d-%H%M')}.xlsx"
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{fn}"'},
+    )
+
+
 @router.post(
     "",
     response_model=ApplicationRead,

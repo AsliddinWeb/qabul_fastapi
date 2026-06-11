@@ -40,6 +40,9 @@ dependencies = [
     "weasyprint>=61.0",
     "qrcode[pil]>=7.4.2",
 
+    # Excel exports (admin "Excel'ga yuklab olish" flows)
+    "openpyxl>=3.1.0",
+
     # Utils
     "python-slugify>=8.0.0",
     "structlog>=24.1.0",
