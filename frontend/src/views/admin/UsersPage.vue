@@ -17,6 +17,7 @@ import { useConfirm } from '@/composables/useConfirm'
 import { useUrlFilters } from '@/composables/useUrlFilters'
 import { useBulkSelect } from '@/composables/useBulkSelect'
 import BulkActionBar from '@/components/ui/BulkActionBar.vue'
+import Pagination from '@/components/ui/Pagination.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import { formatPhone } from '@/utils/validators'
@@ -405,17 +406,7 @@ async function bulkDeleteSelected() {
         </table>
       </div>
 
-      <!-- Pagination -->
-      <div class="flex items-center justify-between p-4 border-t border-slate-100 dark:border-slate-800">
-        <div class="text-xs text-slate-500 dark:text-slate-400">
-          Sahifa <strong class="text-slate-700 dark:text-slate-300 tabular-nums">{{ filters.page }}</strong> / {{ lastPage() }}
-          <span class="ml-2 text-slate-400 dark:text-slate-500">· Jami {{ total }} ta</span>
-        </div>
-        <div class="flex gap-2">
-          <button class="btn-outline btn-sm" :disabled="filters.page <= 1" @click="filters.page--">‹ Oldingi</button>
-          <button class="btn-outline btn-sm" :disabled="filters.page >= lastPage()" @click="filters.page++">Keyingi ›</button>
-        </div>
-      </div>
+      <Pagination v-model:page="filters.page" :last-page="lastPage()" :total="total" :size="filters.size" />
     </div>
 
     <BulkActionBar :count="bulk.count.value"

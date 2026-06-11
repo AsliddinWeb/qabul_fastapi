@@ -22,6 +22,7 @@ import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useBulkSelect } from '@/composables/useBulkSelect'
 import BulkActionBar from '@/components/ui/BulkActionBar.vue'
+import Pagination from '@/components/ui/Pagination.vue'
 
 interface Application {
   id: string
@@ -777,17 +778,7 @@ async function bulkDeleteSelected() {
         </table>
       </div>
 
-      <div v-if="items.length" class="flex items-center justify-between p-4 border-t border-slate-100 dark:border-slate-800">
-        <div class="text-xs text-slate-500 dark:text-slate-400">
-          Sahifa <strong class="text-slate-700 dark:text-slate-300">{{ filters.page }}</strong> / {{ lastPage() }}
-          <span class="mx-1">·</span>
-          Jami <strong class="text-slate-700 dark:text-slate-300">{{ total }}</strong>
-        </div>
-        <div class="flex gap-2">
-          <button class="btn-outline btn-sm" :disabled="filters.page <= 1" @click="filters.page--">‹ Oldingi</button>
-          <button class="btn-outline btn-sm" :disabled="filters.page >= lastPage()" @click="filters.page++">Keyingi ›</button>
-        </div>
-      </div>
+      <Pagination v-if="items.length" v-model:page="filters.page" :last-page="lastPage()" :total="total" :size="filters.size" />
     </div>
 
     <BulkActionBar v-if="!isOperatorPanel && !isAccountantPanel"

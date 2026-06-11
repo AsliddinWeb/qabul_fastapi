@@ -16,11 +16,11 @@ function countFor(leaf: NavLeaf): number | null {
   return leaf.countKey ? counts.counts[leaf.countKey] : null
 }
 function fmtCount(n: number): string {
-  // Compact form for big numbers — 1700 → "1.7k", 12345 → "12k".
-  if (n >= 1000) {
-    return (n / 1000).toFixed(n < 10000 ? 1 : 0).replace(/\.0$/, '') + 'k'
-  }
-  return String(n)
+  // Show the exact figure (1 700, 12 345, 412) instead of abbreviating
+  // to "1.7k" / "12k". Operators wanted the precise number visible at a
+  // glance — "1.7k" hides whether it's 1 650 or 1 749. Manual regex
+  // avoids the non-breaking space that toLocaleString('uz-UZ') emits.
+  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
 }
 
 // Flat list of all link targets in this nav tree.

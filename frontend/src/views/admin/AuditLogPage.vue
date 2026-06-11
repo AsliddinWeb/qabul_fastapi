@@ -7,6 +7,7 @@ import {
   X as XIcon, Search, Clock, User as UserIcon,
 } from 'lucide-vue-next'
 import Skeleton from '@/components/ui/Skeleton.vue'
+import Pagination from '@/components/ui/Pagination.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import { http } from '@/api/http'
 import EmptyState from '@/components/ui/EmptyState.vue'
@@ -253,17 +254,7 @@ const activeCount = computed(() => {
         </li>
       </ul>
 
-      <div class="flex items-center justify-between p-4 border-t border-slate-100 dark:border-slate-800">
-        <div class="text-xs text-slate-500 dark:text-slate-400">
-          Sahifa <strong class="text-slate-700 dark:text-slate-300">{{ filters.page }}</strong> / {{ lastPage() }}
-          <span class="mx-1">·</span>
-          Jami <strong class="text-slate-700 dark:text-slate-300">{{ total }}</strong>
-        </div>
-        <div class="flex gap-2">
-          <button class="btn-outline btn-sm" :disabled="filters.page <= 1" @click="filters.page--">‹ Oldingi</button>
-          <button class="btn-outline btn-sm" :disabled="filters.page >= lastPage()" @click="filters.page++">Keyingi ›</button>
-        </div>
-      </div>
+      <Pagination v-model:page="filters.page" :last-page="lastPage()" :total="total" :size="filters.size" />
     </div>
   </div>
 </template>

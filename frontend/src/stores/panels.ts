@@ -131,7 +131,7 @@ const ADMIN_NAV: NavEntry[] = [
 const OPERATOR_NAV: NavEntry[] = [
   leaf('/operator', 'Bosh sahifa', LayoutDashboard, 'violet'),
   group('crm', 'CRM', UsersIcon, [
-    leaf('/operator/leads',          "Mening lead'larim", UsersIcon,     'violet'),
+    leaf('/operator/leads',          "Mening lead'larim", UsersIcon,     'violet', { countKey: 'leads' }),
     leaf('/operator/leads/board',    'Varonka',            LayoutDashboard, 'sky'),
     leaf('/operator/tasks',          'Vazifalarim',        Target,          'rose'),
     leaf('/operator/stats',          'Mening statistikam', BarChart3,     'amber'),
