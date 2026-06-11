@@ -299,6 +299,10 @@ async def list_leads(
     source_id: UUID | None = Query(default=None),
     assigned_to_id: UUID | None = Query(default=None),
     branch_id: UUID | None = Query(default=None),
+    has_next_contact: bool | None = Query(
+        default=None,
+        description="Filter by next_contact_at presence: true = scheduled callbacks only",
+    ),
     search: str | None = Query(default=None, max_length=100),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=50, ge=1, le=200),
@@ -307,6 +311,7 @@ async def list_leads(
     items, total = await svc.leads.list_filtered(
         pipeline_id=pipeline_id, stage_id=stage_id, status=status_filter,
         source_id=source_id, assigned_to_id=assigned_to_id, branch_id=branch_id,
+        has_next_contact=has_next_contact,
         search=search, limit=size, offset=(page - 1) * size,
     )
     return PageResponse[LeadRead].build(

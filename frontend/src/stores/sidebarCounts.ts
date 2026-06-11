@@ -26,6 +26,7 @@ export type CountKey =
   | 'users'
   | 'audit'
   | 'referrals'
+  | 'tasks'
 
 type CountState = Record<CountKey, number | null>
 
@@ -38,6 +39,7 @@ const EMPTY: CountState = {
   users: null,
   audit: null,
   referrals: null,
+  tasks: null,
 }
 
 async function totalFor(path: string, params: Record<string, any> = {}): Promise<number | null> {
@@ -60,6 +62,9 @@ const ENDPOINT_FOR: Record<CountKey, string> = {
   users: '/users',
   audit: '/audit',
   referrals: '/referrals',
+  // `tasks` is a virtual count — same endpoint as leads but parameters
+  // come from paramsFor() below so it filters to scheduled callbacks.
+  tasks: '/leads',
 }
 
 function collectKeys(nav: NavEntry[]): Set<CountKey> {
@@ -95,6 +100,15 @@ export const useSidebarCounts = defineStore('sidebarCounts', {
       const isOperator = panels.currentPanel?.key === 'operator'
       const userId = useAuthStore().user?.id
       function paramsFor(k: CountKey): Record<string, any> {
+        if (k === 'tasks') {
+          // "Vazifalarim" — operator's own open leads that have a
+          // scheduled next_contact_at set. Server-side filter, so the
+          // sidebar badge is one round-trip, not a 200-row scan.
+          if (isOperator && userId) {
+            return { assigned_to_id: userId, status: 'open', has_next_contact: true }
+          }
+          return { status: 'open', has_next_contact: true }
+        }
         if (isOperator && userId && k === 'leads') {
           return { assigned_to_id: userId }
         }

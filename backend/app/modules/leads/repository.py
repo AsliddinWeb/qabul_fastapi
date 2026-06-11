@@ -120,6 +120,7 @@ class LeadRepository(BaseRepository[Lead]):
         source_id: UUID | None = None,
         assigned_to_id: UUID | None = None,
         branch_id: UUID | None = None,
+        has_next_contact: bool | None = None,
         search: str | None = None,
         limit: int = 50,
         offset: int = 0,
@@ -131,6 +132,13 @@ class LeadRepository(BaseRepository[Lead]):
         if source_id is not None:          clauses.append(Lead.source_id == source_id)
         if assigned_to_id is not None:     clauses.append(Lead.assigned_to_id == assigned_to_id)
         if branch_id is not None:          clauses.append(Lead.branch_id == branch_id)
+        # `has_next_contact` is what powers the operator sidebar's
+        # "Vazifalarim (N)" badge — single-shot count instead of
+        # client-side filtering through a 200-row page.
+        if has_next_contact is True:
+            clauses.append(Lead.next_contact_at.isnot(None))
+        elif has_next_contact is False:
+            clauses.append(Lead.next_contact_at.is_(None))
         if search:
             q = f"%{search.strip()}%"
             clauses.append(or_(Lead.full_name.ilike(q), Lead.phone.ilike(q), Lead.email.ilike(q)))

@@ -42,7 +42,7 @@ export interface NavLeaf {
   tone?: NavTone
   rootOnly?: boolean
   /** Optional key into the sidebar-counts store — renders "(N)" next to label. */
-  countKey?: 'leads' | 'applicants' | 'applications' | 'contracts' | 'payments' | 'users' | 'audit' | 'referrals'
+  countKey?: 'leads' | 'applicants' | 'applications' | 'contracts' | 'payments' | 'users' | 'audit' | 'referrals' | 'tasks'
 }
 
 export interface NavGroup {
@@ -133,7 +133,7 @@ const OPERATOR_NAV: NavEntry[] = [
   group('crm', 'CRM', UsersIcon, [
     leaf('/operator/leads',          "Mening lead'larim", UsersIcon,     'violet', { countKey: 'leads' }),
     leaf('/operator/leads/board',    'Varonka',            LayoutDashboard, 'sky'),
-    leaf('/operator/tasks',          'Vazifalarim',        Target,          'rose'),
+    leaf('/operator/tasks',          'Vazifalarim',        Target,          'rose',   { countKey: 'tasks' }),
     leaf('/operator/stats',          'Mening statistikam', BarChart3,     'amber'),
   ]),
   group('admission', 'Qabul', ClipboardList, [
