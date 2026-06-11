@@ -312,15 +312,17 @@ void _unused
             trend-hint="vs o'tgan oy"
           />
         </RouterLink>
-        <StatCard
-          label="Konversiya (oy)"
-          :value="`${conversion}%`"
-          :icon="Target"
-          tone="violet"
-          :trend="convDelta"
-          trend-hint="vs o'tgan oy"
-        />
-        <RouterLink to="/operator/leads" class="block">
+        <RouterLink to="/operator/stats" class="block">
+          <StatCard
+            label="Konversiya (oy)"
+            :value="`${conversion}%`"
+            :icon="Target"
+            tone="violet"
+            :trend="convDelta"
+            trend-hint="vs o'tgan oy"
+          />
+        </RouterLink>
+        <RouterLink to="/operator/tasks" class="block">
           <StatCard
             label="SLA buzilishi"
             :value="slaAlerts.length"

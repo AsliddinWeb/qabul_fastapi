@@ -67,6 +67,27 @@ class LeadSlaWorker:
             await engine.dispose()
 
     async def _tick(self, session) -> None:
+        # Gunicorn runs N workers; each one would otherwise call this
+        # method concurrently and produce N copies of every alert because
+        # the dedup check below races. Hold a Redis lock for the duration
+        # of the scan so only one worker actually emits — others see the
+        # lock and skip the tick. Lock TTL is half the poll interval so
+        # if a worker crashes the next cycle can still run.
+        try:
+            from app.core.redis import get_redis
+            redis = get_redis()
+            lock_ttl = max(60, int(self.poll_seconds // 2))
+            got = await redis.set(
+                "leads.sla.tick_lock", "1", nx=True, ex=lock_ttl,
+            )
+            if not got:
+                logger.debug("leads.sla.skipped_lock_held")
+                return
+        except Exception as exc:
+            # Redis unreachable: fall through and run anyway — duplicate
+            # alerts are better than NO alerts.
+            logger.warning("leads.sla.lock_unavailable", error=str(exc))
+
         repo = LeadRepository(session)
         acts = LeadActivityRepository(session)
 

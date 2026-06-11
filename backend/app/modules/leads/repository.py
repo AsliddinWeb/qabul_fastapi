@@ -242,14 +242,39 @@ class LeadRepository(BaseRepository[Lead]):
     async def stale_open_leads(self, *, hours: int = 72) -> list[Lead]:
         """Open leads stuck in current stage for more than `hours` (default 72 = 3 days).
 
-        Used by the SLA worker.
+        Used by the SLA worker. Filters out:
+          • unassigned leads (no operator → no one to alert)
+          • leads on terminal stages (final/won stages don't need a poke)
+          • leads with a future next_contact_at within 7 days (operator
+            already has an explicit plan to follow up)
+        Without these the worker fired hundreds of false-positive alerts
+        per hour — orphan leads, won leads sitting in done stages, and
+        leads operators had already scheduled follow-ups for all got
+        flagged as "stuck".
         """
-        threshold = datetime.now(timezone.utc).timestamp() - hours * 3600
         from datetime import datetime as dt
-        cutoff = dt.fromtimestamp(threshold, tz=timezone.utc)
+        cutoff = dt.fromtimestamp(
+            datetime.now(timezone.utc).timestamp() - hours * 3600,
+            tz=timezone.utc,
+        )
+        next_contact_horizon = dt.fromtimestamp(
+            datetime.now(timezone.utc).timestamp() + 7 * 86400,
+            tz=timezone.utc,
+        )
+
         stmt = (
             select(Lead)
-            .where(Lead.status == LeadStatus.OPEN, Lead.stage_entered_at < cutoff)
+            .join(LeadStage, Lead.stage_id == LeadStage.id)
+            .where(
+                Lead.status == LeadStatus.OPEN,
+                Lead.stage_entered_at < cutoff,
+                Lead.assigned_to_id.isnot(None),
+                LeadStage.is_terminal.is_(False),
+                or_(
+                    Lead.next_contact_at.is_(None),
+                    Lead.next_contact_at > next_contact_horizon,
+                ),
+            )
             .order_by(Lead.stage_entered_at)
         )
         return list((await self.session.scalars(stmt)).all())
