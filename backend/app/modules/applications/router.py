@@ -3,7 +3,9 @@ from __future__ import annotations
 import csv
 import io
 from datetime import datetime
+from enum import Enum
 from uuid import UUID
+
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,7 +19,7 @@ from app.core.dependencies import (
 from app.core.exceptions import ForbiddenError
 from app.core.permissions import Permission
 from app.core.schemas import PageResponse
-from app.db.enums import AdmissionType, ApplicationStatus
+from app.db.enums import AdmissionType, ApplicationStatus, ContractStatus, Gender
 from app.integrations.crm.events import enqueue_application_status_event
 from app.modules.applicants.repository import ApplicantRepository
 from app.modules.applications.schemas import (
@@ -261,24 +263,73 @@ async def export_applications_csv(
     )
 
 
-# Human-readable labels used as XLSX header row. Order here drives the
-# column order in the file — keep tightly grouped (identity → contact →
-# academic → attribution → contract) so the export reads top-to-bottom
-# the same way a printed application packet does.
+# Enum → Uzbek label map. Used by _xlsx_cell_value so the workbook reads
+# "Qabul qilindi" instead of "ApplicationStatus.ACCEPTED" or "qabul_qilindi".
+# Add a new enum here whenever a new enum column lands in _XLSX_COLUMNS.
+_ENUM_LABELS: dict = {
+    ApplicationStatus.PENDING:  "Topshirildi",
+    ApplicationStatus.REVIEW:   "Ko'rib chiqilmoqda",
+    ApplicationStatus.ACCEPTED: "Qabul qilindi",
+    ApplicationStatus.REJECTED: "Rad etildi",
+
+    AdmissionType.REGULAR:  "Yangi qabul (1-kurs)",
+    AdmissionType.TRANSFER: "Perevod (transfer)",
+
+    Gender.MALE:   "Erkak",
+    Gender.FEMALE: "Ayol",
+
+    ContractStatus.DRAFT:     "Loyiha",
+    ContractStatus.SIGNED:    "Imzolangan",
+    ContractStatus.CANCELLED: "Bekor qilingan",
+    ContractStatus.COMPLETED: "Yakunlangan",
+}
+
+# Source string (set in repository.list_for_export) → Uzbek label.
+_SOURCE_LABELS: dict[str, str] = {
+    "lead":   "Lead'dan",
+    "direct": "To'g'ridan-to'g'ri",
+}
+
+# Human-readable labels used as XLSX header row. Order drives the column
+# order in the file. Priorities, descending:
+#   1. Ariza identity (№ → F.I.Sh.) so the user can scan rows by name
+#   2. Status / type — the second thing accountants/admins ask about
+#   3. Academic + contract — the bulk of decision-making data
+#   4. Identity detail (passport, DOB, gender) — needed when looking
+#      up one row but rarely scanned
+#   5. Contact + geo
+#   6. Timeline (created/submitted/reviewed) + free-text fields
+#   7. UUIDs at the very END — system identifiers, almost never read
 _XLSX_COLUMNS: list[tuple[str, str]] = [
+    # 1) Identity at-a-glance
     ("application_number",     "Ariza №"),
-    ("application_id",         "Ariza ID"),
+    ("applicant_full_name",    "F.I.Sh."),
+
+    # 2) Status / type
     ("status",                 "Holati"),
     ("admission_type",         "Topshirish turi"),
     ("source",                 "Manba"),
+
+    # 3) Academic
+    ("program_name",           "Yo'nalish"),
+    ("program_code",           "Yo'nalish kodi"),
+    ("branch_name",            "Filial"),
+    ("education_level_name",   "Ta'lim darajasi"),
+    ("education_form_name",    "Ta'lim shakli"),
+    ("program_tuition_fee",    "Yo'nalish summasi"),
+
+    # 4) Contract
+    ("contract_number",        "Shartnoma №"),
+    ("contract_status",        "Shartnoma holati"),
+    ("contract_total_amount",  "Shartnoma summasi"),
+    ("contract_signed_at",     "Imzolangan sana"),
+
+    # 5) Attribution
+    ("operator_full_name",     "Operator"),
+    ("consulting_agency_name", "Konsalting agentligi"),
     ("lead_source_code",       "Lead manba kodi"),
-    ("created_at",             "Yaratilgan"),
-    ("submitted_at",           "Topshirilgan"),
-    ("reviewed_at",            "Ko'rib chiqilgan"),
-    ("rejection_reason",       "Rad etish sababi"),
-    ("notes",                  "Izoh"),
-    # Identity
-    ("applicant_full_name",    "F.I.Sh."),
+
+    # 6) Applicant detail
     ("last_name",              "Familiya"),
     ("first_name",             "Ism"),
     ("other_name",             "Otasining ismi"),
@@ -287,48 +338,44 @@ _XLSX_COLUMNS: list[tuple[str, str]] = [
     ("nationality",            "Millati"),
     ("pinfl",                  "JSHSHIR (PINFL)"),
     ("passport_series",        "Pasport"),
-    # Contact
+
+    # 7) Contact + geo
     ("phone",                  "Telefon"),
-    ("additional_phone",       "Qo'shimcha telefon"),
-    ("email",                  "Email"),
     ("telegram_username",      "Telegram"),
     ("region_name",            "Viloyat"),
     ("district_name",          "Tuman"),
     ("address",                "Manzil"),
-    # Academic
-    ("program_code",           "Yo'nalish kodi"),
-    ("program_name",           "Yo'nalish"),
-    ("branch_name",            "Filial"),
-    ("education_level_name",   "Ta'lim darajasi"),
-    ("education_form_name",    "Ta'lim shakli"),
-    ("program_tuition_fee",    "Kontrakt summasi (yo'nalish)"),
-    # Attribution
-    ("consulting_agency_name", "Konsalting agentligi"),
-    ("operator_full_name",     "Operator"),
-    # Contract
-    ("contract_number",        "Shartnoma №"),
-    ("contract_status",        "Shartnoma holati"),
-    ("contract_signed_at",     "Imzolangan sana"),
-    ("contract_total_amount",  "Shartnoma summasi"),
+
+    # 8) Timeline + notes
+    ("created_at",             "Yaratilgan"),
+    ("submitted_at",           "Topshirilgan"),
+    ("reviewed_at",            "Ko'rib chiqilgan"),
+    ("rejection_reason",       "Rad etish sababi"),
+    ("notes",                  "Izoh"),
+
+    # 9) System IDs — last
+    ("application_id",         "Ariza UUID"),
+    ("applicant_id",           "Abituriyent UUID"),
 ]
 
 
 def _xlsx_cell_value(key: str, value):
     """Coerce repo values into XLSX-friendly types.
 
-    Enums → .value, datetimes → naive (Excel can't store tz info), UUID →
-    str (openpyxl raises ValueError on UUID), None → empty cell. Decimal
-    and date pass through — openpyxl handles those natively.
+    Enums → Uzbek label via _ENUM_LABELS (falls back to .value if missing,
+    so a newly-added enum still exports — just untranslated). Source
+    string ("lead"/"direct") → Uzbek label. UUID → str (openpyxl raises
+    ValueError on UUID). Datetime → tz-stripped (openpyxl can't store
+    tz). None → empty cell. Decimal and date pass through natively.
     """
     if value is None:
         return ""
-    if hasattr(value, "value") and not isinstance(value, (str, int, float, bool)):
-        return value.value
+    if isinstance(value, Enum):
+        return _ENUM_LABELS.get(value, value.value)
+    if key == "source" and isinstance(value, str):
+        return _SOURCE_LABELS.get(value, value)
     if isinstance(value, UUID):
         return str(value)
-    # SQLAlchemy DateTime(timezone=True) returns tz-aware datetimes; openpyxl
-    # writes a TypeError on those, so strip tz. We lose tz info but every
-    # value in this DB is UTC so it's not ambiguous.
     if isinstance(value, datetime) and value.tzinfo is not None:
         return value.replace(tzinfo=None)
     return value

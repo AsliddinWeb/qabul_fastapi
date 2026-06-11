@@ -4,7 +4,7 @@ import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { AxiosError } from 'axios'
 import {
   ArrowLeft, CreditCard, FileText, CheckCircle2, XCircle, RotateCcw,
-  Plus, Receipt, Wallet, AlertTriangle, Paperclip, Calendar,
+  Plus, Receipt, Wallet, AlertTriangle, Paperclip, Calendar, ArrowDown,
 } from 'lucide-vue-next'
 import { contractsApi, type ContractDetailed } from '@/api/contracts.api'
 import { paymentsApi, type PaymentRead, type PaymentStatus } from '@/api/payments.api'
@@ -144,6 +144,10 @@ async function submitPayment() {
       reference: newPayment.reference.trim() || null,
       notes: newPayment.notes.trim() || null,
       receipt_file_id: newPayment.receipt_file_id,
+      // Send paid_at only when the accountant picked a date — empty
+      // string falls back to "now" on the server. Submitting "" would
+      // hit Pydantic's date validator and 422.
+      paid_at: newPayment.paid_at || undefined,
     })
     toast.success("To'lov yaratildi (kutilayotgan holatda). Tasdiqlash kerak.")
     Object.assign(newPayment, {
@@ -164,6 +168,38 @@ async function submitPayment() {
 function fillBalance() {
   newPayment.amount = balance.value > 0 ? String(balance.value) : '0'
 }
+
+/**
+ * Two-way mask for the summa input. The raw numeric value lives in
+ * newPayment.amount as a digit-only string ("1000000"); the input shows
+ * the prettified form ("1 000 000"). Stripping on `set` is what keeps
+ * paste-from-Excel ("1,000,000.00") and accidental space-typing both
+ * harmless — we always normalise back to digits before storing.
+ */
+const amountDisplay = computed<string>({
+  get() {
+    if (!newPayment.amount) return ''
+    const [intPart, decPart] = String(newPayment.amount).split('.')
+    const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ' ')
+    return decPart !== undefined ? `${grouped}.${decPart}` : grouped
+  },
+  set(v: string) {
+    // Keep digits + a single dot; first dot survives, rest are dropped.
+    let cleaned = v.replace(/[^\d.]/g, '')
+    const dot = cleaned.indexOf('.')
+    if (dot !== -1) {
+      cleaned = cleaned.slice(0, dot + 1) + cleaned.slice(dot + 1).replace(/\./g, '')
+    }
+    newPayment.amount = cleaned
+  },
+})
+
+/**
+ * Default the "to'lov sanasi" date input to today (YYYY-MM-DD) — that's
+ * the most common case, but the accountant can pick a back-date when
+ * entering a payment that physically cleared a few days earlier.
+ */
+const todayIso = computed(() => new Date().toISOString().slice(0, 10))
 
 async function confirmPayment(p: PaymentRead) {
   const ok = await ask({
@@ -382,22 +418,32 @@ function statusTone(s: PaymentStatus): string {
         <AlertTriangle class="w-4 h-4 shrink-0" /> {{ formError }}
       </div>
 
-      <div class="grid sm:grid-cols-2 gap-3">
-        <div>
+      <div class="grid sm:grid-cols-2 gap-4">
+        <!-- Summa — biggest, mono, thousands-separated, currency suffix -->
+        <div class="sm:col-span-2">
           <label class="field-label">Summa <span class="text-rose-500">*</span></label>
           <div class="relative">
-            <input v-model="newPayment.amount" type="number" min="0" step="0.01"
-                   class="input pr-24 font-mono" placeholder="0" />
+            <input v-model="amountDisplay" inputmode="decimal" autocomplete="off"
+                   class="input pr-32 pl-4 font-mono text-2xl tabular-nums tracking-wider h-14"
+                   placeholder="0" />
+            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-400 dark:text-slate-500 pointer-events-none">
+              {{ contract.currency }}
+            </span>
+          </div>
+          <div class="mt-2 flex flex-wrap items-center gap-2 text-[12px]">
+            <span class="text-slate-500 dark:text-slate-400">Joriy qoldiq:</span>
+            <strong class="font-mono tabular-nums text-slate-900 dark:text-slate-100">
+              {{ fmtMoney(balance) }} {{ contract.currency }}
+            </strong>
             <button v-if="balance > 0" type="button"
-                    class="absolute right-1.5 top-1/2 -translate-y-1/2 text-[11px] font-semibold px-2 py-1 rounded-md bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-500/25 transition"
+                    class="ml-auto inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-md bg-brand-50 text-brand-700 ring-1 ring-brand-200 dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-400/30 hover:bg-brand-100 dark:hover:bg-brand-500/25 transition"
                     @click="fillBalance">
-              Qoldiq: {{ fmtMoney(balance) }}
+              <ArrowDown class="w-3 h-3" /> Qoldiqni qo'yish
             </button>
           </div>
-          <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-            Joriy qoldiq <strong>{{ fmtMoney(balance) }} {{ contract.currency }}</strong>. Bosib avto-to'ldirish.
-          </p>
         </div>
+
+        <!-- To'lov turi -->
         <div>
           <label class="field-label">To'lov turi <span class="text-rose-500">*</span></label>
           <select v-model="newPayment.payment_method_id" class="input">
@@ -405,14 +451,38 @@ function statusTone(s: PaymentStatus): string {
             <option v-for="m in methods" :key="m.id" :value="m.id">{{ m.name_uz }}</option>
           </select>
         </div>
+
+        <!-- To'lov sanasi — defaults to today via placeholder, optional -->
+        <div>
+          <label class="field-label inline-flex items-center gap-1.5">
+            <Calendar class="w-3 h-3" /> To'lov sanasi
+          </label>
+          <input v-model="newPayment.paid_at" type="date" class="input"
+                 :max="todayIso" :placeholder="todayIso" />
+          <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+            Bo'sh qoldirilsa — bugungi sana ishlatiladi.
+          </p>
+        </div>
+
+        <!-- Tranzaksiya raqami -->
         <div>
           <label class="field-label">Tranzaksiya / chek raqami</label>
-          <input v-model="newPayment.reference" class="input font-mono" placeholder="Masalan: TR-2026-001234" />
+          <input v-model="newPayment.reference" class="input font-mono"
+                 placeholder="TR-2026-001234" autocomplete="off" />
+          <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+            Bank chiqindisi yoki to'lov tizimi raqami (ixtiyoriy).
+          </p>
         </div>
+
+        <!-- Izoh — textarea, multi-line -->
         <div>
           <label class="field-label">Izoh</label>
-          <input v-model="newPayment.notes" class="input" placeholder="Qo'shimcha izoh..." />
+          <textarea v-model="newPayment.notes" rows="2"
+                    class="input resize-none"
+                    placeholder="Masalan: Qisman to'lov, qolgani 25-iyungacha"></textarea>
         </div>
+
+        <!-- Chek (file upload) -->
         <div class="sm:col-span-2">
           <label class="field-label inline-flex items-center gap-1">
             <Paperclip class="w-3 h-3" /> Chek (rasm yoki PDF, ixtiyoriy)
