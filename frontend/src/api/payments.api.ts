@@ -27,6 +27,9 @@ export interface PaymentCreatePayload {
   reference?: string | null
   notes?: string | null
   receipt_file_id?: string | null
+  // Accountant can back-date a payment that physically cleared
+  // earlier. Omitted/undefined → backend defaults to now().
+  paid_at?: string | null
 }
 
 export interface PaymentConfirmPayload {
