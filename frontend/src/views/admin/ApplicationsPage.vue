@@ -169,7 +169,7 @@ async function exportXlsx() {
       consulting_agency_id: canSeeConsulting.value ? (filters.consulting_agency_id || undefined) : undefined,
     }, {
       mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      fallbackName: `arizalar-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-')}.xlsx`,
+      fallbackName: `arizalar_${new Date().toISOString().slice(0, 16).replace('T', '_').replace(/:/g, '-')}.xlsx`,
     })
     toast.success("Excel yuklab olindi")
   } catch (e) {

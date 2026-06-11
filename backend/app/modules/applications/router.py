@@ -316,13 +316,16 @@ _XLSX_COLUMNS: list[tuple[str, str]] = [
 def _xlsx_cell_value(key: str, value):
     """Coerce repo values into XLSX-friendly types.
 
-    Enums → .value, datetimes → naive (Excel can't store tz info), Decimal
-    → float so it shows as a number not text, None → empty cell.
+    Enums → .value, datetimes → naive (Excel can't store tz info), UUID →
+    str (openpyxl raises ValueError on UUID), None → empty cell. Decimal
+    and date pass through — openpyxl handles those natively.
     """
     if value is None:
         return ""
     if hasattr(value, "value") and not isinstance(value, (str, int, float, bool)):
         return value.value
+    if isinstance(value, UUID):
+        return str(value)
     # SQLAlchemy DateTime(timezone=True) returns tz-aware datetimes; openpyxl
     # writes a TypeError on those, so strip tz. We lose tz info but every
     # value in this DB is UTC so it's not ambiguous.
@@ -426,7 +429,10 @@ async def export_applications_xlsx(
     wb.save(buf)
     buf.seek(0)
 
-    fn = f"arizalar-{datetime.now().strftime('%Y%m%d-%H%M')}.xlsx"
+    # Filename: arizalar_2026-06-11_17-35.xlsx — readable date + time so
+    # users can tell exports apart without opening each file. Underscores
+    # because Windows hides hyphens and colons confuse the OS.
+    fn = f"arizalar_{datetime.now().strftime('%Y-%m-%d_%H-%M')}.xlsx"
     return Response(
         content=buf.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
