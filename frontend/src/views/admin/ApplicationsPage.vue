@@ -117,10 +117,11 @@ const SOURCE_OPTIONS = [
   { id: 'direct', label: "To'g'ridan-to'g'ri yaratildi" },
 ]
 
-// Operator pool for the "Operator" filter — admin/superadmin only.
+// Operator pool for the "Operator" filter. Shown on every staff panel
+// — admin/superadmin to slice by colleagues, operator to find a
+// specific operator's work or pick out their own.
 const operatorOptions = ref<Array<{ id: string; label: string }>>([])
 async function loadOperators() {
-  if (isOperatorPanel.value) return
   try {
     const us = await adminApi.users.list({ role: 'operator', size: 100 }).catch(() => null)
     if (us) {
@@ -189,12 +190,10 @@ async function load() {
       consulting_agency_id: canSeeConsulting.value
         ? (filters.consulting_agency_id || undefined)
         : undefined,
-      // On operator panel, force the filter to the current user so the
-      // operator sees their own applications by default. The admin
-      // filter dropdown stays hidden in that mode (see template).
-      registered_by_id: isOperatorPanel.value
-        ? (auth.user?.id || undefined)
-        : (filters.registered_by_id || undefined),
+      // Phase 2: no implicit panel-based scoping. Operators see the
+      // full list by default; they use the Operator dropdown to filter
+      // to their own work (or a colleague's) explicitly.
+      registered_by_id: filters.registered_by_id || undefined,
       source: (filters.source_origin as any) || undefined,
       page: filters.page,
       size: filters.size,
@@ -586,7 +585,7 @@ async function bulkDeleteSelected() {
           <label class="field-label">Konsalting</label>
           <SearchSelect v-model="filters.consulting_agency_id" :options="agencyOptions" placeholder="— hammasi —" allow-clear />
         </div>
-        <div v-if="!isOperatorPanel">
+        <div>
           <label class="field-label">Operator</label>
           <SearchSelect v-model="filters.registered_by_id" :options="operatorOptions" placeholder="— hammasi —" allow-clear />
         </div>

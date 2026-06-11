@@ -53,16 +53,12 @@ const bulkBusy = ref(false)
 async function load() {
   loading.value = true
   try {
-    // On the operator panel, auto-scope to applicants registered by the
-    // current operator — otherwise an operator sees colleagues' lists,
-    // which is more noise than signal day-to-day. Admin/accountant
-    // panels see everyone (this branch is `undefined` for them).
-    const scopedRegisteredBy = isOperatorPanel.value && auth.user?.id
-      ? auth.user.id
-      : undefined
+    // Phase 2: full visibility on the operator panel — auto-scoping to
+    // registered_by_id=me was removed because operators wanted to see
+    // every applicant in the system. Use the operator filter dropdown
+    // (top of filter bar) to scope manually when needed.
     const res = await adminApi.applicants.list({
       search: filters.search || undefined,
-      registered_by_id: scopedRegisteredBy,
       page: filters.page,
       size: filters.size,
     })
@@ -134,7 +130,6 @@ async function exportCsv() {
   try {
     await downloadCsv('/applicants/export.csv', {
       search: filters.search || undefined,
-      registered_by_id: isOperatorPanel.value && auth.user?.id ? auth.user.id : undefined,
     })
     toast.success("CSV yuklab olindi")
   } catch (e) {

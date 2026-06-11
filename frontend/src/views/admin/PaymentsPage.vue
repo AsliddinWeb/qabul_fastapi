@@ -52,7 +52,9 @@ async function load() {
       status: filters.status || undefined,
       // Operator panel: only payments this operator logged. Other panels
       // (admin, accountant) see the full list.
-      registered_by_id: isOperatorPanel.value && auth.user?.id ? auth.user.id : undefined,
+      // Phase 2: full visibility on every panel. Pick a specific
+      // operator via the filter dropdown when scoping is needed.
+      registered_by_id: undefined,
       page: filters.page,
       size: filters.size,
     })

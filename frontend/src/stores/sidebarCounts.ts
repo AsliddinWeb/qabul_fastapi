@@ -87,24 +87,18 @@ export const useSidebarCounts = defineStore('sidebarCounts', {
       const keys = collectKeys(panel.nav)
       if (!keys.size) return
 
-      // On the operator panel the list pages auto-scope to the current
-      // operator. The sidebar badge needs the SAME scope or it'll show
-      // colleagues' counts and confuse the operator. Map each key to its
-      // operator-scope filter param so the totals line up with what the
-      // page actually renders.
+      // Phase 2: operator's Applicants / Applications / Contracts /
+      // Payments pages now show the FULL list — so their sidebar badges
+      // should too. The only count that stays scoped is the leads one,
+      // because the operator's nav lists it as "Mening lead'larim"
+      // (sidebar item explicitly labeled mine-only).
       const isOperator = panels.currentPanel?.key === 'operator'
       const userId = useAuthStore().user?.id
-      const scoped = isOperator && userId
       function paramsFor(k: CountKey): Record<string, any> {
-        if (!scoped) return {}
-        switch (k) {
-          case 'leads':         return { assigned_to_id: userId }
-          case 'applicants':    return { registered_by_id: userId }
-          case 'applications':  return { registered_by_id: userId }
-          case 'contracts':     return { created_by_id: userId }
-          case 'payments':      return { registered_by_id: userId }
-          default:              return {}
+        if (isOperator && userId && k === 'leads') {
+          return { assigned_to_id: userId }
         }
+        return {}
       }
 
       this.loading = true

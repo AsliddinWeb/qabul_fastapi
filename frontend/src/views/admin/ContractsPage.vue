@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { FileText, FileSignature, Ban, Download } from 'lucide-vue-next'
 import { AxiosError } from 'axios'
 import { adminApi } from '@/api/admin.api'
@@ -13,6 +13,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useBulkSelect } from '@/composables/useBulkSelect'
 import BulkActionBar from '@/components/ui/BulkActionBar.vue'
 import Pagination from '@/components/ui/Pagination.vue'
+import SearchSelect from '@/components/ui/SearchSelect.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 
@@ -28,10 +29,16 @@ interface Contract {
   signed_at: string | null
   pdf_file_id: string | null
   created_at: string
+  // Joined fields from backend list_detailed
+  applicant_full_name?: string | null
+  branch_name?: string | null
+  program_name?: string | null
+  balance?: string | null
 }
 
 const toast = useToast()
 const route = useRoute()
+const router = useRouter()
 const panelPrefix = computed(() => route.path.startsWith('/operator/') ? '/operator' : '/admin')
 const isOperatorPanel = computed(() => panelPrefix.value === '/operator')
 const { ask } = useConfirm()
@@ -46,10 +53,26 @@ const bulkBusy = ref(false)
 const filters = reactive({
   status: '' as string,
   type: '' as string,
+  created_by_id: '' as string,
   search: '' as string,
   page: 1,
   size: 20,
 })
+
+// Operator pool for the "Operator" filter (admin/superadmin + operator
+// panels). Loaded once on mount.
+const operatorOptions = ref<Array<{ id: string; label: string }>>([])
+async function loadOperators() {
+  try {
+    const us = await adminApi.users.list({ role: 'operator', size: 100 }).catch(() => null)
+    if (us) {
+      operatorOptions.value = us.items.map(u => ({
+        id: u.id,
+        label: u.full_name || u.phone || u.id.slice(0, 8),
+      }))
+    }
+  } catch { /* ignore */ }
+}
 
 async function load() {
   loading.value = true
@@ -57,9 +80,9 @@ async function load() {
     const res = await adminApi.contracts.list({
       status: filters.status || undefined,
       type: filters.type || undefined,
-      // On the operator panel, only show contracts this operator issued.
-      // Admin/accountant view the full list.
-      created_by_id: isOperatorPanel.value && auth.user?.id ? auth.user.id : undefined,
+      // Phase 2: full visibility on every staff panel. Use the Operator
+      // filter (added below) to scope to "mine" or a colleague's work.
+      created_by_id: filters.created_by_id || undefined,
       search: filters.search || undefined,
       page: filters.page,
       size: filters.size,
@@ -82,8 +105,9 @@ watch(() => filters.search, () => {
 })
 watch(() => filters.status, () => { filters.page = 1; load() })
 watch(() => filters.type, () => { filters.page = 1; load() })
+watch(() => filters.created_by_id, () => { filters.page = 1; load() })
 watch(() => filters.page, load)
-onMounted(load)
+onMounted(() => Promise.all([load(), loadOperators()]))
 
 async function sign(c: Contract) {
   const ok = await ask({
@@ -175,9 +199,13 @@ async function bulkCancelSelected() {
           <option value="three_party">{{ CONTRACT_TYPE.three_party }}</option>
         </select>
       </div>
-      <div class="flex-1 min-w-[200px]">
-        <label class="field-label">Shartnoma raqami</label>
-        <input v-model="filters.search" class="input font-mono" placeholder="C-2026-..." />
+      <div class="min-w-[200px]">
+        <label class="field-label">Operator</label>
+        <SearchSelect v-model="filters.created_by_id" :options="operatorOptions" placeholder="— hammasi —" allow-clear />
+      </div>
+      <div class="flex-1 min-w-[220px]">
+        <label class="field-label">Qidirish</label>
+        <input v-model="filters.search" class="input" placeholder="Shartnoma №, F.I.Sh., yo'nalish..." />
       </div>
     </div>
 
@@ -191,41 +219,57 @@ async function bulkCancelSelected() {
                      :indeterminate.prop="bulk.partial.value"
                      @change="bulk.toggleAll()" />
             </th>
-            <th>Shartnoma №</th>
-            <th class="w-32">Turi</th>
-            <th class="w-44">Summa</th>
-            <th class="w-32">Imzolangan</th>
-            <th class="w-32">Holati</th>
-            <th class="w-40 text-right">Amallar</th>
+            <th class="w-40">Shartnoma №</th>
+            <th>F.I.Sh.</th>
+            <th>Yo'nalish</th>
+            <th class="w-32">Filial</th>
+            <th class="w-28">Turi</th>
+            <th class="w-44">Summa / Balans</th>
+            <th class="w-28">Imzolangan</th>
+            <th class="w-28">Holati</th>
+            <th class="w-32 text-right">Amallar</th>
           </tr>
         </thead>
         <tbody>
           <template v-if="loading">
             <tr v-for="i in 6" :key="`sk-row-${i}`" class="border-b border-slate-100 dark:border-slate-800/60">
-              <td v-for="c in 6" :key="`sk-${i}-${c}`" class="px-5 py-4">
-                <div class="skeleton h-3 rounded" :class="c === 1 ? 'w-3/4' : 'w-1/2'" />
+              <td v-for="c in 9" :key="`sk-${i}-${c}`" class="px-5 py-4">
+                <div class="skeleton h-3 rounded" :class="c === 2 ? 'w-3/4' : 'w-1/2'" />
               </td>
             </tr>
           </template>
           <tr v-else-if="!items.length">
-            <td colspan="6" class="p-0">
+            <td colspan="9" class="p-0">
               <EmptyState :icon="FileText" title="Shartnomalar yo'q" />
             </td>
           </tr>
           <tr v-for="c in items" :key="c.id"
-              :class="bulk.isSelected(c.id) ? 'bg-brand-50/40 dark:bg-brand-500/10' : ''">
-            <td v-if="!isOperatorPanel" class="px-3">
+              class="cursor-pointer"
+              :class="bulk.isSelected(c.id) ? 'bg-brand-50/40 dark:bg-brand-500/10' : ''"
+              @click="router.push(`${panelPrefix}/contracts/${c.id}`)">
+            <td v-if="!isOperatorPanel" class="px-3" @click.stop>
               <input type="checkbox" class="rounded cursor-pointer"
                      :checked="bulk.isSelected(c.id)"
                      @change="bulk.toggle(c.id)" />
             </td>
             <td class="font-mono text-xs text-slate-600 dark:text-slate-300">{{ c.contract_number }}</td>
-            <td class="text-xs">{{ tr(CONTRACT_TYPE, c.type) }}</td>
+            <td class="text-slate-900 dark:text-slate-100 font-medium truncate max-w-[200px]">
+              {{ c.applicant_full_name || '—' }}
+            </td>
+            <td class="text-xs text-slate-700 dark:text-slate-300 truncate max-w-[180px]">
+              {{ c.program_name || '—' }}
+            </td>
+            <td class="text-xs text-slate-600 dark:text-slate-400 truncate max-w-[120px]">
+              {{ c.branch_name || '—' }}
+            </td>
+            <td class="text-xs"><span class="pill">{{ tr(CONTRACT_TYPE, c.type) }}</span></td>
             <td class="text-slate-900 dark:text-slate-100">
-              <span class="font-medium">{{ Number(c.total_amount).toLocaleString('uz-UZ') }}</span>
-              <span class="text-xs text-slate-500 dark:text-slate-400 ml-1">{{ c.currency }}</span>
-              <div class="text-xs text-slate-500 dark:text-slate-400">
-                to'langan: {{ Number(c.paid_amount).toLocaleString('uz-UZ') }}
+              <div class="text-sm font-medium tabular-nums">{{ Number(c.total_amount).toLocaleString('uz-UZ') }}</div>
+              <div class="text-[10px] text-slate-500 dark:text-slate-400 tabular-nums">
+                <span class="text-emerald-600 dark:text-emerald-400">{{ Number(c.paid_amount).toLocaleString('uz-UZ') }}</span>
+                <template v-if="Number(c.balance ?? (Number(c.total_amount) - Number(c.paid_amount))) > 0">
+                  · qarz <span class="text-rose-600 dark:text-rose-400">{{ Number(c.balance ?? (Number(c.total_amount) - Number(c.paid_amount))).toLocaleString('uz-UZ') }}</span>
+                </template>
               </div>
             </td>
             <td class="text-xs text-slate-600 dark:text-slate-400">

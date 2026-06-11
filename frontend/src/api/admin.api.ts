@@ -336,7 +336,12 @@ export const adminApi = {
       page?: number
       size?: number
     } = {}) =>
-      http.get<PageResponse<any>>('/contracts', { params }).then((r) => r.data),
+      // Use the detailed endpoint so the response includes
+      // applicant_full_name, branch_name, program_name, balance —
+      // ContractsPage needs all of those for its columns. The plain
+      // /contracts endpoint stays available for callers that just
+      // need ContractRead.
+      http.get<PageResponse<any>>('/contracts/list-detailed', { params }).then((r) => r.data),
     get: (id: string) =>
       http.get<any>(`/contracts/${id}`).then((r) => r.data),
     sign: (id: string) =>
