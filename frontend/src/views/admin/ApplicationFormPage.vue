@@ -16,6 +16,7 @@ import { useToast } from '@/composables/useToast'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import FileUpload from '@/components/ui/FileUpload.vue'
+import SearchSelect from '@/components/ui/SearchSelect.vue'
 import {
   PLACEHOLDERS,
   formatNameUpper,
@@ -482,6 +483,27 @@ watch(() => form.admission_type, () => {
 
 const selectedProgram = computed(() => allPrograms.value.find((p) => p.id === form.program_id))
 
+// SearchSelect option mappers. Map once here instead of inlining in the
+// template so the v-for / :options expression stays small. Each list is
+// shaped {id, label, sub?} per SearchSelect's Item interface; the `sub`
+// field is shown as a muted second line in the dropdown, perfect for
+// program codes ("PRG-101 · Iqtisodiyot").
+const branchOptions       = computed(() => branches.value.map(b => ({ id: b.id, label: b.name })))
+const levelOptionsList    = computed(() => availableLevels.value.map(l => ({ id: l.id, label: l.name })))
+const formOptionsList     = computed(() => availableForms.value.map((f: any) => ({ id: f.id, label: f.name })))
+const programOptionsList  = computed(() => availablePrograms.value.map(p => ({
+  id: p.id,
+  label: p.name,
+  sub: p.code || '',
+})))
+const courseOptions       = computed(() => courses.value.map(c => ({ id: c.id, label: c.name })))
+const regionOptions       = computed(() => regions.value.map(r => ({ id: r.id, label: r.name })))
+const inlineDistrictOpts  = computed(() => inlineDistricts.value.map(d => ({ id: d.id, label: d.name })))
+const diplomDistrictOpts  = computed(() => diplomDistricts.value.map(d => ({ id: d.id, label: d.name })))
+const educationTypeOpts   = computed(() => educationTypes.value.map(t => ({ id: t.id, label: t.name })))
+const institutionTypeOpts = computed(() => institutionTypes.value.map(t => ({ id: t.id, label: t.name })))
+const countryOptions      = computed(() => countries.value.map(c => ({ id: c.id, label: c.name })))
+
 const levelPlaceholder = computed(() => {
   if (!form.branch_id) return "Avval filialni tanlang"
   return availableLevels.value.length ? "— darajani tanlang —" : "Bu filialda yo'nalishlar yo'q"
@@ -842,17 +864,13 @@ async function submit() {
             </div>
             <div>
               <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Viloyat</label>
-              <select v-model="inlineApplicant.region_id" class="input">
-                <option value="">— tanlang —</option>
-                <option v-for="r in regions" :key="r.id" :value="r.id">{{ r.name }}</option>
-              </select>
+              <SearchSelect v-model="inlineApplicant.region_id" :options="regionOptions"
+                            placeholder="— tanlang —" allow-clear />
             </div>
             <div>
               <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Tuman</label>
-              <select v-model="inlineApplicant.district_id" class="input" :disabled="!inlineApplicant.region_id">
-                <option value="">— tanlang —</option>
-                <option v-for="d in inlineDistricts" :key="d.id" :value="d.id">{{ d.name }}</option>
-              </select>
+              <SearchSelect v-model="inlineApplicant.district_id" :options="inlineDistrictOpts"
+                            placeholder="— tanlang —" :disabled="!inlineApplicant.region_id" allow-clear />
             </div>
             <div class="sm:col-span-2">
               <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Yashash manzili</label>
@@ -983,17 +1001,13 @@ async function submit() {
               </div>
               <div>
                 <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Viloyat</label>
-                <select v-model="inlineApplicant.region_id" class="input">
-                  <option value="">— tanlang —</option>
-                  <option v-for="r in regions" :key="r.id" :value="r.id">{{ r.name }}</option>
-                </select>
+                <SearchSelect v-model="inlineApplicant.region_id" :options="regionOptions"
+                              placeholder="— tanlang —" allow-clear />
               </div>
               <div>
                 <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Tuman</label>
-                <select v-model="inlineApplicant.district_id" class="input" :disabled="!inlineApplicant.region_id">
-                  <option value="">— tanlang —</option>
-                  <option v-for="d in inlineDistricts" :key="d.id" :value="d.id">{{ d.name }}</option>
-                </select>
+                <SearchSelect v-model="inlineApplicant.district_id" :options="inlineDistrictOpts"
+                              placeholder="— tanlang —" :disabled="!inlineApplicant.region_id" allow-clear />
               </div>
               <div class="sm:col-span-2">
                 <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Yashash manzili</label>
@@ -1091,22 +1105,14 @@ async function submit() {
               </div>
               <div>
                 <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Ta'lim turi *</label>
-                <select v-model="diplomForm.education_type_id" class="input"
-                        :class="diplomErrors.education_type_id ? 'border-red-500' : ''"
-                        @blur="validateDiplomField('education_type_id')">
-                  <option value="">— tanlang —</option>
-                  <option v-for="t in educationTypes" :key="t.id" :value="t.id">{{ t.name }}</option>
-                </select>
+                <SearchSelect v-model="diplomForm.education_type_id" :options="educationTypeOpts"
+                              placeholder="— tanlang —" allow-clear />
                 <p v-if="diplomErrors.education_type_id" class="mt-1 text-xs text-red-600">{{ diplomErrors.education_type_id }}</p>
               </div>
               <div>
                 <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Muassasa turi *</label>
-                <select v-model="diplomForm.institution_type_id" class="input"
-                        :class="diplomErrors.institution_type_id ? 'border-red-500' : ''"
-                        @blur="validateDiplomField('institution_type_id')">
-                  <option value="">— tanlang —</option>
-                  <option v-for="t in institutionTypes" :key="t.id" :value="t.id">{{ t.name }}</option>
-                </select>
+                <SearchSelect v-model="diplomForm.institution_type_id" :options="institutionTypeOpts"
+                              placeholder="— tanlang —" allow-clear />
                 <p v-if="diplomErrors.institution_type_id" class="mt-1 text-xs text-red-600">{{ diplomErrors.institution_type_id }}</p>
               </div>
               <div class="sm:col-span-2">
@@ -1119,23 +1125,14 @@ async function submit() {
               </div>
               <div>
                 <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Viloyat *</label>
-                <select v-model="diplomForm.region_id" class="input"
-                        :class="diplomErrors.region_id ? 'border-red-500' : ''"
-                        @blur="validateDiplomField('region_id')">
-                  <option value="">— tanlang —</option>
-                  <option v-for="r in regions" :key="r.id" :value="r.id">{{ r.name }}</option>
-                </select>
+                <SearchSelect v-model="diplomForm.region_id" :options="regionOptions"
+                              placeholder="— tanlang —" allow-clear />
                 <p v-if="diplomErrors.region_id" class="mt-1 text-xs text-red-600">{{ diplomErrors.region_id }}</p>
               </div>
               <div>
                 <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Tuman *</label>
-                <select v-model="diplomForm.district_id" class="input"
-                        :class="diplomErrors.district_id ? 'border-red-500' : ''"
-                        :disabled="!diplomForm.region_id"
-                        @blur="validateDiplomField('district_id')">
-                  <option value="">— tanlang —</option>
-                  <option v-for="d in diplomDistricts" :key="d.id" :value="d.id">{{ d.name }}</option>
-                </select>
+                <SearchSelect v-model="diplomForm.district_id" :options="diplomDistrictOpts"
+                              placeholder="— tanlang —" :disabled="!diplomForm.region_id" allow-clear />
                 <p v-if="diplomErrors.district_id" class="mt-1 text-xs text-red-600">{{ diplomErrors.district_id }}</p>
               </div>
             </div>
@@ -1193,22 +1190,14 @@ async function submit() {
             <div class="grid sm:grid-cols-2 gap-3">
               <div>
                 <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Davlat *</label>
-                <select v-model="transferForm.country_id" class="input"
-                        :class="transferErrors.country_id ? 'border-red-500' : ''"
-                        @blur="validateTransferField('country_id')">
-                  <option value="">— tanlang —</option>
-                  <option v-for="c in countries" :key="c.id" :value="c.id">{{ c.name }}</option>
-                </select>
+                <SearchSelect v-model="transferForm.country_id" :options="countryOptions"
+                              placeholder="— tanlang —" allow-clear />
                 <p v-if="transferErrors.country_id" class="mt-1 text-xs text-red-600">{{ transferErrors.country_id }}</p>
               </div>
               <div>
                 <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Maqsadli kurs *</label>
-                <select v-model="transferForm.target_course_id" class="input"
-                        :class="transferErrors.target_course_id ? 'border-red-500' : ''"
-                        @blur="validateTransferField('target_course_id')">
-                  <option value="">— tanlang —</option>
-                  <option v-for="c in courses" :key="c.id" :value="c.id">{{ c.name }}</option>
-                </select>
+                <SearchSelect v-model="transferForm.target_course_id" :options="courseOptions"
+                              placeholder="— tanlang —" allow-clear />
                 <p v-if="transferErrors.target_course_id" class="mt-1 text-xs text-red-600">{{ transferErrors.target_course_id }}</p>
               </div>
               <div class="sm:col-span-2">
@@ -1242,72 +1231,76 @@ async function submit() {
           <h2 class="font-semibold text-slate-900 dark:text-slate-100">Yo'nalish tanlash</h2>
         </div>
 
-        <div>
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Filial *</label>
-          <select v-model="form.branch_id" class="input" :class="errors.branch_id ? 'border-red-500' : ''">
-            <option value="">— filial tanlang —</option>
-            <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
-          </select>
-          <p v-if="errors.branch_id" class="mt-1 text-xs text-red-600">{{ errors.branch_id }}</p>
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Filial *</label>
+            <SearchSelect v-model="form.branch_id" :options="branchOptions"
+                          placeholder="— filial tanlang —" allow-clear />
+            <p v-if="errors.branch_id" class="mt-1 text-xs text-red-600">{{ errors.branch_id }}</p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Ta'lim darajasi *</label>
+            <SearchSelect v-model="form.education_level_id" :options="levelOptionsList"
+                          :placeholder="levelPlaceholder" :disabled="!form.branch_id" allow-clear />
+            <p v-if="errors.education_level_id" class="mt-1 text-xs text-red-600">{{ errors.education_level_id }}</p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Ta'lim shakli *</label>
+            <SearchSelect v-model="form.education_form_id" :options="formOptionsList"
+                          :placeholder="formPlaceholder" :disabled="!form.education_level_id" allow-clear />
+            <p v-if="errors.education_form_id" class="mt-1 text-xs text-red-600">{{ errors.education_form_id }}</p>
+            <p v-else-if="form.admission_type === 'yangi_qabul'"
+               class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              1-kursga topshirish faqat Kunduzgi shaklda mumkin.
+            </p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+              Yo'nalish *
+              <span v-if="availablePrograms.length"
+                    class="ml-1 text-[10px] font-mono text-slate-400 dark:text-slate-500">
+                ({{ availablePrograms.length }} ta — qidirish mumkin)
+              </span>
+            </label>
+            <SearchSelect v-model="form.program_id" :options="programOptionsList"
+                          :placeholder="programPlaceholder" :disabled="!form.education_form_id" allow-clear />
+            <p v-if="errors.program_id" class="mt-1 text-xs text-red-600">{{ errors.program_id }}</p>
+          </div>
         </div>
 
-        <div>
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Ta'lim darajasi *</label>
-          <select v-model="form.education_level_id" class="input"
-                  :class="errors.education_level_id ? 'border-red-500' : ''"
-                  :disabled="!form.branch_id">
-            <option value="">{{ levelPlaceholder }}</option>
-            <option v-for="l in availableLevels" :key="l.id" :value="l.id">{{ l.name }}</option>
-          </select>
-          <p v-if="errors.education_level_id" class="mt-1 text-xs text-red-600">{{ errors.education_level_id }}</p>
-        </div>
-
-        <div>
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Ta'lim shakli *</label>
-          <select v-model="form.education_form_id" class="input"
-                  :class="errors.education_form_id ? 'border-red-500' : ''"
-                  :disabled="!form.education_level_id">
-            <option value="">{{ formPlaceholder }}</option>
-            <option v-for="f in availableForms" :key="f.id" :value="f.id">{{ f.name }}</option>
-          </select>
-          <p v-if="errors.education_form_id" class="mt-1 text-xs text-red-600">{{ errors.education_form_id }}</p>
-          <p v-else-if="form.admission_type === 'yangi_qabul'"
-             class="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            1-kursga topshirish faqat Kunduzgi shaklda mumkin.
-          </p>
-        </div>
-
-        <div>
-          <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Yo'nalish *</label>
-          <select v-model="form.program_id" class="input"
-                  :class="errors.program_id ? 'border-red-500' : ''"
-                  :disabled="!form.education_form_id">
-            <option value="">{{ programPlaceholder }}</option>
-            <option v-for="p in availablePrograms" :key="p.id" :value="p.id">
-              {{ p.code }} · {{ p.name }}
-            </option>
-          </select>
-          <p v-if="errors.program_id" class="mt-1 text-xs text-red-600">{{ errors.program_id }}</p>
-        </div>
-
+        <!-- Selected-program recap card. Brand-tinted background + bigger
+             tuition number so operators can sanity-check the chosen
+             program at a glance — they read these numbers to the parent
+             on the phone, the recap shouldn't blend into the form. -->
         <div v-if="selectedProgram"
-             class="rounded-lg bg-slate-50 dark:bg-slate-800/50 p-3 text-xs space-y-1">
-          <div class="font-medium text-slate-900 dark:text-slate-100">{{ selectedProgram.name }}</div>
-          <div class="text-slate-600 dark:text-slate-400">
-            Yillik to'lov:
-            <span class="font-medium text-slate-900 dark:text-slate-100">
-              {{ Number(selectedProgram.tuition_fee).toLocaleString('uz-UZ').replace(/,/g, ' ') }} so'm
+             class="rounded-xl bg-gradient-to-br from-brand-50 to-violet-50 dark:from-brand-900/30 dark:to-violet-900/20 ring-1 ring-brand-200 dark:ring-brand-700/40 p-4 space-y-2">
+          <div class="flex items-start justify-between gap-3 flex-wrap">
+            <div class="min-w-0">
+              <div class="font-semibold text-slate-900 dark:text-slate-100">{{ selectedProgram.name }}</div>
+              <div class="text-[11px] font-mono text-slate-500 dark:text-slate-400 mt-0.5">
+                {{ selectedProgram.code }}
+              </div>
+            </div>
+            <span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-md bg-white/70 dark:bg-slate-900/40 text-brand-700 dark:text-brand-300 ring-1 ring-brand-200/60 dark:ring-brand-700/40">
+              {{ (selectedProgram as any).study_duration_years }} yil
             </span>
-            · Muddati: <span class="font-medium text-slate-900 dark:text-slate-100">{{ (selectedProgram as any).study_duration_years }} yil</span>
+          </div>
+          <div class="text-xs text-slate-600 dark:text-slate-400">
+            Yillik kontrakt:
+            <span class="font-mono font-bold text-base text-slate-900 dark:text-slate-100 tabular-nums">
+              {{ Number(selectedProgram.tuition_fee).toLocaleString('uz-UZ').replace(/,/g, ' ') }}
+            </span>
+            <span class="text-[11px] text-slate-500">so'm</span>
           </div>
         </div>
 
         <div v-if="form.admission_type === 'perevod'" class="border-t border-slate-200 dark:border-slate-800 pt-4">
           <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Maqsadli kurs *</label>
-          <select v-model="form.course_id" class="input" :class="errors.course_id ? 'border-red-500' : ''">
-            <option value="">— kursni tanlang —</option>
-            <option v-for="c in courses" :key="c.id" :value="c.id">{{ c.name }}</option>
-          </select>
+          <SearchSelect v-model="form.course_id" :options="courseOptions"
+                        placeholder="— kursni tanlang —" allow-clear />
           <p v-if="errors.course_id" class="mt-1 text-xs text-red-600">{{ errors.course_id }}</p>
           <p v-if="errors.transfer_diplom_id" class="mt-1 text-xs text-red-600">{{ errors.transfer_diplom_id }}</p>
         </div>
@@ -1320,12 +1313,27 @@ async function submit() {
         <textarea v-model="form.notes" class="input" rows="2" placeholder="Operator yozuvi..."></textarea>
       </section>
 
-      <div class="flex gap-3">
-        <button type="submit" class="btn-primary" :disabled="saving || !form.applicant_id">
-          <Save class="w-4 h-4" />
-          {{ saving ? 'Saqlanmoqda...' : (isEdit ? 'Yangilash' : 'Arizani yaratish') }}
-        </button>
-        <button type="button" class="btn-ghost" @click="router.push(`${panelPrefix}/applications`)">Bekor qilish</button>
+      <!-- Sticky save bar. The form is long (~5 sections × multiple
+           inputs each); without a sticky bar the operator scrolls back
+           to the bottom every time they tweak a field and want to save.
+           Backdrop-blur so it floats nicely over the form below it. -->
+      <div class="sticky bottom-0 z-10 -mx-4 sm:mx-0 px-4 sm:px-0 py-3 sm:py-0">
+        <div class="card p-3 sm:p-4 flex items-center justify-between gap-3 backdrop-blur-md bg-white/95 dark:bg-slate-900/95 shadow-lg">
+          <p class="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">
+            {{ form.applicant_id
+               ? (isEdit ? "O'zgarishlarni saqlash uchun tugmani bosing." : "Hammasi tayyor — arizani yaratish mumkin.")
+               : "Avval abituriyentni tanlang." }}
+          </p>
+          <div class="flex gap-2 ml-auto">
+            <button type="button" class="btn-ghost"
+                    @click="router.push(`${panelPrefix}/applications`)">Bekor qilish</button>
+            <button type="submit" class="btn-primary"
+                    :disabled="saving || !form.applicant_id">
+              <Save class="w-4 h-4" />
+              {{ saving ? 'Saqlanmoqda...' : (isEdit ? 'Yangilash' : 'Arizani yaratish') }}
+            </button>
+          </div>
+        </div>
       </div>
     </form>
   </div>
