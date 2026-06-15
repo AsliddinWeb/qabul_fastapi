@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 
 from app.core.repository import BaseRepository
 from app.db.enums import AdmissionType, ApplicationStatus
@@ -128,6 +128,7 @@ class ApplicationRepository(BaseRepository[Application]):
         consulting_agency_id: UUID | None = None,
         registered_by_id: UUID | None = None,
         source: str | None = None,
+        search: str | None = None,
         created_from: datetime | None = None,
         created_to: datetime | None = None,
         limit: int = 20,
@@ -165,12 +166,35 @@ class ApplicationRepository(BaseRepository[Application]):
             clauses.append(Application.created_at >= created_from)
         if created_to is not None:
             clauses.append(Application.created_at <= created_to)
+        # Server-side fuzzy search across the fields a staff member is
+        # most likely to type in: application number, applicant F.I.Sh.
+        # (each part separately because they might paste the last name
+        # alone), passport, and PINFL. Was client-side-only before, which
+        # meant the search box only matched rows ALREADY on the current
+        # page — typing "SHAROPOVA" on page 1 would silently miss her if
+        # she lived on page 5.
+        if search:
+            q = f"%{search.strip()}%"
+            clauses.append(or_(
+                Application.application_number.ilike(q),
+                Applicant.first_name.ilike(q),
+                Applicant.last_name.ilike(q),
+                Applicant.other_name.ilike(q),
+                Applicant.pinfl.ilike(q),
+                Applicant.passport_series.ilike(q),
+            ))
 
         rows = await self._detailed_query(*clauses, limit=limit, offset=offset)
 
+        # OUTER join Applicant — same reason _detailed_query does. INNER
+        # join was silently dropping orphan rows from the count, so the
+        # footer showed "388 ta" while the body showed 392, confusing the
+        # user. Applicant is 1:1 with Application so outerjoin doesn't
+        # change cardinality; we always join it because any clause that
+        # references Applicant.registered_by_id needs it in the FROM.
         count_stmt = (
             select(func.count(Application.id))
-            .join(Applicant, Application.applicant_id == Applicant.id)
+            .outerjoin(Applicant, Application.applicant_id == Applicant.id)
         )
         for c in clauses:
             count_stmt = count_stmt.where(c)
@@ -178,6 +202,16 @@ class ApplicationRepository(BaseRepository[Application]):
         return rows, total
 
     async def _detailed_query(self, *where_clauses, limit: int | None = None, offset: int = 0) -> list[dict]:
+        # All FK joins are LEFT OUTER. INNER joins were silently dropping
+        # applications whose program/branch/education_*/applicant FK had
+        # gone stale — e.g. when an admin deleted a program before its
+        # applications were retired. The contract scanner and the active-
+        # application check both keep finding those rows (they don't join),
+        # so users would see "aktiv ariza mavjud" errors for ghost rows
+        # that never appeared in the list and couldn't be edited.
+        # Outer joins make the broken rows VISIBLE — the program/branch
+        # cell shows empty and the admin can open the row to either
+        # repoint the FK or delete the application.
         stmt = (
             select(
                 Application,
@@ -193,11 +227,11 @@ class ApplicationRepository(BaseRepository[Application]):
                 User.full_name.label("applicant_registered_by_name"),
                 ConsultingAgency.name.label("consulting_agency_name"),
             )
-            .join(Program, Application.program_id == Program.id)
-            .join(Branch, Application.branch_id == Branch.id)
-            .join(EducationLevel, Application.education_level_id == EducationLevel.id)
-            .join(EducationForm, Application.education_form_id == EducationForm.id)
-            .join(Applicant, Application.applicant_id == Applicant.id)
+            .outerjoin(Program, Application.program_id == Program.id)
+            .outerjoin(Branch, Application.branch_id == Branch.id)
+            .outerjoin(EducationLevel, Application.education_level_id == EducationLevel.id)
+            .outerjoin(EducationForm, Application.education_form_id == EducationForm.id)
+            .outerjoin(Applicant, Application.applicant_id == Applicant.id)
             # Operator who registered the applicant — outer because legacy
             # applicants from before the operator-registration flow can have
             # registered_by_id = NULL.
@@ -246,6 +280,7 @@ class ApplicationRepository(BaseRepository[Application]):
         consulting_agency_id: UUID | None = None,
         registered_by_id: UUID | None = None,
         source: str | None = None,
+        search: str | None = None,
         created_from: datetime | None = None,
         created_to: datetime | None = None,
         limit: int = 20_000,
@@ -324,6 +359,16 @@ class ApplicationRepository(BaseRepository[Application]):
             clauses.append(Application.created_at >= created_from)
         if created_to is not None:
             clauses.append(Application.created_at <= created_to)
+        if search:
+            q = f"%{search.strip()}%"
+            clauses.append(or_(
+                Application.application_number.ilike(q),
+                Applicant.first_name.ilike(q),
+                Applicant.last_name.ilike(q),
+                Applicant.other_name.ilike(q),
+                Applicant.pinfl.ilike(q),
+                Applicant.passport_series.ilike(q),
+            ))
         for c in clauses:
             stmt = stmt.where(c)
 

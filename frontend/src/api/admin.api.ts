@@ -305,6 +305,10 @@ export const adminApi = {
       registered_by_id?: string;
       /** 'lead' = converted from a lead; 'direct' = created without one. */
       source?: 'lead' | 'direct';
+      /** Fuzzy match across application_number, F.I.Sh., passport, PINFL. */
+      search?: string;
+      /** ISO UTC timestamps — use toApiFrom / toApiTo from utils/dateRange. */
+      created_from?: string; created_to?: string;
       page?: number; size?: number;
     } = {}) =>
       http.get<PageResponse<any>>('/applications', { params }).then((r) => r.data),

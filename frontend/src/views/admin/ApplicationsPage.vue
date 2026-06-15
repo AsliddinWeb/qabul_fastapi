@@ -6,6 +6,7 @@ import {
   CheckCircle2, XCircle, ClipboardList, Trash2, PlayCircle, Plus, Pencil,
   Search, Clock, Inbox, FileCheck, FileX, Eye, Filter as FilterIcon,
   ArrowUpRight, MoreVertical, X as XIcon, ChevronDown, Check, Download,
+  AlertTriangle,
 } from 'lucide-vue-next'
 import { downloadFile } from '@/api/http'
 import DateRangeFilter from '@/components/ui/DateRangeFilter.vue'
@@ -174,6 +175,7 @@ async function exportXlsx() {
       consulting_agency_id: canSeeConsulting.value ? (filters.consulting_agency_id || undefined) : undefined,
       registered_by_id: filters.registered_by_id || undefined,
       source: (filters.source_origin as any) || undefined,
+      search: filters.search.trim() || undefined,
       created_from: toApiFrom(filters.date_from),
       created_to: toApiTo(filters.date_to),
     }, {
@@ -207,6 +209,7 @@ async function load() {
       // to their own work (or a colleague's) explicitly.
       registered_by_id: filters.registered_by_id || undefined,
       source: (filters.source_origin as any) || undefined,
+      search: filters.search.trim() || undefined,
       created_from: toApiFrom(filters.date_from),
       created_to: toApiTo(filters.date_to),
       page: filters.page,
@@ -223,15 +226,12 @@ async function load() {
   }
 }
 
-const filtered = computed(() => {
-  if (!filters.search.trim()) return items.value
-  const q = filters.search.toLowerCase()
-  return items.value.filter((a) =>
-    (a.application_number || '').toLowerCase().includes(q) ||
-    (a.applicant_full_name || '').toLowerCase().includes(q) ||
-    (a.program_name || '').toLowerCase().includes(q),
-  )
-})
+// Search is server-side now (see load() — sends filters.search to the
+// /applications endpoint), so the list page just renders whatever the
+// API returned. The client-side filter was missing matches on later
+// pages — typing "SHAROPOVA" on page 1 silently ignored her if she
+// lived on page 5.
+const filtered = computed(() => items.value)
 
 watch(() => filters.status, () => { filters.page = 1; load() })
 watch(() => filters.admission_type, () => { filters.page = 1; load() })
@@ -254,6 +254,13 @@ watch(() => filters.registered_by_id, () => { filters.page = 1; load() })
 watch(() => filters.source_origin, () => { filters.page = 1; load() })
 watch(() => filters.date_from, () => { filters.page = 1; load() })
 watch(() => filters.date_to,   () => { filters.page = 1; load() })
+// Debounced server-side search — wait 300ms after the user stops typing
+// so we don't fire a query on every keystroke of "SHAROPOVA".
+let searchT: ReturnType<typeof setTimeout> | null = null
+watch(() => filters.search, () => {
+  if (searchT) clearTimeout(searchT)
+  searchT = setTimeout(() => { filters.page = 1; load() }, 300)
+})
 watch(() => filters.page, load)
 
 onMounted(async () => {
@@ -682,8 +689,17 @@ async function bulkDeleteSelected() {
                     <div class="font-semibold text-slate-900 dark:text-slate-100 truncate transition-colors">
                       {{ a.applicant_full_name || a.applicant_id.slice(0, 8) }}
                     </div>
-                    <div class="font-mono text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                      <span class="text-slate-400">№</span> {{ a.application_number }}
+                    <div class="font-mono text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1.5">
+                      <span><span class="text-slate-400">№</span> {{ a.application_number }}</span>
+                      <!-- Broken-FK warning: applicant/program/branch row was deleted
+                           but the application still points at the dead id. Outer joins
+                           keep the row visible (was hidden before); this chip lets the
+                           admin spot it so they can either repoint or delete the row. -->
+                      <span v-if="!a.applicant_full_name || !a.program_name || !a.branch_name"
+                            class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-700 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-700/40"
+                            title="Bog'liq ma'lumotlar yo'q (abituriyent / yo'nalish / filial o'chirilgan). Arizani ochib tuzating yoki o'chiring.">
+                        <AlertTriangle class="w-2.5 h-2.5" /> buzilgan
+                      </span>
                     </div>
                   </div>
                 </div>
