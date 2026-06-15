@@ -39,7 +39,10 @@ interface Application {
   rejection_reason?: string | null
   created_at: string
   program_name?: string | null
+  program_code?: string | null
   branch_name?: string | null
+  education_level_name?: string | null
+  education_form_name?: string | null
   applicant_full_name?: string | null
   consulting_agency_id?: string | null
   consulting_agency_name?: string | null
@@ -119,7 +122,14 @@ const TYPE_OPTIONS = [
 ]
 const SOURCE_OPTIONS = [
   { id: 'lead',   label: "Lead'dan o'tkazildi" },
+  // 'direct' = any application with no lead_id, regardless of whether an
+  // operator entered it. Kept for back-compat with old saved URLs.
   { id: 'direct', label: "To'g'ridan-to'g'ri yaratildi" },
+  // 'self' tightens 'direct' further: no lead_id AND no operator
+  // registered the applicant — i.e. the abituriyent created the
+  // account on qabul.xiuedu.uz and submitted the application themselves
+  // from the public site. Important for marketing attribution.
+  { id: 'self',   label: "Saytdan o'zi to'ldirgan" },
 ]
 
 // Operator pool for the "Operator" filter. Shown on every staff panel
@@ -705,10 +715,20 @@ async function bulkDeleteSelected() {
                 </div>
               </td>
 
-              <!-- Yo'nalish -->
-              <td class="px-4 py-3 min-w-0">
-                <div class="font-medium text-slate-900 dark:text-slate-100 truncate max-w-[280px]">{{ a.program_name || '—' }}</div>
-                <div class="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[280px]">{{ a.branch_name || '—' }}</div>
+              <!-- Yo'nalish. Two lines: top is the full program name +
+                   filial, bottom is mono code + (Daraja · Shakli) so two
+                   identically-named programs (Sirtqi vs Kunduzgi, Bakalavr
+                   vs Magistr) are visually distinct in the list. Mirrors
+                   the disambiguation we did in the edit-form dropdown. -->
+              <td class="px-4 py-3 min-w-[24ch]">
+                <div class="font-medium text-slate-900 dark:text-slate-100 break-words leading-snug">{{ a.program_name || '—' }}</div>
+                <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                  <span v-if="a.program_code" class="font-mono text-slate-600 dark:text-slate-300">{{ a.program_code }}</span>
+                  <span v-if="a.education_level_name || a.education_form_name">
+                    <span v-if="a.program_code"> · </span>{{ [a.education_level_name, a.education_form_name].filter(Boolean).join(' · ') }}
+                  </span>
+                </div>
+                <div class="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">{{ a.branch_name || '—' }}</div>
               </td>
 
               <!-- Qabul turi -->

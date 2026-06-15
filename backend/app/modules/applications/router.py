@@ -178,7 +178,7 @@ async def list_applications(
     education_form_id: UUID | None = Query(default=None),
     consulting_agency_id: UUID | None = Query(default=None),
     registered_by_id: UUID | None = Query(default=None, description="Filter by who registered the applicant (operator attribution)"),
-    source: str | None = Query(default=None, description="'lead' or 'direct' — filter by lead-conversion origin"),
+    source: str | None = Query(default=None, description="'lead' / 'direct' / 'self' — origin of the application"),
     search: str | None = Query(default=None, max_length=100, description="Fuzzy match on application_number, F.I.Sh., passport, PINFL"),
     created_from: datetime | None = Query(default=None, description="created_at >= this UTC timestamp"),
     created_to: datetime | None = Query(default=None, description="created_at <= this UTC timestamp"),
@@ -297,7 +297,8 @@ _ENUM_LABELS: dict = {
 # Source string (set in repository.list_for_export) → Uzbek label.
 _SOURCE_LABELS: dict[str, str] = {
     "lead":   "Lead'dan",
-    "direct": "To'g'ridan-to'g'ri",
+    "direct": "Operator kiritgan",
+    "self":   "Saytdan o'zi",
 }
 
 # Human-readable labels used as XLSX header row. Order drives the column
