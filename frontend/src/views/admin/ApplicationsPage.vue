@@ -8,6 +8,8 @@ import {
   ArrowUpRight, MoreVertical, X as XIcon, ChevronDown, Check, Download,
 } from 'lucide-vue-next'
 import { downloadFile } from '@/api/http'
+import DateRangeFilter from '@/components/ui/DateRangeFilter.vue'
+import { toApiFrom, toApiTo } from '@/utils/dateRange'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import { AxiosError } from 'axios'
@@ -77,6 +79,8 @@ const { filters, clear: clearAllFilters } = useUrlFilters({
   consulting_agency_id: '' as string,
   registered_by_id: '' as string,   // operator filter (admin/superadmin only)
   source_origin: '' as string,       // 'lead' | 'direct' | ''
+  date_from: '' as string,           // YYYY-MM-DD (local), converted to UTC ISO at send time
+  date_to: '' as string,             // YYYY-MM-DD (local)
   search: '' as string,
   page: 1,
   size: 20,
@@ -144,6 +148,7 @@ const activeFilterCount = computed(() => {
   if (filters.consulting_agency_id) n++
   if (filters.registered_by_id) n++
   if (filters.source_origin) n++
+  if (filters.date_from || filters.date_to) n++
   return n
 })
 
@@ -167,6 +172,10 @@ async function exportXlsx() {
       education_form_id: filters.education_form_id || undefined,
       program_id: filters.program_id || undefined,
       consulting_agency_id: canSeeConsulting.value ? (filters.consulting_agency_id || undefined) : undefined,
+      registered_by_id: filters.registered_by_id || undefined,
+      source: (filters.source_origin as any) || undefined,
+      created_from: toApiFrom(filters.date_from),
+      created_to: toApiTo(filters.date_to),
     }, {
       mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       fallbackName: `arizalar_${new Date().toISOString().slice(0, 16).replace('T', '_').replace(/:/g, '-')}.xlsx`,
@@ -198,6 +207,8 @@ async function load() {
       // to their own work (or a colleague's) explicitly.
       registered_by_id: filters.registered_by_id || undefined,
       source: (filters.source_origin as any) || undefined,
+      created_from: toApiFrom(filters.date_from),
+      created_to: toApiTo(filters.date_to),
       page: filters.page,
       size: filters.size,
     })
@@ -241,6 +252,8 @@ watch(() => filters.program_id, () => { filters.page = 1; load() })
 watch(() => filters.consulting_agency_id, () => { filters.page = 1; load() })
 watch(() => filters.registered_by_id, () => { filters.page = 1; load() })
 watch(() => filters.source_origin, () => { filters.page = 1; load() })
+watch(() => filters.date_from, () => { filters.page = 1; load() })
+watch(() => filters.date_to,   () => { filters.page = 1; load() })
 watch(() => filters.page, load)
 
 onMounted(async () => {
@@ -596,6 +609,12 @@ async function bulkDeleteSelected() {
         <div>
           <label class="field-label">Manba</label>
           <SearchSelect v-model="filters.source_origin" :options="SOURCE_OPTIONS" placeholder="— hammasi —" allow-clear />
+        </div>
+        <div class="sm:col-span-2 lg:col-span-3">
+          <DateRangeFilter
+            v-model:from="filters.date_from"
+            v-model:to="filters.date_to"
+            label="Yaratilgan sana" />
         </div>
       </div>
     </div>

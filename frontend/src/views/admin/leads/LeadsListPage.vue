@@ -5,6 +5,8 @@ import { useUrlFilters } from '@/composables/useUrlFilters'
 import { useBulkSelect } from '@/composables/useBulkSelect'
 import BulkActionBar from '@/components/ui/BulkActionBar.vue'
 import Pagination from '@/components/ui/Pagination.vue'
+import DateRangeFilter from '@/components/ui/DateRangeFilter.vue'
+import { toApiFrom, toApiTo } from '@/utils/dateRange'
 import { useAuthStore } from '@/stores/auth'
 import {
   Plus, Users as UsersIcon, Search, X as XIcon, LayoutGrid, Filter as FilterIcon,
@@ -57,6 +59,8 @@ const { filters, clear: clearAllFilters, hasActiveFilters } = useUrlFilters({
   status: '' as string,    // '' | 'open' | 'won' | 'lost'
   source_id: '' as string,
   assigned_to_id: '' as string,   // operator filter (admin/superadmin only)
+  date_from: '' as string,        // YYYY-MM-DD (local), converted to UTC ISO at send time
+  date_to: '' as string,          // YYYY-MM-DD (local)
   search: '' as string,
   page: 1,
   size: 50,
@@ -123,6 +127,8 @@ async function load() {
         ? (auth.user?.id || undefined)
         : (filters.assigned_to_id || undefined),
       search: filters.search || undefined,
+      created_from: toApiFrom(filters.date_from),
+      created_to: toApiTo(filters.date_to),
       page: filters.page,
       size: filters.size,
     })
@@ -165,6 +171,7 @@ watch(
   () => [filters.stage_id, filters.status, filters.source_id, filters.assigned_to_id],
   () => { filters.page = 1; load() },
 )
+watch(() => [filters.date_from, filters.date_to], () => { filters.page = 1; load() })
 watch(() => filters.page, load)
 
 const lastPage = () => Math.max(1, Math.ceil(total.value / filters.size))
@@ -455,6 +462,12 @@ function opAvatarTone(name: string | null): string {
           <label class="field-label">Operator</label>
           <SearchSelect v-model="filters.assigned_to_id" :options="operators"
                         placeholder="— hammasi —" allow-clear />
+        </div>
+        <div class="sm:col-span-2 lg:col-span-3">
+          <DateRangeFilter
+            v-model:from="filters.date_from"
+            v-model:to="filters.date_to"
+            label="Yaratilgan sana" />
         </div>
       </div>
     </div>

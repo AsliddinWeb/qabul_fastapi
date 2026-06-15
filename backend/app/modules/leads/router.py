@@ -304,6 +304,8 @@ async def list_leads(
         description="Filter by next_contact_at presence: true = scheduled callbacks only",
     ),
     search: str | None = Query(default=None, max_length=100),
+    created_from: datetime | None = Query(default=None, description="created_at >= this UTC timestamp"),
+    created_to: datetime | None = Query(default=None, description="created_at <= this UTC timestamp"),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=50, ge=1, le=200),
     svc: LeadService = Depends(_service),
@@ -312,7 +314,9 @@ async def list_leads(
         pipeline_id=pipeline_id, stage_id=stage_id, status=status_filter,
         source_id=source_id, assigned_to_id=assigned_to_id, branch_id=branch_id,
         has_next_contact=has_next_contact,
-        search=search, limit=size, offset=(page - 1) * size,
+        search=search,
+        created_from=created_from, created_to=created_to,
+        limit=size, offset=(page - 1) * size,
     )
     return PageResponse[LeadRead].build(
         items=[LeadRead.model_validate(i) for i in items],

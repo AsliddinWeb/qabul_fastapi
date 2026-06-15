@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -127,6 +128,8 @@ class ApplicationRepository(BaseRepository[Application]):
         consulting_agency_id: UUID | None = None,
         registered_by_id: UUID | None = None,
         source: str | None = None,
+        created_from: datetime | None = None,
+        created_to: datetime | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> tuple[list[dict], int]:
@@ -155,6 +158,13 @@ class ApplicationRepository(BaseRepository[Application]):
             clauses.append(Application.lead_id.isnot(None))
         elif source == "direct":
             clauses.append(Application.lead_id.is_(None))
+        # Date range: created_at >= from AND created_at <= to. Both bounds
+        # are optional; the frontend ships UTC-converted timestamps so we
+        # don't have to mess with timezone offsets here.
+        if created_from is not None:
+            clauses.append(Application.created_at >= created_from)
+        if created_to is not None:
+            clauses.append(Application.created_at <= created_to)
 
         rows = await self._detailed_query(*clauses, limit=limit, offset=offset)
 
@@ -236,6 +246,8 @@ class ApplicationRepository(BaseRepository[Application]):
         consulting_agency_id: UUID | None = None,
         registered_by_id: UUID | None = None,
         source: str | None = None,
+        created_from: datetime | None = None,
+        created_to: datetime | None = None,
         limit: int = 20_000,
     ) -> list[dict]:
         """Return every field the Excel exporter wants — one row per application.
@@ -308,6 +320,10 @@ class ApplicationRepository(BaseRepository[Application]):
             clauses.append(Application.lead_id.isnot(None))
         elif source == "direct":
             clauses.append(Application.lead_id.is_(None))
+        if created_from is not None:
+            clauses.append(Application.created_at >= created_from)
+        if created_to is not None:
+            clauses.append(Application.created_at <= created_to)
         for c in clauses:
             stmt = stmt.where(c)
 

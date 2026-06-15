@@ -122,6 +122,8 @@ class LeadRepository(BaseRepository[Lead]):
         branch_id: UUID | None = None,
         has_next_contact: bool | None = None,
         search: str | None = None,
+        created_from: datetime | None = None,
+        created_to: datetime | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[dict], int]:
@@ -142,6 +144,10 @@ class LeadRepository(BaseRepository[Lead]):
         if search:
             q = f"%{search.strip()}%"
             clauses.append(or_(Lead.full_name.ilike(q), Lead.phone.ilike(q), Lead.email.ilike(q)))
+        if created_from is not None:
+            clauses.append(Lead.created_at >= created_from)
+        if created_to is not None:
+            clauses.append(Lead.created_at <= created_to)
 
         rows = await self._select_with_labels(clauses, limit=limit, offset=offset)
 

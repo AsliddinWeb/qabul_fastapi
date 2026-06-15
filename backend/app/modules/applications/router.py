@@ -179,6 +179,8 @@ async def list_applications(
     consulting_agency_id: UUID | None = Query(default=None),
     registered_by_id: UUID | None = Query(default=None, description="Filter by who registered the applicant (operator attribution)"),
     source: str | None = Query(default=None, description="'lead' or 'direct' — filter by lead-conversion origin"),
+    created_from: datetime | None = Query(default=None, description="created_at >= this UTC timestamp"),
+    created_to: datetime | None = Query(default=None, description="created_at <= this UTC timestamp"),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=100),
     svc: ApplicationsService = Depends(_service),
@@ -193,6 +195,8 @@ async def list_applications(
         consulting_agency_id=consulting_agency_id,
         registered_by_id=registered_by_id,
         source=source,
+        created_from=created_from,
+        created_to=created_to,
         limit=size,
         offset=(page - 1) * size,
     )
@@ -216,6 +220,8 @@ async def export_applications_csv(
     consulting_agency_id: UUID | None = Query(default=None),
     registered_by_id: UUID | None = Query(default=None),
     source: str | None = Query(default=None),
+    created_from: datetime | None = Query(default=None),
+    created_to: datetime | None = Query(default=None),
     svc: ApplicationsService = Depends(_service),
 ) -> Response:
     """Export filtered applications to CSV."""
@@ -229,6 +235,8 @@ async def export_applications_csv(
         consulting_agency_id=consulting_agency_id,
         registered_by_id=registered_by_id,
         source=source,
+        created_from=created_from,
+        created_to=created_to,
         limit=10_000,
         offset=0,
     )
@@ -395,6 +403,8 @@ async def export_applications_xlsx(
     consulting_agency_id: UUID | None = Query(default=None),
     registered_by_id: UUID | None = Query(default=None),
     source: str | None = Query(default=None),
+    created_from: datetime | None = Query(default=None),
+    created_to: datetime | None = Query(default=None),
     svc: ApplicationsService = Depends(_service),
 ) -> Response:
     """Export filtered applications to a styled Excel (.xlsx) workbook.
@@ -423,6 +433,8 @@ async def export_applications_xlsx(
         consulting_agency_id=consulting_agency_id,
         registered_by_id=registered_by_id,
         source=source,
+        created_from=created_from,
+        created_to=created_to,
     )
 
     wb = Workbook()

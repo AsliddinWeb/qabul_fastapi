@@ -154,7 +154,10 @@ export const leadsApi = {
   list: (params: {
     pipeline_id?: string; stage_id?: string; status?: string;
     source_id?: string; assigned_to_id?: string; branch_id?: string;
+    has_next_contact?: boolean;
     search?: string; page?: number; size?: number;
+    // ISO UTC timestamps — convert from local YYYY-MM-DD via toApiFrom / toApiTo
+    created_from?: string; created_to?: string;
   } = {}) =>
     http.get<PageResponse<Lead>>('/leads', { params }).then(r => r.data),
 
