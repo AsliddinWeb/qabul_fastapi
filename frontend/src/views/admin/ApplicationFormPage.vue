@@ -491,11 +491,23 @@ const selectedProgram = computed(() => allPrograms.value.find((p) => p.id === fo
 const branchOptions       = computed(() => branches.value.map(b => ({ id: b.id, label: b.name })))
 const levelOptionsList    = computed(() => availableLevels.value.map(l => ({ id: l.id, label: l.name })))
 const formOptionsList     = computed(() => availableForms.value.map((f: any) => ({ id: f.id, label: f.name })))
-const programOptionsList  = computed(() => availablePrograms.value.map(p => ({
-  id: p.id,
-  label: p.name,
-  sub: p.code || '',
-})))
+// Program dropdown label = full program name + level + form, because the
+// same program ("Buxgalteriya hisobi va audit") is split across multiple
+// Program rows (one per education form: Kunduzgi / Sirtqi / Kechki and
+// per level: Bakalavr / Magistr). Showing only the name leaves the
+// operator with several identical-looking lines; we put the
+// differentiator in parens. `sub` keeps the program code as a mono
+// second line for cross-referencing with contracts.
+const programOptionsList  = computed(() => availablePrograms.value.map(p => {
+  const lvl = allEducationLevels.value.find(l => l.id === p.education_level_id)?.name
+  const frm = allEducationForms.value.find(f => f.id === p.education_form_id)?.name
+  const suffix = [lvl, frm].filter(Boolean).join(' · ')
+  return {
+    id: p.id,
+    label: suffix ? `${p.name} — (${suffix})` : p.name,
+    sub: p.code || '',
+  }
+}))
 const courseOptions       = computed(() => courses.value.map(c => ({ id: c.id, label: c.name })))
 const regionOptions       = computed(() => regions.value.map(r => ({ id: r.id, label: r.name })))
 const inlineDistrictOpts  = computed(() => inlineDistricts.value.map(d => ({ id: d.id, label: d.name })))

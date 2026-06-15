@@ -314,12 +314,18 @@ async function exportCsv() {
                   Imzo: {{ new Date(c.signed_at).toLocaleDateString('uz-UZ') }}
                 </div>
               </td>
-              <td class="px-4 py-4">
-                <div class="text-sm font-medium text-slate-900 dark:text-slate-100 truncate max-w-[20ch]">{{ c.applicant_full_name || '—' }}</div>
+              <td class="px-4 py-4 min-w-[18ch]">
+                <!-- Full F.I.Sh., no clamp. Accountants compared their list
+                     against the bank's deposit slip and Uzbek triple-barrel
+                     names ("ABDIRAHMONOVA NIGORAXON SHUKHRATBEKOVNA") were
+                     getting cut off — they couldn't tell two students apart
+                     without hovering. break-words keeps long names from
+                     pushing the page wider than the viewport. -->
+                <div class="text-sm font-medium text-slate-900 dark:text-slate-100 break-words leading-snug">{{ c.applicant_full_name || '—' }}</div>
               </td>
-              <td class="px-4 py-4 min-w-0">
-                <div class="text-sm text-slate-700 dark:text-slate-300 truncate max-w-[28ch]">{{ c.program_name || '—' }}</div>
-                <div class="text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[28ch]">{{ c.branch_name || '—' }}</div>
+              <td class="px-4 py-4 min-w-[22ch]">
+                <div class="text-sm text-slate-700 dark:text-slate-300 break-words leading-snug">{{ c.program_name || '—' }}</div>
+                <div class="text-[11px] text-slate-500 dark:text-slate-400 break-words leading-snug mt-0.5">{{ c.branch_name || '—' }}</div>
               </td>
               <td class="px-4 py-4">
                 <div class="flex items-center gap-2 mb-1">

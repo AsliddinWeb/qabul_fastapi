@@ -253,13 +253,13 @@ async function bulkCancelSelected() {
                      @change="bulk.toggle(c.id)" />
             </td>
             <td class="font-mono text-xs text-slate-600 dark:text-slate-300">{{ c.contract_number }}</td>
-            <td class="text-slate-900 dark:text-slate-100 font-medium truncate max-w-[200px]">
+            <td class="text-slate-900 dark:text-slate-100 font-medium break-words leading-snug min-w-[18ch]">
               {{ c.applicant_full_name || '—' }}
             </td>
-            <td class="text-xs text-slate-700 dark:text-slate-300 truncate max-w-[180px]">
+            <td class="text-xs text-slate-700 dark:text-slate-300 break-words leading-snug min-w-[20ch]">
               {{ c.program_name || '—' }}
             </td>
-            <td class="text-xs text-slate-600 dark:text-slate-400 truncate max-w-[120px]">
+            <td class="text-xs text-slate-600 dark:text-slate-400 break-words leading-snug min-w-[14ch]">
               {{ c.branch_name || '—' }}
             </td>
             <td class="text-xs"><span class="pill">{{ tr(CONTRACT_TYPE, c.type) }}</span></td>
