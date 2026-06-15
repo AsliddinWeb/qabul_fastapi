@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { Upload, FileText, ImageIcon, X as XIcon, Loader2 } from 'lucide-vue-next'
+import { Upload, X as XIcon, Loader2 } from 'lucide-vue-next'
 import { http } from '@/api/http'
+import FilePreview from '@/components/ui/FilePreview.vue'
 
 const props = defineProps<{
   modelValue: string | null
@@ -15,6 +16,11 @@ const emit = defineEmits<{
   (e: 'uploaded', meta: { id: string; original_name: string; mime_type: string; url: string }): void
 }>()
 
+// `fileMeta` is populated when the user just uploaded a new file in
+// this session. When modelValue arrives pre-set from a server fetch
+// (edit page hydration) fileMeta stays null and FilePreview takes over
+// rendering — it fetches metadata via /files/{id}/meta and shows the
+// image thumbnail / PDF tile.
 const fileMeta = ref<{ id: string; original_name: string; mime_type: string; size_bytes: number; url: string } | null>(null)
 const uploading = ref(false)
 const error = ref<string | null>(null)
@@ -59,11 +65,6 @@ function clear() {
   emit('update:modelValue', null)
 }
 
-function fmtSize(b: number): string {
-  if (b < 1024) return `${b} B`
-  if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`
-  return `${(b / 1024 / 1024).toFixed(2)} MB`
-}
 </script>
 
 <template>
@@ -91,28 +92,20 @@ function fmtSize(b: number): string {
       <div class="text-sm text-slate-600 dark:text-slate-400">Yuklanmoqda...</div>
     </div>
 
-    <div v-else
-         class="rounded-xl border border-slate-200 dark:border-slate-700 p-3 flex items-center gap-3 bg-white dark:bg-slate-900">
-      <component :is="fileMeta?.mime_type?.startsWith('image/') ? ImageIcon : FileText"
-                 class="w-5 h-5 text-slate-500 shrink-0" />
-      <div class="min-w-0 flex-1">
-        <div class="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
-          {{ fileMeta?.original_name || 'Yuklangan fayl' }}
-        </div>
-        <div v-if="fileMeta" class="text-[11px] text-slate-500 dark:text-slate-400">
-          {{ fileMeta.mime_type }} · {{ fmtSize(fileMeta.size_bytes) }}
-        </div>
-        <div v-else class="text-[11px] text-slate-500 dark:text-slate-400">
-          Avval yuklangan fayl
-        </div>
+    <!-- When the user just uploaded, render the fresh metadata inline.
+         Otherwise delegate to FilePreview which fetches /files/{id}/meta
+         and renders the right kind of tile (image thumbnail / PDF /
+         generic). The Remove button stays in this wrapper so the parent
+         layout is identical either way. -->
+    <div v-else class="space-y-2">
+      <FilePreview :file-id="modelValue" />
+      <div class="flex justify-end">
+        <button type="button"
+                class="inline-flex items-center gap-1 text-xs text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300"
+                @click="clear">
+          <XIcon class="w-3.5 h-3.5" /> Olib tashlash
+        </button>
       </div>
-      <a v-if="fileMeta?.url" :href="fileMeta.url" target="_blank" rel="noopener"
-         class="icon-btn" title="Ochish">
-        <FileText class="w-4 h-4" />
-      </a>
-      <button type="button" class="icon-btn-danger" title="Olib tashlash" @click="clear">
-        <XIcon class="w-4 h-4" />
-      </button>
     </div>
 
     <p v-if="error" class="field-error">{{ error }}</p>

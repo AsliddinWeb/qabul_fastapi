@@ -76,6 +76,38 @@ async def upload_file(
 
 
 @router.get(
+    "/{file_id}/meta",
+    response_model=FileUploadOut,
+)
+async def get_file_meta(
+    file_id: UUID,
+    current: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db),
+) -> FileUploadOut:
+    """Return metadata for an already-uploaded file by id.
+
+    Frontend needs this for FilePreview rendering: an applicant detail
+    page might have a diploma_file_id but no inline metadata, so the
+    component fetches name + mime + size here, then constructs the
+    image / PDF preview from /{file_id}/download?token=... The /upload
+    response carries the same shape, so the FE deserialises both the
+    same way.
+    """
+    _ = current  # auth-only — we don't filter by uploader
+    file = await FileRepository(session).get(file_id)
+    if not file:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
+    svc = FilesService(session)
+    return FileUploadOut(
+        id=file.id,
+        original_name=file.original_name,
+        mime_type=file.mime_type,
+        size_bytes=file.size_bytes,
+        url=svc.public_url(file),
+    )
+
+
+@router.get(
     "/{file_id}/download",
     response_class=Response,
 )

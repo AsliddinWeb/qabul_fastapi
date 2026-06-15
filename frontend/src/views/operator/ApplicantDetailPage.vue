@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { AxiosError } from 'axios'
-import { ArrowLeft, FileText, Save } from 'lucide-vue-next'
+import { ArrowLeft, FileText, Save, Award, GraduationCap, Pencil } from 'lucide-vue-next'
 import { staffApi } from '@/api/staff.api'
 import type { ApplicantDetailed, ApplicantBase } from '@/api/applicants.api'
 import { adminApi, type RegionRead, type DistrictRead, type CountryRead } from '@/api/admin.api'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
+import FilePreview from '@/components/ui/FilePreview.vue'
 import {
   PLACEHOLDERS,
   formatNameUpper,
@@ -40,6 +41,26 @@ const data = ref<ApplicantDetailed | null>(null)
 const loading = ref(true)
 const saving = ref(false)
 const errors = ref<Record<string, string>>({})
+
+// Diplom + transfer diplom rows for this applicant's user. Same data the
+// Application form uses for the inline diplom widget. Loaded lazily after
+// the applicant itself arrives so we know the user_id.
+const diploms = ref<any[]>([])
+const transferDiploms = ref<any[]>([])
+const diplomsLoading = ref(false)
+async function loadDocs(user_id: string) {
+  diplomsLoading.value = true
+  try {
+    const [d, t] = await Promise.all([
+      adminApi.diploms.list({ user_id }).catch(() => ({ items: [] }) as any),
+      adminApi.transferDiploms.list({ user_id }).catch(() => ({ items: [] }) as any),
+    ])
+    diploms.value = (d as any).items || []
+    transferDiploms.value = (t as any).items || []
+  } finally {
+    diplomsLoading.value = false
+  }
+}
 
 const personal = reactive<ApplicantBase>({
   last_name: '', first_name: '', other_name: '',
@@ -85,6 +106,10 @@ onMounted(async () => {
   await load()
   if (personal.region_id) {
     districts.value = await adminApi.districts.list(personal.region_id).catch(() => [])
+  }
+  if (data.value?.user_id) {
+    // Don't block initial paint — diplom fetch is independent.
+    loadDocs(data.value.user_id)
   }
 })
 
@@ -289,11 +314,89 @@ async function generateContract() {
     <!-- Login info card -->
     <LoginInfoCard v-if="data?.user_id" :user-id="data.user_id" />
 
+    <!-- Diplom + perevod diplomi hujjatlari. Loaded async (don't block
+         the personal-info form), shows a skeleton placeholder while the
+         GET /diploms?user_id query is in flight. Each row uses
+         FilePreview which fetches /files/{id}/meta and renders the
+         right kind of tile (image thumbnail / PDF / generic). -->
     <section class="card p-4 sm:p-6">
-      <h3 class="font-semibold text-slate-900 dark:text-slate-100 mb-2">Diplom va arizalar</h3>
-      <p class="text-sm text-slate-500 dark:text-slate-400">
-        Diplom (1-kurs) yoki perevod diplomi alohida sahifalarda boshqariladi.
-      </p>
+      <div class="flex items-center gap-2 mb-4">
+        <span class="grid place-items-center w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
+          <Award class="w-4 h-4" />
+        </span>
+        <h3 class="font-semibold text-slate-900 dark:text-slate-100">Hujjatlar</h3>
+      </div>
+
+      <div v-if="diplomsLoading" class="text-sm text-slate-500 dark:text-slate-400">
+        Yuklanmoqda...
+      </div>
+
+      <div v-else-if="!diploms.length && !transferDiploms.length"
+           class="rounded-lg border border-dashed border-slate-200 dark:border-slate-700 p-6 text-center">
+        <FileText class="w-6 h-6 text-slate-400 mx-auto mb-1.5" />
+        <p class="text-sm text-slate-500 dark:text-slate-400">
+          Bu abituriyentda diplom ham, perevod diplomi ham yo'q.
+        </p>
+      </div>
+
+      <div v-else class="space-y-5">
+        <!-- 1-kurs diploms -->
+        <div v-if="diploms.length">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-sm font-semibold text-slate-700 dark:text-slate-300 inline-flex items-center gap-1.5">
+              <GraduationCap class="w-4 h-4" /> Diplom (1-kurs uchun)
+            </div>
+            <span class="text-[11px] text-slate-400 dark:text-slate-500">{{ diploms.length }} ta</span>
+          </div>
+          <div class="grid sm:grid-cols-2 gap-3">
+            <div v-for="d in diploms" :key="d.id"
+                 class="rounded-xl ring-1 ring-slate-200 dark:ring-slate-700 p-3 space-y-2 bg-slate-50/40 dark:bg-slate-900/30">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0 flex-1">
+                  <div class="font-medium text-sm text-slate-900 dark:text-slate-100 truncate">{{ d.university_name || '—' }}</div>
+                  <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    <span class="font-mono">{{ d.serial_number }}</span>
+                    <span v-if="d.graduation_year"> · {{ d.graduation_year }}</span>
+                  </div>
+                </div>
+                <RouterLink v-if="!isAccountantPanel" :to="`${panelPrefix}/diploms/${d.id}`"
+                            class="icon-btn !w-7 !h-7" title="Tahrirlash">
+                  <Pencil class="w-3.5 h-3.5" />
+                </RouterLink>
+              </div>
+              <FilePreview :file-id="d.diploma_file_id" size="compact" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Perevod diploms -->
+        <div v-if="transferDiploms.length">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-sm font-semibold text-slate-700 dark:text-slate-300 inline-flex items-center gap-1.5">
+              <GraduationCap class="w-4 h-4" /> Perevod diplomi
+            </div>
+            <span class="text-[11px] text-slate-400 dark:text-slate-500">{{ transferDiploms.length }} ta</span>
+          </div>
+          <div class="grid sm:grid-cols-2 gap-3">
+            <div v-for="t in transferDiploms" :key="t.id"
+                 class="rounded-xl ring-1 ring-slate-200 dark:ring-slate-700 p-3 space-y-2 bg-slate-50/40 dark:bg-slate-900/30">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0 flex-1">
+                  <div class="font-medium text-sm text-slate-900 dark:text-slate-100 truncate">{{ t.university_name || '—' }}</div>
+                  <div class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    Transkript fayli
+                  </div>
+                </div>
+                <RouterLink v-if="!isAccountantPanel" :to="`${panelPrefix}/transfer-diploms/${t.id}`"
+                            class="icon-btn !w-7 !h-7" title="Tahrirlash">
+                  <Pencil class="w-3.5 h-3.5" />
+                </RouterLink>
+              </div>
+              <FilePreview :file-id="t.transcript_file_id" size="compact" />
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
   </div>
 </template>
