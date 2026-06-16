@@ -7,8 +7,8 @@ import {
 } from 'lucide-vue-next'
 import { AxiosError } from 'axios'
 import { leadsApi, type LeadPipeline, type LeadStage, type LeadSource } from '@/api/leads.api'
-import { adminApi, type UserRead } from '@/api/admin.api'
-import { usersApi } from '@/api/users.api'
+import { adminApi } from '@/api/admin.api'
+import { usersApi, type UserLookup } from '@/api/users.api'
 import { useToast } from '@/composables/useToast'
 import SearchSelect from '@/components/ui/SearchSelect.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
@@ -46,7 +46,8 @@ const stages = ref<LeadStage[]>([])
 const sources = ref<LeadSource[]>([])
 const branches = ref<any[]>([])
 const programs = ref<any[]>([])
-const operators = ref<UserRead[]>([])
+// Lookup shape — id + full_name is all the assignee picker needs.
+const operators = ref<UserLookup[]>([])
 
 const saving = ref(false)
 const loading = ref(true)

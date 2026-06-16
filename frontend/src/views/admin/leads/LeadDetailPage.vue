@@ -10,8 +10,8 @@ import { AxiosError } from 'axios'
 import {
   leadsApi, type Lead, type LeadActivity, type LeadStage, type LeadLostReason, type LeadSource,
 } from '@/api/leads.api'
-import { adminApi, type UserRead } from '@/api/admin.api'
-import { usersApi } from '@/api/users.api'
+import { adminApi } from '@/api/admin.api'
+import { usersApi, type UserLookup } from '@/api/users.api'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import Skeleton from '@/components/ui/Skeleton.vue'
@@ -53,7 +53,9 @@ function gotoSibling(leadId: string | null) {
 const activities = ref<LeadActivity[]>([])
 const stages = ref<LeadStage[]>([])
 const lostReasons = ref<LeadLostReason[]>([])
-const operators = ref<UserRead[]>([])
+// Public-lookup shape: { id, full_name, phone, role, referral_code }.
+// Enough for the assignee dropdown — full UserRead isn't needed here.
+const operators = ref<UserLookup[]>([])
 const sources = ref<LeadSource[]>([])
 const branches = ref<any[]>([])
 const programs = ref<any[]>([])
