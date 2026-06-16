@@ -158,7 +158,11 @@ const programOptions = computed(() =>
     .filter(p => !form.branch_id || p.branch_id === form.branch_id)
     .map(p => ({ id: p.id, label: p.name, sub: p.code })),
 )
-const operatorOptions = computed(() => operators.value.map(u => ({ id: u.id, label: u.full_name || u.phone, sub: u.phone })))
+const operatorOptions = computed(() => operators.value.map(u => ({
+  id: u.id,
+  label: u.full_name || u.phone || u.id.slice(0, 8),
+  sub: u.phone || '',
+})))
 
 onMounted(async () => {
   try {

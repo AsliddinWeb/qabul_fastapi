@@ -116,7 +116,12 @@ watch(() => route.params.id, (newId, oldId) => {
 })
 
 const stageOptions = computed(() => stages.value.map(s => ({ id: s.id, label: s.name })))
-const operatorOptions = computed(() => operators.value.map(u => ({ id: u.id, label: u.full_name || u.phone })))
+const operatorOptions = computed(() => operators.value.map(u => ({
+  id: u.id,
+  // Lookup payload allows both fields to be null; fall back to a short
+  // id slice so SearchSelect always has a non-null label to render.
+  label: u.full_name || u.phone || u.id.slice(0, 8),
+})))
 const reasonOptions = computed(() => lostReasons.value.map(r => ({ id: r.id, label: r.name })))
 const sourceOptions = computed(() => sources.value.map(s => ({ id: s.id, label: s.name })))
 const branchOptions = computed(() => branches.value.map(b => ({ id: b.id, label: b.name })))
