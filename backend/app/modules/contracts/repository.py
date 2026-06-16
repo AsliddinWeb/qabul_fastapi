@@ -65,6 +65,7 @@ class ContractRepository(BaseRepository[Contract]):
         status: ContractStatus | None = None,
         type: ContractType | None = None,
         search: str | None = None,
+        application_id: UUID | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> tuple[list[Contract], int]:
@@ -80,6 +81,9 @@ class ContractRepository(BaseRepository[Contract]):
             like = f"%{search}%"
             stmt = stmt.where(Contract.contract_number.ilike(like))
             count_stmt = count_stmt.where(Contract.contract_number.ilike(like))
+        if application_id is not None:
+            stmt = stmt.where(Contract.application_id == application_id)
+            count_stmt = count_stmt.where(Contract.application_id == application_id)
         stmt = stmt.order_by(Contract.created_at.desc()).limit(limit).offset(offset)
         rows = list((await self.session.scalars(stmt)).all())
         total = await self.session.scalar(count_stmt) or 0
@@ -93,6 +97,7 @@ class ContractRepository(BaseRepository[Contract]):
         payment_status: str | None = None,  # "paid" | "partial" | "unpaid"
         branch_id: UUID | None = None,
         created_by_id: UUID | None = None,
+        application_id: UUID | None = None,
         search: str | None = None,
         limit: int = 20,
         offset: int = 0,
@@ -142,6 +147,8 @@ class ContractRepository(BaseRepository[Contract]):
             clauses.append(Application.branch_id == branch_id)
         if created_by_id is not None:
             clauses.append(Contract.created_by_id == created_by_id)
+        if application_id is not None:
+            clauses.append(Contract.application_id == application_id)
         if payment_status == "paid":
             clauses.append(Contract.paid_amount >= Contract.total_amount)
         elif payment_status == "partial":

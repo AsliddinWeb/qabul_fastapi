@@ -336,6 +336,10 @@ export const adminApi = {
       status?: string
       type?: string
       created_by_id?: string
+      /** Filter to contracts for ONE application — used by
+       *  /admin/applications/:id to find this application's contract
+       *  in O(1) instead of paginating the global list. */
+      application_id?: string
       search?: string
       page?: number
       size?: number

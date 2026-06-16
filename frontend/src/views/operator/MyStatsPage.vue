@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { Bar, Doughnut, Line } from 'vue-chartjs'
+import { Bar, Doughnut } from 'vue-chartjs'
 import {
   Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale,
   BarElement, PointElement, LineElement, Filler,
 } from 'chart.js'
 import {
-  Users, Award, XCircle, Target, TrendingUp, TrendingDown, Clock,
-  ArrowRight, Activity,
+  Users, Award, XCircle, Target, TrendingUp, TrendingDown,
+  ArrowRight, Activity, ClipboardList, AlertTriangle,
 } from 'lucide-vue-next'
 import { leadsApi, type Lead } from '@/api/leads.api'
+import { adminApi } from '@/api/admin.api'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
 import StatCard from '@/components/ui/StatCard.vue'
@@ -23,17 +24,93 @@ const theme = useThemeStore()
 const meId = computed(() => auth.user?.id || '')
 
 const loading = ref(true)
+const loadError = ref<string | null>(null)
 const myLeads = ref<Lead[]>([])
+const myApplicationsCount = ref(0)
+const myApplicationsPrevCount = ref(0)
 const range = ref<'month' | 'quarter' | 'year'>('month')
 
+/**
+ * Pull every lead assigned to this operator. Old code asked for
+ * size=500 in one shot, but list_leads is hard-capped at 200 server
+ * side — the request 422'd and the whole page silently fell into a
+ * permanent skeleton. Now we paginate 200-at-a-time up to a sane cap
+ * so even operators with thousands of historical leads get a complete
+ * picture.
+ */
+async function loadAllMyLeads(): Promise<Lead[]> {
+  const SIZE = 200
+  const MAX_PAGES = 25   // 5000 leads — covers anyone realistic
+  const all: Lead[] = []
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    const r = await leadsApi.list({
+      assigned_to_id: meId.value,
+      page, size: SIZE,
+    })
+    const items = r.items || []
+    all.push(...items)
+    if (items.length < SIZE) break
+  }
+  return all
+}
+
 onMounted(async () => {
+  // Block on the auth store actually having a user. The reactive
+  // computed for meId returns '' until the auth bootstrap finishes,
+  // and asking the server for "" returns the wrong scope.
+  // Short retry loop instead of a watch — keeps the rest of the
+  // setup synchronous.
+  for (let i = 0; i < 20 && !meId.value; i++) {
+    await new Promise(r => setTimeout(r, 50))
+  }
+  if (!meId.value) {
+    loadError.value = "Foydalanuvchi sessiyasi aniqlanmadi"
+    loading.value = false
+    return
+  }
+
   try {
-    const r = await leadsApi.list({ assigned_to_id: meId.value, page: 1, size: 500 })
-    myLeads.value = r.items || []
+    // Parallel pull: every lead I'm assigned + my application registration
+    // count this period + previous period (for the delta).
+    const [leads, currApps, prevApps] = await Promise.all([
+      loadAllMyLeads(),
+      // The applications endpoint accepts registered_by_id + ISO timestamp
+      // filters. We only need `total`, so page=1 size=1 is the cheapest
+      // round-trip.
+      currentRangeAppsTotal(),
+      previousRangeAppsTotal(),
+    ])
+    myLeads.value = leads
+    myApplicationsCount.value = currApps
+    myApplicationsPrevCount.value = prevApps
+  } catch (e: any) {
+    loadError.value = e?.response?.data?.detail || "Statistikani yuklab bo'lmadi"
   } finally {
     loading.value = false
   }
 })
+
+async function currentRangeAppsTotal(): Promise<number> {
+  const [from, to] = rangeBounds()
+  return appsCount(from, to)
+}
+async function previousRangeAppsTotal(): Promise<number> {
+  const [from, to] = prevRangeBounds()
+  return appsCount(from, to)
+}
+async function appsCount(from: Date, to: Date): Promise<number> {
+  try {
+    const r = await adminApi.applications.list({
+      registered_by_id: meId.value,
+      created_from: from.toISOString(),
+      created_to: to.toISOString(),
+      page: 1, size: 1,
+    })
+    return r.total || 0
+  } catch {
+    return 0
+  }
+}
 
 // ---- Range cutoff ----
 function rangeStart(): Date {
@@ -48,6 +125,10 @@ function rangeStart(): Date {
     d.setMonth(0, 1)
   }
   return d
+}
+/** [from, to] for the current range — `to` is right now. */
+function rangeBounds(): [Date, Date] {
+  return [rangeStart(), new Date()]
 }
 
 const rangeLeads = computed(() => {
@@ -205,30 +286,8 @@ const doughnutOpts = computed(() => ({
   plugins: { legend: { display: false } },
 }))
 
-// ---- Average response time (created → first activity by me, in hours) ----
-const avgResponseHours = ref<number | null>(null)
-async function loadResponseTime() {
-  // Sample first 30 leads for activities
-  const sample = myLeads.value.slice(0, 30)
-  let totalMs = 0
-  let count = 0
-  for (const l of sample) {
-    try {
-      const acts = await leadsApi.activities(l.id)
-      const myActs = acts.filter(a => a.user_id === meId.value && a.action !== 'create')
-      if (myActs.length === 0) continue
-      const first = myActs.reduce((min, a) => new Date(a.created_at).getTime() < new Date(min.created_at).getTime() ? a : min, myActs[0])
-      const diff = new Date(first.created_at).getTime() - new Date(l.created_at).getTime()
-      if (diff > 0) { totalMs += diff; count++ }
-    } catch { /* ignore */ }
-  }
-  avgResponseHours.value = count ? Math.round((totalMs / count) / 3_600_000 * 10) / 10 : null
-}
-
-onMounted(async () => {
-  // Compute response time after main data loads
-  setTimeout(() => loadResponseTime(), 100)
-})
+// ---- Application registration trend (proves CRM → admission funnel) ----
+const dApps = computed(() => pctDelta(myApplicationsCount.value, myApplicationsPrevCount.value))
 
 const rangeLabel = computed(() => {
   if (range.value === 'month') return 'Bu oy'
@@ -265,11 +324,20 @@ const rangeShort = computed(() => {
 
     <Skeleton v-if="loading" type="dashboard" />
 
+    <div v-else-if="loadError"
+         class="card p-6 flex items-start gap-3 ring-1 ring-rose-200 dark:ring-rose-700/40 bg-rose-50/40 dark:bg-rose-500/10">
+      <AlertTriangle class="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+      <div>
+        <div class="font-medium text-rose-700 dark:text-rose-300">Statistikani yuklab bo'lmadi</div>
+        <div class="text-xs text-rose-600 dark:text-rose-400 mt-1">{{ loadError }}</div>
+      </div>
+    </div>
+
     <template v-else>
-      <!-- KPI cards -->
-      <section class="grid grid-cols-2 xl:grid-cols-4 gap-4">
+      <!-- KPI cards: 5 metrics, one row -->
+      <section class="grid grid-cols-2 xl:grid-cols-5 gap-4">
         <StatCard
-          label="Yaratilgan"
+          label="Yaratilgan lead"
           :value="created"
           :icon="Users"
           tone="brand"
@@ -277,7 +345,7 @@ const rangeShort = computed(() => {
           :trend-hint="rangeShort"
         />
         <StatCard
-          label="Konversiya"
+          label="Konversiya bo'lgan"
           :value="won"
           :icon="Award"
           tone="emerald"
@@ -292,12 +360,21 @@ const rangeShort = computed(() => {
           :hint="`Ochiq: ${openCount}`"
         />
         <StatCard
-          label="Konversiya"
+          label="Konversiya foizi"
           :value="`${conversion}%`"
           :icon="Target"
           tone="violet"
           :trend="dConv"
           :trend-hint="rangeShort + ' (pp)'"
+        />
+        <StatCard
+          label="Arizalarga aylantirildi"
+          :value="myApplicationsCount"
+          :icon="ClipboardList"
+          tone="amber"
+          :trend="dApps"
+          :trend-hint="rangeShort"
+          :hint="`Siz qayd etgan abituriyentlar arizasi`"
         />
       </section>
 
@@ -329,10 +406,8 @@ const rangeShort = computed(() => {
                   <div class="text-base font-semibold tabular-nums">{{ won }}</div>
                 </div>
                 <div>
-                  <div class="text-[10px] uppercase tracking-wider opacity-70">O'rtacha javob</div>
-                  <div class="text-base font-semibold tabular-nums">
-                    {{ avgResponseHours == null ? '—' : `${avgResponseHours}h` }}
-                  </div>
+                  <div class="text-[10px] uppercase tracking-wider opacity-70">Arizalar</div>
+                  <div class="text-base font-semibold tabular-nums">{{ myApplicationsCount }}</div>
                 </div>
               </div>
             </div>
@@ -462,36 +537,6 @@ const rangeShort = computed(() => {
         </div>
       </section>
 
-      <!-- Response time card -->
-      <section class="card p-5">
-        <div class="flex items-center gap-4">
-          <span class="grid place-items-center w-12 h-12 rounded-xl bg-sky-100 text-sky-600 dark:bg-sky-500/20 dark:text-sky-300 shrink-0">
-            <Clock class="w-5 h-5" />
-          </span>
-          <div class="flex-1 min-w-0">
-            <div class="text-sm font-semibold text-slate-900 dark:text-slate-100">O'rtacha javob vaqti</div>
-            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Lead yaratilgandan birinchi harakatingizgacha o'tgan vaqt
-            </p>
-          </div>
-          <div class="text-right">
-            <div class="text-2xl font-bold tabular-nums"
-                 :class="avgResponseHours == null
-                   ? 'text-slate-400'
-                   : avgResponseHours <= 1
-                     ? 'text-emerald-600 dark:text-emerald-400'
-                     : avgResponseHours <= 6
-                       ? 'text-amber-600 dark:text-amber-400'
-                       : 'text-rose-600 dark:text-rose-400'">
-              {{ avgResponseHours == null ? 'Yuklanmoqda...' : `${avgResponseHours} soat` }}
-            </div>
-            <div class="text-[11px] text-slate-500 dark:text-slate-400">oxirgi 30 lead namunasidan</div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Line activity unused for now -->
-      <Line v-show="false" :data="{ labels: [], datasets: [] }" :options="{}" />
     </template>
   </div>
 </template>

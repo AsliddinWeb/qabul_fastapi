@@ -153,9 +153,16 @@ async function loadAll() {
     const tmplRes = await fetch('/api/v1/contracts/templates', { headers: authHeader() })
     contractTemplates.value = await tmplRes.json().catch(() => [])
 
-    // Load contracts for this application — split into active vs cancelled history
-    const contractsRes = await adminApi.contracts.list({ size: 100 }).catch(() => ({ items: [] } as any))
-    const allForApp = (contractsRes.items as any[]).filter((c: any) => c.application_id === id.value)
+    // Load contracts for this application using the dedicated
+    // application_id filter. Was previously fetching the global page-1
+    // 100-row slice and filtering client-side — past 100 contracts in
+    // the system, this application would silently appear "contractless"
+    // even though /contracts POST refused with 409 because one exists.
+    const contractsRes = await adminApi.contracts.list({
+      application_id: id.value,
+      size: 100,
+    }).catch(() => ({ items: [] } as any))
+    const allForApp = contractsRes.items as any[]
     contract.value = allForApp.find((c: any) => c.status !== 'cancelled') || null
     cancelledContracts.value = allForApp
       .filter((c: any) => c.status === 'cancelled')
