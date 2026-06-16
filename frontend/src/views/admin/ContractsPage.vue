@@ -59,10 +59,13 @@ const filters = reactive({
   size: 20,
 })
 
-// Operator pool for the "Operator" filter (admin/superadmin + operator
-// panels). Loaded once on mount.
+// Operator pool for the "Operator" filter. Only admins / superadmins
+// have users.list permission — operators don't, so skip the fetch
+// (would 403) and hide the dropdown for them.
+const canListOperators = computed(() => auth.hasPermission('users.list'))
 const operatorOptions = ref<Array<{ id: string; label: string }>>([])
 async function loadOperators() {
+  if (!canListOperators.value) return
   try {
     const us = await adminApi.users.list({ role: 'operator', size: 100 }).catch(() => null)
     if (us) {
@@ -199,7 +202,7 @@ async function bulkCancelSelected() {
           <option value="three_party">{{ CONTRACT_TYPE.three_party }}</option>
         </select>
       </div>
-      <div class="min-w-[200px]">
+      <div v-if="canListOperators" class="min-w-[200px]">
         <label class="field-label">Operator</label>
         <SearchSelect v-model="filters.created_by_id" :options="operatorOptions" placeholder="— hammasi —" allow-clear />
       </div>
