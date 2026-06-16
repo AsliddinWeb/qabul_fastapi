@@ -6,6 +6,7 @@ import { AxiosError } from 'axios'
 import { staffApi, type OperatorApplicantCreate } from '@/api/staff.api'
 import { adminApi, type RegionRead, type DistrictRead, type CountryRead } from '@/api/admin.api'
 import { useToast } from '@/composables/useToast'
+import FileUpload from '@/components/ui/FileUpload.vue'
 import {
   PLACEHOLDERS,
   formatNameUpper,
@@ -45,6 +46,9 @@ const form = reactive<OperatorApplicantCreate>({
   nationality: "O'zbek",
   additional_phone: '',
   telegram_username: '',
+  // Optional passport scan — sent straight to applicants.create as
+  // passport_file_id. nullable in the DB.
+  passport_file_id: null as string | null,
 })
 
 const countries = ref<CountryRead[]>([])
@@ -256,6 +260,14 @@ async function submit() {
         <div class="sm:col-span-2 lg:col-span-3 xl:col-span-4">
           <label class="block text-sm font-medium mb-1">Manzil</label>
           <input v-model="form.address" class="input" placeholder="Mahalla yoki ko'cha nomi, uy raqami" />
+        </div>
+        <div class="sm:col-span-2 lg:col-span-3 xl:col-span-4">
+          <FileUpload
+            :model-value="form.passport_file_id"
+            @update:model-value="(v: string | null) => form.passport_file_id = v"
+            label="Pasport (skani yoki rasm) — ixtiyoriy"
+            hint="PDF yoki rasm (JPG/PNG/WEBP). Pasport sahifasining toza skani / rasmi."
+            subdir="passports" />
         </div>
       </div>
 

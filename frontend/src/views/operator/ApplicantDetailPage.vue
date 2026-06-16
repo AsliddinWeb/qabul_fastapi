@@ -10,6 +10,7 @@ import { referralsApi, type ReferralRead } from '@/api/referrals.api'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import FilePreview from '@/components/ui/FilePreview.vue'
+import FileUpload from '@/components/ui/FileUpload.vue'
 import {
   PLACEHOLDERS,
   formatNameUpper,
@@ -108,6 +109,9 @@ const personal = reactive<ApplicantBase>({
   region_id: null, district_id: null,
   address: '', nationality: "O'zbek",
   additional_phone: '', telegram_username: '',
+  // Optional passport scan — PDF or image. nullable in the DB,
+  // SET NULL on cascade, so removing it just clears the FK.
+  passport_file_id: null,
 })
 
 const countries = ref<CountryRead[]>([])
@@ -132,6 +136,7 @@ async function load() {
       nationality: data.value.nationality || "O'zbek",
       additional_phone: data.value.additional_phone || '',
       telegram_username: (data.value as any).telegram_username || '',
+      passport_file_id: data.value.passport_file_id || null,
     })
   } finally {
     loading.value = false
@@ -344,6 +349,17 @@ async function generateContract() {
         <div class="sm:col-span-2 lg:col-span-3 xl:col-span-4">
           <label class="block text-sm font-medium mb-1">Manzil</label>
           <input v-model="personal.address" class="input" placeholder="Mahalla yoki ko'cha nomi, uy raqami" />
+        </div>
+        <!-- Passport scan — optional. PDF or image. The DB FK is SET NULL
+             on delete so removing the file just clears the reference; the
+             actual bytes stay in /files until a separate vacuum job runs. -->
+        <div class="sm:col-span-2 lg:col-span-3 xl:col-span-4">
+          <FileUpload
+            :model-value="personal.passport_file_id ?? null"
+            @update:model-value="(v: string | null) => personal.passport_file_id = v"
+            label="Pasport (skani yoki rasm) — ixtiyoriy"
+            hint="PDF yoki rasm (JPG/PNG/WEBP). Pasport sahifasining toza skani / rasmi"
+            subdir="passports" />
         </div>
       </div>
       <button v-if="!isAccountantPanel" class="btn-primary" :disabled="saving" @click="saveInfo">

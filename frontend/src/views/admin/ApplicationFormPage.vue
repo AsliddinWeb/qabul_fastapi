@@ -90,6 +90,9 @@ const inlineApplicant = reactive({
   district_id: '' as string,
   address: '',
   nationality: "O'zbek",
+  // Optional passport scan — flows straight to applicants.{create,update}
+  // as passport_file_id, nullable in the DB.
+  passport_file_id: null as string | null,
 })
 const inlineErrors = ref<Record<string, string>>({})
 const inlineDistricts = ref<DistrictRead[]>([])
@@ -596,6 +599,7 @@ onMounted(async () => {
         district_id: ap.district_id || '',
         address: ap.address || '',
         nationality: ap.nationality || "O'zbek",
+        passport_file_id: (ap as any).passport_file_id || null,
       })
       if (ap.region_id) {
         inlineDistricts.value = await adminApi.districts.list(ap.region_id).catch(() => [])
@@ -741,6 +745,7 @@ async function submit() {
             district_id: inlineApplicant.district_id || null,
             address: inlineApplicant.address.trim() || null,
             nationality: inlineApplicant.nationality || "O'zbek",
+            passport_file_id: inlineApplicant.passport_file_id || null,
           })
         } finally {
           applicantSaving.value = false
@@ -889,6 +894,14 @@ async function submit() {
               <textarea v-model="inlineApplicant.address" rows="2" class="input"
                         placeholder="Mahalla yoki ko'cha nomi, uy raqami"></textarea>
             </div>
+            <div class="sm:col-span-2">
+              <FileUpload
+                :model-value="inlineApplicant.passport_file_id"
+                @update:model-value="(v: string | null) => inlineApplicant.passport_file_id = v"
+                label="Pasport (skani yoki rasm) — ixtiyoriy"
+                hint="PDF yoki rasm. Avval yuklangan bo'lsa preview ko'rinadi."
+                subdir="passports" />
+            </div>
           </div>
           <p class="text-[11px] text-slate-500 dark:text-slate-400">
             O'zgarishlar pastdagi <strong>"Saqlash"</strong> tugmasini bosganingizda ariza bilan birga saqlanadi.
@@ -1025,6 +1038,14 @@ async function submit() {
                 <label class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Yashash manzili</label>
                 <textarea v-model="inlineApplicant.address" rows="2" class="input"
                           placeholder="Mahalla yoki ko'cha nomi, uy raqami"></textarea>
+              </div>
+              <div class="sm:col-span-2">
+                <FileUpload
+                  :model-value="inlineApplicant.passport_file_id"
+                  @update:model-value="(v: string | null) => inlineApplicant.passport_file_id = v"
+                  label="Pasport (skani yoki rasm) — ixtiyoriy"
+                  hint="PDF yoki rasm. Keyin tahrirlashda preview ko'rinadi."
+                  subdir="passports" />
               </div>
             </div>
             <div class="flex gap-2 pt-2">
