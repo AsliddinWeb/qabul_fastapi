@@ -263,7 +263,7 @@ async function submit() {
         </div>
         <div class="sm:col-span-2 lg:col-span-3 xl:col-span-4">
           <FileUpload
-            :model-value="form.passport_file_id"
+            :model-value="form.passport_file_id ?? null"
             @update:model-value="(v: string | null) => form.passport_file_id = v"
             label="Pasport (skani yoki rasm) — ixtiyoriy"
             hint="PDF yoki rasm (JPG/PNG/WEBP). Pasport sahifasining toza skani / rasmi."
