@@ -80,6 +80,30 @@ async def my_referrals(
     return await _enrich_referrals(svc.session, rows)
 
 
+@router.get("/me/referrer", response_model=ReferralRead | None)
+async def my_referrer(
+    current: CurrentUser = Depends(get_current_user),
+    svc: ReferralService = Depends(_service),
+) -> ReferralRead | None:
+    """Return the Referral row where the current user IS the referee.
+
+    Used by the applicant's own profile to show a "Sizni X taklif qildi"
+    chip — at most one row per user (referred_applicant_id is UNIQUE).
+    Returns null body when nobody referred them, so the frontend can
+    render a fallback without dealing with a 404.
+    """
+    # Resolve the current user's applicant row.
+    apl_stmt = select(Applicant.id).where(Applicant.user_id == UUID(current.user_id))
+    applicant_id = await svc.session.scalar(apl_stmt)
+    if applicant_id is None:
+        return None
+    row = await svc.referrals.get_by_applicant(applicant_id)
+    if row is None:
+        return None
+    enriched = await _enrich_referrals(svc.session, [row])
+    return enriched[0] if enriched else None
+
+
 # ============================================================================
 # Staff: list referrals (admin / accountant / operator with leads-list right)
 # ============================================================================
@@ -356,21 +380,53 @@ async def _enrich_payouts(
 # Helpers
 # ============================================================================
 async def _enrich_referrals(session: AsyncSession, rows: list[Referral]) -> list[ReferralRead]:
-    """Attach the referred applicant's full name so the UI doesn't need a join."""
+    """Attach joined display fields so the UI doesn't have to re-fetch.
+
+    For each referral row we surface:
+      - referred_full_name + referred_phone: from Applicant + its User
+        (the one who clicked the share link / was registered with a code)
+      - referrer_full_name + referrer_phone: from User (the inviter).
+        Referrers are usually existing applicants, but they can also
+        be staff who entered the referral manually, so we join on User
+        rather than Applicant.
+
+    All four are optional on the schema, so consumers that don't care
+    (e.g. the existing referrals dashboard) keep ignoring them.
+    """
     if not rows:
         return []
-    ids = {r.referred_applicant_id for r in rows}
-    name_by_id: dict[UUID, str] = {}
+
+    applicant_ids = {r.referred_applicant_id for r in rows}
+    referrer_user_ids = {r.referrer_user_id for r in rows}
+
+    referred_name_by_id: dict[UUID, str] = {}
+    referred_user_id_by_applicant: dict[UUID, UUID] = {}
     stmt = select(
-        Applicant.id, Applicant.last_name, Applicant.first_name, Applicant.other_name,
-    ).where(Applicant.id.in_(ids))
-    for aid, last, first, other in (await session.execute(stmt)).all():
-        name_by_id[aid] = " ".join(filter(None, [last, first, other])).strip()
+        Applicant.id, Applicant.user_id, Applicant.last_name, Applicant.first_name, Applicant.other_name,
+    ).where(Applicant.id.in_(applicant_ids))
+    for aid, uid, last, first, other in (await session.execute(stmt)).all():
+        referred_name_by_id[aid] = " ".join(filter(None, [last, first, other])).strip()
+        referred_user_id_by_applicant[aid] = uid
+
+    # Phone lookup for both referrer + referee in one User query.
+    user_ids = referrer_user_ids | set(referred_user_id_by_applicant.values())
+    user_info_by_id: dict[UUID, tuple[str | None, str]] = {}
+    if user_ids:
+        ustmt = select(User.id, User.full_name, User.phone).where(User.id.in_(user_ids))
+        for uid, full_name, phone in (await session.execute(ustmt)).all():
+            user_info_by_id[uid] = (full_name, phone)
 
     out: list[ReferralRead] = []
     for r in rows:
         rec = ReferralRead.model_validate(r)
-        rec.referred_full_name = name_by_id.get(r.referred_applicant_id)
+        rec.referred_full_name = referred_name_by_id.get(r.referred_applicant_id)
+        referee_uid = referred_user_id_by_applicant.get(r.referred_applicant_id)
+        if referee_uid and referee_uid in user_info_by_id:
+            rec.referred_phone = user_info_by_id[referee_uid][1]
+        if r.referrer_user_id in user_info_by_id:
+            referrer_name, referrer_phone = user_info_by_id[r.referrer_user_id]
+            rec.referrer_full_name = referrer_name
+            rec.referrer_phone = referrer_phone
         out.append(rec)
     return out
 

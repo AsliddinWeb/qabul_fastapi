@@ -17,6 +17,8 @@ from app.db.enums import (
     ContractType,
     PartyRole,
 )
+from app.core.security import create_file_share_token
+from app.integrations.eskiz.client import EskizClient
 from app.integrations.pdf.generator import render_html, render_pdf
 from app.modules.applicants.repository import ApplicantRepository
 from app.modules.applications.repository import ApplicationRepository
@@ -312,6 +314,87 @@ class ContractsService:
         except Exception as exc:
             logger.error(
                 "contract.pdf_failed", contract_id=str(contract.id), error=str(exc)
+            )
+            return
+
+        # SMS notification — only for "yangi qabul" (1-kurs) contracts.
+        # Perevod (transfer) recipients already have an enrolment number
+        # at their old institution and the admission flow is different;
+        # business decision is to keep them out of the SMS blast for now.
+        # Best-effort — SMS failures must NOT roll back the contract PDF.
+        if application.admission_type == AdmissionType.REGULAR:
+            try:
+                await self._notify_contract_pdf_ready(
+                    contract=contract,
+                    user=user,
+                    base_url=base_url,
+                )
+            except Exception as exc:
+                logger.error(
+                    "contract.sms_failed",
+                    contract_id=str(contract.id),
+                    error=str(exc),
+                )
+
+    async def _notify_contract_pdf_ready(
+        self,
+        *,
+        contract: Contract,
+        user,
+        base_url: str | None,
+    ) -> None:
+        """Send the abituriyent an SMS with a download link to the PDF.
+
+        The link uses a `file_share`-typed JWT scoped to the contract's
+        pdf_file_id with a 90-day expiry — far longer than an access
+        token, so the recipient doesn't lose access if they only get
+        around to opening the SMS days later, and short enough that
+        a leaked link can't be re-used forever. The token's `sub` is
+        the file_id so /files/{id}/download verifies scope.
+        """
+        if not contract.pdf_file_id:
+            return
+        if not user or not user.phone:
+            logger.warning(
+                "contract.sms_skip_no_phone",
+                contract_id=str(contract.id),
+            )
+            return
+
+        # Build the URL. Prefer public_base_url from settings (set on
+        # prod), fall back to the request's base_url. Final result:
+        #   https://qabul.xiuedu.uz/api/v1/files/{file_id}/download?token=<jwt>
+        api_base = (
+            (settings.public_base_url or base_url or "")
+            .rstrip("/")
+        )
+        token = create_file_share_token(str(contract.pdf_file_id))
+        link = f"{api_base}/api/v1/files/{contract.pdf_file_id}/download?token={token}"
+
+        # Phone needs a leading + for the user-facing greeting — DB stores
+        # it without "+", and Eskiz strips it again on send anyway.
+        display_phone = user.phone if user.phone.startswith("+") else f"+{user.phone}"
+
+        message = (
+            "🎉 Yaxshi yangilik, hurmatli " + display_phone + "!\n\n"
+            "Siz Xalqaro innovatsion universitetiga kontrakt asosida tavsiya etildingiz.\n\n"
+            "Shartnomangizni quyidagi havola orqali yuklab olishingiz mumkin: " + link + "\n\n"
+            "Katta imkoniyatlar sizni kutmoqda!"
+        )
+
+        sms = EskizClient()
+        result = await sms.send_sms(user.phone, message)
+        if not result.success:
+            logger.warning(
+                "contract.sms_failed_eskiz",
+                contract_id=str(contract.id),
+                error=result.error,
+            )
+        else:
+            logger.info(
+                "contract.sms_sent",
+                contract_id=str(contract.id),
+                message_id=result.message_id,
             )
 
     # ---------- Sign ----------

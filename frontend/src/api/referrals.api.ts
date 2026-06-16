@@ -28,6 +28,11 @@ export interface ReferralRead {
   cancelled_reason: string | null
   notes: string | null
   referred_full_name: string | null
+  // Optional enrichment: phone + names for both referrer and referee.
+  // Filled by /referrals/me/referrer + the staff /referrals?... endpoint.
+  referred_phone?: string | null
+  referrer_full_name?: string | null
+  referrer_phone?: string | null
   created_at: string
   updated_at: string
 }
@@ -96,6 +101,11 @@ export const referralsApi = {
     http.get<ReferralRead[]>('/referrals/me', {
       params: status ? { status_filter: status } : undefined,
     }).then(r => r.data),
+
+  /** "Who invited me" — returns the single Referral where I'm the
+   *  referee. Null when no one invited me (back-end returns null body). */
+  myReferrer: () =>
+    http.get<ReferralRead | null>('/referrals/me/referrer').then(r => r.data),
 
   // Staff
   list: (params: {

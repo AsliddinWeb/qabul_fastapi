@@ -24,6 +24,7 @@ const code = ref<ReferralCode | null>(null)
 const refs = ref<ReferralRead[]>([])
 const balance = ref<ReferralAvailableBalance | null>(null)
 const payouts = ref<ReferralPayoutRead[]>([])
+const myReferrer = ref<ReferralRead | null>(null)
 const copied = ref(false)
 const cashOpen = ref(false)
 const cashCount = ref(1)
@@ -33,16 +34,21 @@ const cashSubmitting = ref(false)
 async function loadAll() {
   loading.value = true
   try {
-    const [c, r, b, p] = await Promise.all([
+    const [c, r, b, p, who] = await Promise.all([
       referralsApi.myCode(),
       referralsApi.mine(),
       referralsApi.available(),
       referralsApi.myPayouts(),
+      // "Sizni kim taklif qildi" widget data — endpoint returns null
+      // body when nobody invited me, never a 404, so catching here is
+      // belt-and-braces.
+      referralsApi.myReferrer().catch(() => null),
     ])
     code.value = c
     refs.value = r
     balance.value = b
     payouts.value = p
+    myReferrer.value = who
   } catch (e) {
     const ax = e as AxiosError<{ detail?: string }>
     toast.error(ax.response?.data?.detail || "Yuklab bo'lmadi")
@@ -212,6 +218,31 @@ function statusTone(s: ReferralStatus): string {
     <Skeleton v-if="loading" type="dashboard" />
 
     <template v-else-if="code">
+      <!-- "Sizni kim taklif qildi" — pinned at the top so the applicant sees
+           it the moment they open the page. Hidden when no one referred
+           them (organic signup). -->
+      <section v-if="myReferrer"
+               class="card p-4 sm:p-5 bg-gradient-to-br from-rose-50 to-pink-50/50 dark:from-rose-500/10 dark:to-pink-500/5 ring-1 ring-rose-200 dark:ring-rose-700/30">
+        <div class="flex items-center gap-3 flex-wrap">
+          <div class="w-11 h-11 rounded-full bg-gradient-to-br from-rose-500 to-pink-500 text-white grid place-items-center font-semibold shrink-0">
+            {{ (myReferrer.referrer_full_name || '?').slice(0, 1).toUpperCase() }}
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="text-[11px] uppercase tracking-wider text-rose-700/80 dark:text-rose-300/80 font-semibold">
+              Sizni kim taklif qildi
+            </div>
+            <div class="font-semibold text-slate-900 dark:text-slate-100 mt-0.5 truncate">
+              {{ myReferrer.referrer_full_name || `Foydalanuvchi ${myReferrer.referrer_user_id.slice(0, 8)}` }}
+            </div>
+            <a v-if="myReferrer.referrer_phone"
+               :href="`tel:${myReferrer.referrer_phone}`"
+               class="inline-flex items-center gap-1.5 text-xs font-mono text-rose-700 dark:text-rose-300 hover:underline mt-0.5">
+              <Phone class="w-3 h-3" /> {{ myReferrer.referrer_phone }}
+            </a>
+          </div>
+        </div>
+      </section>
+
       <!-- Hero: link + share -->
       <section class="card overflow-hidden">
         <div class="p-5 sm:p-6 bg-gradient-to-br from-emerald-50 via-emerald-50/50 to-transparent dark:from-emerald-500/10 dark:via-emerald-500/5">

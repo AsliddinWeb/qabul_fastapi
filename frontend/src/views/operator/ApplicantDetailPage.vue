@@ -2,10 +2,11 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { AxiosError } from 'axios'
-import { ArrowLeft, FileText, Save, Award, GraduationCap, Pencil } from 'lucide-vue-next'
+import { ArrowLeft, FileText, Save, Award, GraduationCap, Pencil, Gift, ArrowRight, Phone, UserPlus } from 'lucide-vue-next'
 import { staffApi } from '@/api/staff.api'
 import type { ApplicantDetailed, ApplicantBase } from '@/api/applicants.api'
 import { adminApi, type RegionRead, type DistrictRead, type CountryRead } from '@/api/admin.api'
+import { referralsApi, type ReferralRead } from '@/api/referrals.api'
 import { useToast } from '@/composables/useToast'
 import { useAuthStore } from '@/stores/auth'
 import FilePreview from '@/components/ui/FilePreview.vue'
@@ -62,6 +63,44 @@ async function loadDocs(user_id: string) {
   }
 }
 
+// Referrals — two queries:
+//   - referredBy: who invited THIS applicant (filter referred_applicant_id)
+//   - invitedByMe: who THIS applicant invited (filter referrer_user_id)
+// Loaded in parallel after the applicant arrives.
+const referredBy = ref<ReferralRead | null>(null)
+const invitedByMe = ref<ReferralRead[]>([])
+const referralsLoading = ref(false)
+async function loadReferrals(applicant_id: string, user_id: string) {
+  referralsLoading.value = true
+  try {
+    const [inbound, outbound] = await Promise.all([
+      referralsApi.list({ referred_applicant_id: applicant_id }).catch(() => [] as ReferralRead[]),
+      referralsApi.list({ referrer_user_id: user_id }).catch(() => [] as ReferralRead[]),
+    ])
+    referredBy.value = inbound[0] || null
+    invitedByMe.value = outbound
+  } finally {
+    referralsLoading.value = false
+  }
+}
+
+function refTone(s: string): string {
+  if (s === 'active' || s === 'spent_on_contract' || s === 'paid_cash')
+    return 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300'
+  if (s === 'pending')
+    return 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-300'
+  return 'bg-slate-100 text-slate-600 ring-slate-200 dark:bg-slate-800 dark:text-slate-400'
+}
+function refLabel(s: string): string {
+  return {
+    pending: 'Kutilmoqda',
+    active: 'Faol',
+    spent_on_contract: 'Shartnomaga ishlatildi',
+    paid_cash: 'Naqd olingan',
+    cancelled: 'Bekor qilingan',
+  }[s] || s
+}
+
 const personal = reactive<ApplicantBase>({
   last_name: '', first_name: '', other_name: '',
   birth_date: '', gender: 'male',
@@ -108,8 +147,9 @@ onMounted(async () => {
     districts.value = await adminApi.districts.list(personal.region_id).catch(() => [])
   }
   if (data.value?.user_id) {
-    // Don't block initial paint — diplom fetch is independent.
+    // Don't block initial paint — diplom and referral fetches are independent.
     loadDocs(data.value.user_id)
+    loadReferrals(data.value.id, data.value.user_id)
   }
 })
 
@@ -397,6 +437,86 @@ async function generateContract() {
           </div>
         </div>
       </div>
+    </section>
+
+    <!-- Referal dasturi. Two halves:
+         · Who invited THIS applicant (at most 1)
+         · Who THIS applicant invited (list)
+         Hidden entirely when both halves are empty — there's no value
+         in showing an empty "no referrals" card on every profile. -->
+    <section v-if="referralsLoading || referredBy || invitedByMe.length"
+             class="card p-4 sm:p-6">
+      <div class="flex items-center gap-2 mb-4">
+        <span class="grid place-items-center w-8 h-8 rounded-lg bg-rose-50 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300">
+          <Gift class="w-4 h-4" />
+        </span>
+        <h3 class="font-semibold text-slate-900 dark:text-slate-100">Referal dasturi</h3>
+      </div>
+
+      <div v-if="referralsLoading" class="text-sm text-slate-500 dark:text-slate-400">
+        Yuklanmoqda...
+      </div>
+
+      <template v-else>
+        <!-- Inbound: who invited this applicant -->
+        <div v-if="referredBy" class="mb-5">
+          <div class="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
+            Bu abituriyentni kim taklif qildi
+          </div>
+          <div class="rounded-xl ring-1 ring-rose-200 dark:ring-rose-700/40 bg-rose-50/50 dark:bg-rose-500/5 p-3 flex items-center gap-3 flex-wrap">
+            <div class="w-10 h-10 rounded-full bg-gradient-to-br from-rose-500 to-pink-500 text-white grid place-items-center font-semibold text-sm shrink-0">
+              {{ (referredBy.referrer_full_name || '?').slice(0, 1).toUpperCase() }}
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="font-medium text-slate-900 dark:text-slate-100 truncate">
+                {{ referredBy.referrer_full_name || `User ${referredBy.referrer_user_id.slice(0, 8)}` }}
+              </div>
+              <div class="text-[11px] text-slate-500 dark:text-slate-400 inline-flex items-center gap-1.5 font-mono mt-0.5">
+                <Phone class="w-3 h-3" />
+                {{ referredBy.referrer_phone || '—' }}
+              </div>
+            </div>
+            <span class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold ring-1"
+                  :class="refTone(referredBy.status)">
+              {{ refLabel(referredBy.status) }}
+            </span>
+          </div>
+        </div>
+
+        <!-- Outbound: who this applicant invited -->
+        <div v-if="invitedByMe.length">
+          <div class="flex items-center justify-between mb-1.5">
+            <div class="text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Bu abituriyent taklif qilgan ({{ invitedByMe.length }})
+            </div>
+          </div>
+          <ul class="rounded-xl ring-1 ring-slate-200 dark:ring-slate-700 divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
+            <li v-for="r in invitedByMe" :key="r.id"
+                class="p-3 flex items-center gap-3 hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors">
+              <div class="w-9 h-9 rounded-full bg-gradient-to-br from-brand-500 to-violet-500 text-white grid place-items-center text-xs font-semibold shrink-0">
+                {{ (r.referred_full_name || '?').slice(0, 1).toUpperCase() }}
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="font-medium text-sm text-slate-900 dark:text-slate-100 truncate">
+                  {{ r.referred_full_name || `Applicant ${r.referred_applicant_id.slice(0, 8)}` }}
+                </div>
+                <div class="text-[11px] text-slate-500 dark:text-slate-400 inline-flex items-center gap-1.5 font-mono mt-0.5">
+                  <Phone class="w-3 h-3" />
+                  {{ r.referred_phone || '—' }}
+                </div>
+              </div>
+              <RouterLink :to="`${panelPrefix}/applicants/${r.referred_applicant_id}`"
+                          class="icon-btn !w-7 !h-7" title="Bu abituriyent sahifasi">
+                <ArrowRight class="w-3.5 h-3.5" />
+              </RouterLink>
+              <span class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold ring-1 shrink-0"
+                    :class="refTone(r.status)">
+                {{ refLabel(r.status) }}
+              </span>
+            </li>
+          </ul>
+        </div>
+      </template>
     </section>
   </div>
 </template>

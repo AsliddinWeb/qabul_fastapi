@@ -137,7 +137,17 @@ async def download_file(
         payload = decode_token(jwt_str)
     except ValueError as exc:
         raise UnauthorizedError("Invalid or expired token") from exc
-    if payload.get("type") != "access":
+
+    token_type = payload.get("type")
+    if token_type == "access":
+        pass  # any logged-in staff/applicant may download
+    elif token_type == "file_share":
+        # file_share tokens are scoped to ONE file_id (sub == file_id).
+        # Used for SMS / share-link flows where the recipient has no
+        # active session. Reject if the token names a different file.
+        if str(payload.get("sub")) != str(file_id):
+            raise UnauthorizedError("Token scope does not match this file")
+    else:
         raise UnauthorizedError("Wrong token type")
 
     file = await FileRepository(session).get(file_id)

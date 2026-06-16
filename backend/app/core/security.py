@@ -9,7 +9,7 @@ from passlib.context import CryptContext
 
 from app.config import settings
 
-TokenType = Literal["access", "refresh"]
+TokenType = Literal["access", "refresh", "file_share"]
 
 _pwd_ctx = CryptContext(schemes=["argon2"], deprecated="auto")
 
@@ -43,6 +43,21 @@ def create_access_token(subject: str, extra: dict[str, Any] | None = None) -> st
 
 def create_refresh_token(subject: str, extra: dict[str, Any] | None = None) -> str:
     return _create_token(subject, "refresh", timedelta(days=settings.jwt_refresh_ttl_days), extra)
+
+
+def create_file_share_token(file_id: str, ttl_days: int = 90) -> str:
+    """Long-lived JWT scoped to a single file_id.
+
+    Used when we ship a download URL out-of-band — e.g. SMS link to
+    a freshly-generated contract PDF — where the recipient won't
+    have a session cookie or Authorization header. The token's
+    `sub` is the file_id itself, and the dedicated "file_share"
+    type prevents accidental cross-use with access tokens.
+    """
+    # subject == file_id so the download endpoint can verify the
+    # token applies to the requested file and not some other file
+    # the leaked token might match.
+    return _create_token(file_id, "file_share", timedelta(days=ttl_days))
 
 
 def decode_token(token: str) -> dict[str, Any]:

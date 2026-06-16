@@ -34,6 +34,12 @@ class ReferralRead(IdSchema, TimestampedSchema):
 
     # Convenience fields filled by the router (joined applicant / contract data)
     referred_full_name: str | None = None
+    referred_phone: str | None = None
+    # Filled when the consumer wants to see WHO sent the invite — e.g.
+    # the "who invited me" widget on the applicant's own profile, or
+    # the "Bu abituriyentni kim taklif qildi" row on /admin/applicants/{id}.
+    referrer_full_name: str | None = None
+    referrer_phone: str | None = None
 
 
 class ReferralSettingsRead(IdSchema, TimestampedSchema):
