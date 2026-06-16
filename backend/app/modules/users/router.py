@@ -39,41 +39,72 @@ async def me(
 
 @router.get("/public-lookup")
 async def public_user_lookup(
-    ids: str = Query(..., description="Comma-separated UUIDs"),
+    ids: str | None = Query(default=None, description="Comma-separated UUIDs"),
+    role: str | None = Query(default=None, description="Filter by role (e.g. 'operator')"),
+    limit: int = Query(default=200, ge=1, le=500),
     _: CurrentUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_db),
 ) -> list[dict]:
-    """Bulk minimal user info ({id, full_name, phone, role}) for the given IDs.
+    """Bulk minimal user info ({id, full_name, phone, role}) — auth-only.
 
-    Used by detail pages to resolve actor names (registered_by_id /
-    reviewed_by_id / created_by_id) without forcing operators to also
-    hold USERS_LIST. Returns only public-safe fields.
+    Two query shapes:
+      - ?ids=u1,u2,u3 → exact lookup. Used by detail pages to resolve
+        actor names (registered_by_id / reviewed_by_id / created_by_id)
+        without forcing operators to also hold USERS_LIST.
+      - ?role=operator → list-by-role. Used to populate the "Operator"
+        filter dropdown on the applications / contracts / leads list
+        pages; operators don't have users.list permission, so they
+        used to get a 403 even when the dropdown was the only thing
+        the page needed.
+
+    Both shapes return ONLY public-safe fields (no permissions,
+    no audit timestamps, no password state). Up to 500 rows per call.
     """
     from sqlalchemy import select as _select
     from app.modules.users.models import User as _UserModel
 
-    raw = [s.strip() for s in (ids or "").split(",") if s.strip()]
-    parsed: list[UUID] = []
-    for token in raw:
+    stmt = _select(
+        _UserModel.id, _UserModel.full_name, _UserModel.phone,
+        _UserModel.role, _UserModel.referral_code,
+    )
+
+    if ids:
+        raw = [s.strip() for s in ids.split(",") if s.strip()]
+        parsed: list[UUID] = []
+        for token in raw:
+            try:
+                parsed.append(UUID(token))
+            except (TypeError, ValueError):
+                continue
+        if not parsed:
+            return []
+        stmt = stmt.where(_UserModel.id.in_(parsed))
+    elif role:
+        # Don't let arbitrary strings through to the enum — enumerate.
         try:
-            parsed.append(UUID(token))
-        except (TypeError, ValueError):
-            continue
-    if not parsed:
+            from app.db.enums import UserRole
+            role_enum = UserRole(role)
+        except ValueError:
+            return []
+        stmt = stmt.where(_UserModel.role == role_enum)
+        # Stable order for the dropdown; cheap because rows are few.
+        stmt = stmt.order_by(_UserModel.full_name.asc().nulls_last())
+    else:
+        # Neither filter set — refuse rather than dumping every user.
         return []
-    rows = (await session.execute(
-        _select(_UserModel.id, _UserModel.full_name, _UserModel.phone, _UserModel.role, _UserModel.referral_code)
-        .where(_UserModel.id.in_(parsed))
-    )).all()
+
+    stmt = stmt.limit(limit)
+
+    rows = (await session.execute(stmt)).all()
     return [
         {
             "id": str(uid),
             "full_name": fn,
             "phone": ph,
-            "role": role.value if role else None,
+            "role": r.value if r else None,
             "referral_code": code,
         }
-        for uid, fn, ph, role, code in rows
+        for uid, fn, ph, r, code in rows
     ]
 
 

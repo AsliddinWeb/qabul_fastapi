@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { FileText, FileSignature, Ban, Download } from 'lucide-vue-next'
 import { AxiosError } from 'axios'
 import { adminApi } from '@/api/admin.api'
+import { usersApi } from '@/api/users.api'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { CONTRACT_STATUS, CONTRACT_TYPE, tr } from '@/utils/labels'
@@ -59,21 +60,17 @@ const filters = reactive({
   size: 20,
 })
 
-// Operator pool for the "Operator" filter. Only admins / superadmins
-// have users.list permission — operators don't, so skip the fetch
-// (would 403) and hide the dropdown for them.
-const canListOperators = computed(() => auth.hasPermission('users.list'))
+// Operator pool for the "Operator" filter — shown for every staff role.
+// Uses the auth-only /users/public-lookup so operators get the same
+// "scope to a teammate" affordance admins already had.
 const operatorOptions = ref<Array<{ id: string; label: string }>>([])
 async function loadOperators() {
-  if (!canListOperators.value) return
   try {
-    const us = await adminApi.users.list({ role: 'operator', size: 100 }).catch(() => null)
-    if (us) {
-      operatorOptions.value = us.items.map(u => ({
-        id: u.id,
-        label: u.full_name || u.phone || u.id.slice(0, 8),
-      }))
-    }
+    const us = await usersApi.byRole('operator').catch(() => [])
+    operatorOptions.value = us.map(u => ({
+      id: u.id,
+      label: u.full_name || u.phone || u.id.slice(0, 8),
+    }))
   } catch { /* ignore */ }
 }
 
@@ -202,7 +199,7 @@ async function bulkCancelSelected() {
           <option value="three_party">{{ CONTRACT_TYPE.three_party }}</option>
         </select>
       </div>
-      <div v-if="canListOperators" class="min-w-[200px]">
+      <div class="min-w-[200px]">
         <label class="field-label">Operator</label>
         <SearchSelect v-model="filters.created_by_id" :options="operatorOptions" placeholder="— hammasi —" allow-clear />
       </div>

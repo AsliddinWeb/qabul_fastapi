@@ -15,6 +15,7 @@ import Skeleton from '@/components/ui/Skeleton.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import { AxiosError } from 'axios'
 import { adminApi } from '@/api/admin.api'
+import { usersApi } from '@/api/users.api'
 import { consultingApi, type ConsultingAgency } from '@/api/consulting.api'
 import { useAuthStore } from '@/stores/auth'
 import EmptyState from '@/components/ui/EmptyState.vue'
@@ -132,24 +133,19 @@ const SOURCE_OPTIONS = [
   { id: 'self',   label: "Saytdan o'zi to'ldirgan" },
 ]
 
-// Operator pool for the "Operator" filter. Only admins / superadmins
-// can list users — operators don't have users.list permission, so
-// firing the request gives a 403 in the console even though the rest
-// of the page works. Skip the fetch entirely for non-permitted roles
-// and hide the Operator filter dropdown in the template via the same
-// flag.
-const canListOperators = computed(() => auth.hasPermission('users.list'))
+// Operator pool for the "Operator" filter. Loaded for every staff role
+// via /users/public-lookup — operators see the full picker now too so
+// they can filter to a teammate's work or back to their own. Was
+// hidden behind users.list before because adminApi.users.list 403's
+// on operators, but the lookup endpoint is auth-only.
 const operatorOptions = ref<Array<{ id: string; label: string }>>([])
 async function loadOperators() {
-  if (!canListOperators.value) return
   try {
-    const us = await adminApi.users.list({ role: 'operator', size: 100 }).catch(() => null)
-    if (us) {
-      operatorOptions.value = us.items.map(u => ({
-        id: u.id,
-        label: u.full_name || u.phone || u.id.slice(0, 8),
-      }))
-    }
+    const us = await usersApi.byRole('operator').catch(() => [])
+    operatorOptions.value = us.map(u => ({
+      id: u.id,
+      label: u.full_name || u.phone || u.id.slice(0, 8),
+    }))
   } catch { /* ignore */ }
 }
 
@@ -624,7 +620,7 @@ async function bulkDeleteSelected() {
           <label class="field-label">Konsalting</label>
           <SearchSelect v-model="filters.consulting_agency_id" :options="agencyOptions" placeholder="— hammasi —" allow-clear />
         </div>
-        <div v-if="canListOperators">
+        <div>
           <label class="field-label">Operator</label>
           <SearchSelect v-model="filters.registered_by_id" :options="operatorOptions" placeholder="— hammasi —" allow-clear />
         </div>

@@ -11,6 +11,7 @@ import {
   leadsApi, type Lead, type LeadActivity, type LeadStage, type LeadLostReason, type LeadSource,
 } from '@/api/leads.api'
 import { adminApi, type UserRead } from '@/api/admin.api'
+import { usersApi } from '@/api/users.api'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import Skeleton from '@/components/ui/Skeleton.vue'
@@ -81,7 +82,8 @@ async function loadAll() {
       leadsApi.activities(id.value),
       leadsApi.stages.list(l.pipeline_id),
       leadsApi.lostReasons.list().catch(() => []),
-      adminApi.users.list({ role: 'operator' as any, page: 1, size: 100 }).then(r => r.items).catch(() => []),
+      // Auth-only lookup so operators get the assignee dropdown too.
+      usersApi.byRole('operator').catch(() => []),
       leadsApi.sources.list().catch(() => []),
       adminApi.branches.list(false).catch(() => []),
       adminApi.programs.list().catch(() => []),

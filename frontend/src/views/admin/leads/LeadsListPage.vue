@@ -92,18 +92,16 @@ async function loadCatalogs() {
   if (filters.pipeline_id) {
     stages.value = await leadsApi.stages.list(filters.pipeline_id).catch(() => [])
   }
-  // Operator pool — admins/superadmins only. Use the public-lookup-style
-  // approach via adminApi if available; falls back silently.
+  // Operator pool — every staff role. Uses /users/public-lookup which
+  // is auth-only, so operators no longer 403 here.
   if (!myOnly.value) {
     try {
-      const { adminApi } = await import('@/api/admin.api')
-      const us = await adminApi.users.list({ role: 'operator', size: 100 }).catch(() => null)
-      if (us) {
-        operators.value = us.items.map(u => ({
-          id: u.id,
-          label: u.full_name || u.phone || u.id.slice(0, 8),
-        }))
-      }
+      const { usersApi } = await import('@/api/users.api')
+      const us = await usersApi.byRole('operator').catch(() => [])
+      operators.value = us.map(u => ({
+        id: u.id,
+        label: u.full_name || u.phone || u.id.slice(0, 8),
+      }))
     } catch { /* ignore */ }
   }
 }

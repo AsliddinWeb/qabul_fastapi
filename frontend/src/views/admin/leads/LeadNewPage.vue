@@ -8,6 +8,7 @@ import {
 import { AxiosError } from 'axios'
 import { leadsApi, type LeadPipeline, type LeadStage, type LeadSource } from '@/api/leads.api'
 import { adminApi, type UserRead } from '@/api/admin.api'
+import { usersApi } from '@/api/users.api'
 import { useToast } from '@/composables/useToast'
 import SearchSelect from '@/components/ui/SearchSelect.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
@@ -165,7 +166,8 @@ onMounted(async () => {
       leadsApi.sources.list().catch(() => []),
       adminApi.branches.list(false).catch(() => []),
       adminApi.programs.list().catch(() => []),
-      adminApi.users.list({ role: 'operator' as any, page: 1, size: 100 }).then(r => r.items).catch(() => []),
+      // Auth-only lookup so operators can pick the initial assignee too.
+      usersApi.byRole('operator').catch(() => []),
     ])
     pipelines.value = pp
     sources.value = src

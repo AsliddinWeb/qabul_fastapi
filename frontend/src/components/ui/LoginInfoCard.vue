@@ -4,6 +4,7 @@ import {
   KeyRound, Phone, Clock, ShieldCheck, ShieldAlert, RotateCcw, Copy, Check,
 } from 'lucide-vue-next'
 import { adminApi, type UserRead } from '@/api/admin.api'
+import { usersApi } from '@/api/users.api'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
@@ -17,19 +18,33 @@ const auth = useAuthStore()
 const toast = useToast()
 const { ask } = useConfirm()
 
-const user = ref<UserRead | null>(null)
+// Loose `any` so we can hold either a full UserRead (admin path) or
+// a UserLookup (operator path) without making the template care.
+const user = ref<UserRead | any>(null)
 const loading = ref(true)
 const copied = ref(false)
 const resetting = ref(false)
 
 const isAdmin = computed(() => ['admin', 'superadmin'].includes(auth.user?.role || ''))
+const canReadUsers = computed(() => auth.hasPermission('users.read'))
 
 async function load() {
   if (!props.userId) return
   loading.value = true
-  try { user.value = await adminApi.users.get(props.userId) }
-  catch { user.value = null }
-  finally { loading.value = false }
+  try {
+    if (canReadUsers.value) {
+      // Admin path — full UserRead so we get is_active + last_login_at
+      // for the status pill and "Oxirgi kirish" row, plus password reset.
+      user.value = await adminApi.users.get(props.userId)
+    } else {
+      // Operator / accountant path — minimal lookup, no 403 anymore.
+      user.value = await usersApi.one(props.userId)
+    }
+  } catch {
+    user.value = null
+  } finally {
+    loading.value = false
+  }
 }
 onMounted(load)
 watch(() => props.userId, load)
@@ -103,7 +118,10 @@ async function resetPassword() {
           Foydalanuvchi tizimga shu ma'lumotlar bilan kiradi
         </p>
       </div>
-      <span v-if="user" class="pill"
+      <!-- is_active comes from the full admin endpoint — hidden in
+           operator/accountant view where we only have the lookup
+           payload (id + name + phone + role). -->
+      <span v-if="user && 'is_active' in user" class="pill"
             :class="user.is_active
               ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
               : 'bg-rose-50 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300'">
@@ -166,8 +184,8 @@ async function resetPassword() {
           </div>
         </div>
 
-        <!-- Last login -->
-        <div>
+        <!-- Last login — same caveat: only present in the admin payload. -->
+        <div v-if="'last_login_at' in user">
           <div class="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 mb-1.5">
             Oxirgi kirish
           </div>
