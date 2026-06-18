@@ -101,22 +101,40 @@ class ApplicationsService:
                 "Program's branch / education level / education form mismatch"
             )
 
-        # Business rule: 1-kurs (yangi qabul) AND 2-mutaxassislik are
-        # both kunduzgi-only. Check the form's name (not the UUID) so
+        # Business rule: 1-kurs, 2-mutaxassislik AND magistratura are
+        # all kunduzgi-only. Check the form's name (not the UUID) so
         # this stays correct if the dictionary gets renamed.
-        if payload.admission_type in (AdmissionType.REGULAR, AdmissionType.SECOND_SPEC):
+        if payload.admission_type in (
+            AdmissionType.REGULAR,
+            AdmissionType.SECOND_SPEC,
+            AdmissionType.MAGISTRATURA,
+        ):
             from sqlalchemy import select as _select
             from app.modules.programs.models import EducationForm
             form_name = await self.session.scalar(
                 _select(EducationForm.name).where(EducationForm.id == payload.education_form_id)
             )
             if form_name and "kunduz" not in form_name.lower():
-                msg = (
-                    "1-kursga topshirish faqat Kunduzgi shaklda mumkin"
-                    if payload.admission_type == AdmissionType.REGULAR
-                    else "2-mutaxassislik faqat Kunduzgi shaklda mumkin"
+                msg_map = {
+                    AdmissionType.REGULAR:      "1-kursga topshirish faqat Kunduzgi shaklda mumkin",
+                    AdmissionType.SECOND_SPEC:  "2-mutaxassislik faqat Kunduzgi shaklda mumkin",
+                    AdmissionType.MAGISTRATURA: "Magistratura faqat Kunduzgi shaklda mumkin",
+                }
+                raise ValidationError(msg_map[payload.admission_type])
+
+        # Magistratura must target a "Magistr" education level — the
+        # check matches by name so it stays correct if the dictionary
+        # row gets re-uuid'd.
+        if payload.admission_type == AdmissionType.MAGISTRATURA:
+            from sqlalchemy import select as _select
+            from app.modules.programs.models import EducationLevel
+            lvl_name = await self.session.scalar(
+                _select(EducationLevel.name).where(EducationLevel.id == payload.education_level_id)
+            )
+            if not lvl_name or "magistr" not in lvl_name.lower():
+                raise ValidationError(
+                    "Magistratura uchun yo'nalish faqat 'Magistr' darajasida bo'lishi mumkin"
                 )
-                raise ValidationError(msg)
 
         # Diplom / transfer_diplom validation already enforced in schema.
         # 1-kurs requires a Diplom with is_for_second_specialization=False.
@@ -126,15 +144,22 @@ class ApplicationsService:
                 raise ValidationError("Diplom does not belong to this applicant")
             if d.is_for_second_specialization:
                 raise ValidationError("1-kurs uchun 2-mutaxassislik diplomi yaramaydi")
-        # 2-mutaxassislik requires a Diplom with is_for_second_specialization=True.
-        if payload.admission_type == AdmissionType.SECOND_SPEC and payload.diplom_id:
+        # Both 2-mutaxassislik AND magistratura require a Diplom with
+        # is_for_second_specialization=True (the "Bakalavr diplomi" row).
+        # We store both purposes under the same column on Diplom so
+        # operators don't have to enter the Bachelor's data twice for
+        # an applicant who applies for both tracks.
+        if payload.admission_type in (AdmissionType.SECOND_SPEC, AdmissionType.MAGISTRATURA) and payload.diplom_id:
             d = await self.diploms.get(payload.diplom_id)
             if not d or d.user_id != applicant.user_id:
                 raise ValidationError("Diplom does not belong to this applicant")
             if not d.is_for_second_specialization:
-                raise ValidationError(
+                msg = (
                     "2-mutaxassislik uchun Bakalavr darajasi diplomi kerak"
+                    if payload.admission_type == AdmissionType.SECOND_SPEC
+                    else "Magistratura uchun Bakalavr darajasi diplomi kerak"
                 )
+                raise ValidationError(msg)
         if payload.admission_type == AdmissionType.TRANSFER and payload.transfer_diplom_id:
             td = await self.transfer_diploms.get(payload.transfer_diplom_id)
             if not td or td.user_id != applicant.user_id:

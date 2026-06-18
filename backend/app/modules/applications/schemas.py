@@ -40,6 +40,12 @@ class ApplicationCreateSelf(AppSchema):
             # and operators don't see "course_id majburiy" errors.
             if self.diplom_id is None:
                 raise ValueError("2-mutaxassislik uchun diplom_id majburiy")
+        elif self.admission_type == AdmissionType.MAGISTRATURA:
+            # Magistratura uses the same Bachelor's diplom row (purpose=true)
+            # as SECOND_SPEC. No special course_id — entrants always
+            # start at kurs 1.
+            if self.diplom_id is None:
+                raise ValueError("Magistratura uchun Bakalavr diplomi majburiy")
         else:  # REGULAR
             if self.diplom_id is None:
                 raise ValueError("Yangi qabul uchun diplom_id majburiy")

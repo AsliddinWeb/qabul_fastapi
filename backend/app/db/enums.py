@@ -72,18 +72,24 @@ class ApplicationStatus(str, Enum):
 
 
 class AdmissionType(str, Enum):
-    """1-kurs (yangi qabul), perevod, yoki 2-mutaxassislik.
+    """1-kurs (yangi qabul), perevod, 2-mutaxassislik, yoki magistratura.
 
     SECOND_SPEC ("ikkinchi_mutaxassislik") — admitted to a SECOND
     Bachelor's track on top of an existing Bachelor's degree. Always
     starts at kurs 2 (the 1st-year general courses are credit-
     transferred from the prior degree), and only kunduzgi form is
     offered.
+
+    MAGISTRATURA ("magistratura") — Master's degree applicant.
+    Requires a Bachelor's diploma (same row as SECOND_SPEC carries,
+    `is_for_second_specialization=True`). Kunduzgi-only. Only
+    education_levels named "Magistr" are eligible programs.
     """
 
     REGULAR = "yangi_qabul"
     TRANSFER = "perevod"
     SECOND_SPEC = "ikkinchi_mutaxassislik"
+    MAGISTRATURA = "magistratura"
 
 
 class ContractType(str, Enum):
