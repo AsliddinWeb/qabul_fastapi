@@ -422,13 +422,13 @@ async function createTransferInline() {
       const updated = await adminApi.transferDiploms.update(myTransferDiplom.value.id, {
         ...transferForm,
       })
-      toast.success("Perevod diplomi yangilandi")
+      toast.success("O'qishni ko'chirish diplomi yangilandi")
       myTransferDiplom.value = updated
       form.transfer_diplom_id = updated.id
     } else {
       const payload = { user_id: form.applicant_user_id, ...transferForm }
       const created = await adminApi.transferDiploms.create(payload)
-      toast.success("Perevod diplomi qo'shildi")
+      toast.success("O'qishni ko'chirish diplomi qo'shildi")
       myTransferDiplom.value = created
       form.transfer_diplom_id = created.id
     }
@@ -776,7 +776,7 @@ function validate(): boolean {
     e.diplom_id = "Magistratura uchun Bakalavr diplomi kerak — yuqorida qo'shing"
   }
   if (form.admission_type === 'perevod') {
-    if (!form.transfer_diplom_id) e.transfer_diplom_id = "Perevod diplomi kerak — yuqorida qo'shing"
+    if (!form.transfer_diplom_id) e.transfer_diplom_id = "O'qishni ko'chirish diplomi kerak — yuqorida qo'shing"
     if (!form.course_id) e.course_id = "Maqsadli kursni tanlang"
   }
   errors.value = e
@@ -1338,7 +1338,7 @@ async function submit() {
                class="card p-5 space-y-4">
         <div class="flex items-center gap-3">
           <div class="w-7 h-7 rounded-full bg-brand-600 text-white grid place-items-center"><Award class="w-4 h-4" /></div>
-          <h2 class="font-semibold text-slate-900 dark:text-slate-100">Perevod diplomi</h2>
+          <h2 class="font-semibold text-slate-900 dark:text-slate-100">O'qishni ko'chirish diplomi</h2>
         </div>
 
         <div v-if="myTransferDiplom && !showTransferForm"
@@ -1362,7 +1362,7 @@ async function submit() {
 
         <template v-if="!myTransferDiplom || showTransferForm">
           <p v-if="!showTransferForm && !myTransferDiplom" class="text-sm text-amber-700 dark:text-amber-300">
-            Perevod diplomi yo'q.
+            O'qishni ko'chirish diplomi yo'q.
             <button type="button" class="text-brand-600 hover:underline ml-1" @click="showTransferForm = true">
               Qo'shish
             </button>

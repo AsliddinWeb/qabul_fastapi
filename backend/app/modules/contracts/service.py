@@ -538,9 +538,14 @@ def _build_context(
 ) -> dict:
     today = date.today()
 
-    admission_type_label = (
-        "Perevod" if application.admission_type == AdmissionType.TRANSFER else "1-kurs (yangi qabul)"
-    )
+    # 4-way switch keeps the contract PDF aligned with the new admission
+    # types. Falls back to the friendly label for any future enum value.
+    admission_type_label = {
+        AdmissionType.REGULAR:      "1-kurs (yangi qabul)",
+        AdmissionType.TRANSFER:     "O'qishni ko'chirish",
+        AdmissionType.SECOND_SPEC:  "2-mutaxassislik",
+        AdmissionType.MAGISTRATURA: "Magistratura",
+    }.get(application.admission_type, str(application.admission_type.value))
 
     full_name = " ".join(
         filter(

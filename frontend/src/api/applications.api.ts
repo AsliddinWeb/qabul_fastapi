@@ -3,7 +3,8 @@ import { http } from '@/api/http'
 export type ApplicationStatus =
   | 'topshirildi' | 'korib_chiqilmoqda' | 'qabul_qilindi' | 'rad_etildi'
 
-export type AdmissionType = 'yangi_qabul' | 'perevod'
+export type AdmissionType =
+  | 'yangi_qabul' | 'perevod' | 'ikkinchi_mutaxassislik' | 'magistratura'
 
 export const APPLICATION_STATUS_LABEL: Record<ApplicationStatus, string> = {
   topshirildi: 'Topshirildi',
@@ -13,8 +14,10 @@ export const APPLICATION_STATUS_LABEL: Record<ApplicationStatus, string> = {
 }
 
 export const ADMISSION_TYPE_LABEL: Record<AdmissionType, string> = {
-  yangi_qabul: '1-kurs (Yangi qabul)',
-  perevod: 'Perevod',
+  yangi_qabul:            '1-kurs (Yangi qabul)',
+  perevod:                "O'qishni ko'chirish",
+  ikkinchi_mutaxassislik: '2-mutaxassislik',
+  magistratura:           'Magistratura',
 }
 
 export interface ApplicationDetailed {

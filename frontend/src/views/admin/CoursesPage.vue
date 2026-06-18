@@ -7,7 +7,7 @@ import { adminApi } from '@/api/admin.api'
 <template>
   <SimpleCatalogPage
     title="Kurslar"
-    subtitle="1-kurs, 2-kurs, ... — perevod uchun maqsadli kurs"
+    subtitle="1-kurs, 2-kurs, ... — o'qishni ko'chirish uchun maqsadli kurs"
     empty-title="Kurslar yo'q"
     :icon="Layers"
     :api="adminApi.courses"

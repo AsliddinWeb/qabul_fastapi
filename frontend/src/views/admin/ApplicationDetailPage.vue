@@ -937,7 +937,7 @@ function applicantInitials(): string {
             <span class="icon-bubble-sm bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
               <Globe class="w-4 h-4" />
             </span>
-            Perevod diplomi
+            O'qishni ko'chirish diplomi
           </h2>
           <div v-if="transferDiplom" class="space-y-3">
             <div class="grid sm:grid-cols-2 gap-3 text-sm">
@@ -968,7 +968,7 @@ function applicantInitials(): string {
                class="flex items-center gap-2 text-sm p-3 rounded-xl
                       bg-amber-50 text-amber-800 ring-1 ring-amber-200
                       dark:bg-amber-900/20 dark:text-amber-300 dark:ring-amber-700/30">
-            <AlertTriangle class="w-4 h-4 shrink-0" /> Perevod diplomi topilmadi
+            <AlertTriangle class="w-4 h-4 shrink-0" /> O'qishni ko'chirish diplomi topilmadi
           </div>
         </section>
 

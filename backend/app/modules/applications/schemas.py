@@ -29,9 +29,9 @@ class ApplicationCreateSelf(AppSchema):
     def _check_admission_consistency(self) -> "ApplicationCreateSelf":
         if self.admission_type == AdmissionType.TRANSFER:
             if self.transfer_diplom_id is None:
-                raise ValueError("Perevod uchun transfer_diplom_id majburiy")
+                raise ValueError("O'qishni ko'chirish uchun transfer_diplom_id majburiy")
             if self.course_id is None:
-                raise ValueError("Perevod uchun course_id majburiy")
+                raise ValueError("O'qishni ko'chirish uchun course_id majburiy")
         elif self.admission_type == AdmissionType.SECOND_SPEC:
             # 2-mutaxassislik flow: Bachelor's diploma is the new requirement
             # (carrying is_for_second_specialization=True), and the course is

@@ -176,7 +176,7 @@ export const AUDIT_ENTITY_TYPES: Record<string, string> = {
   contracts:    'Shartnoma',
   payments:     "To'lov",
   diploms:      'Diplom',
-  transfer_diploms: 'Perevod diplomi',
+  transfer_diploms: "O'qishni ko'chirish diplomi",
   programs:     "Yo'nalish",
   branches:     'Filial',
   leads:        'Lead',

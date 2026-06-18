@@ -238,7 +238,7 @@ const SOURCE_TONE: Record<string, string> = {
       <div class="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800">
         <div>
           <h2 class="text-base font-semibold text-slate-900 dark:text-slate-100">Varonkalar</h2>
-          <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Lead qabul jarayoni uchun pipeline'lar — masalan "Yangi qabul", "Perevod"</p>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Lead qabul jarayoni uchun pipeline'lar — masalan "Yangi qabul", "O'qishni ko'chirish"</p>
         </div>
         <button class="btn-primary" @click="openPipeline()">
           <Plus class="w-4 h-4" /> Yangi varonka

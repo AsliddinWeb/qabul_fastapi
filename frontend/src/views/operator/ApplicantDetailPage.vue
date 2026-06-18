@@ -636,7 +636,7 @@ async function generateContract() {
            class="rounded-lg border border-dashed border-slate-200 dark:border-slate-700 p-6 text-center">
         <FileText class="w-6 h-6 text-slate-400 mx-auto mb-1.5" />
         <p class="text-sm text-slate-500 dark:text-slate-400">
-          Bu abituriyentda diplom ham, perevod diplomi ham yo'q.
+          Bu abituriyentda diplom ham, o'qishni ko'chirish diplomi ham yo'q.
         </p>
       </div>
 
@@ -674,7 +674,7 @@ async function generateContract() {
         <div v-if="transferDiploms.length">
           <div class="flex items-center justify-between mb-2">
             <div class="text-sm font-semibold text-slate-700 dark:text-slate-300 inline-flex items-center gap-1.5">
-              <GraduationCap class="w-4 h-4" /> Perevod diplomi
+              <GraduationCap class="w-4 h-4" /> O'qishni ko'chirish diplomi
             </div>
             <span class="text-[11px] text-slate-400 dark:text-slate-500">{{ transferDiploms.length }} ta</span>
           </div>

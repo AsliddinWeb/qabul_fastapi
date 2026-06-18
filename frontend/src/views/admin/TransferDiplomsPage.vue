@@ -216,8 +216,8 @@ async function remove(d: TransferDiplomItem) {
   const owner = userCache.value[d.user_id]
   const ownerName = owner ? `${owner.last_name} ${owner.first_name}` : d.university_name
   const ok = await ask({
-    title: "Perevod diplomini o'chirish",
-    message: `${ownerName} ning perevod diplomi o'chirilsinmi?`,
+    title: "O'qishni ko'chirish diplomini o'chirish",
+    message: `${ownerName} ning o'qishni ko'chirish diplomi o'chirilsinmi?`,
     confirmLabel: "O'chirish",
     tone: 'danger',
   })
@@ -261,8 +261,8 @@ function avatarColor(uid: string): string {
 <template>
   <div>
     <PageHeader
-      title="Perevod diplomlari"
-      :subtitle="`O'qishni ko'chirish abituriyentlarining diplomlari · Jami ${total}`"
+      title="O'qishni ko'chirish diplomlari"
+      :subtitle="`O'qishni ko'chiruvchi abituriyentlarning diplomlari · Jami ${total}`"
       :crumbs="[{ label: 'Bosh sahifa', to: '/admin' }, { label: 'Qabul jarayoni' }]"
     >
       <button class="btn-primary" @click="openCreate">
@@ -288,7 +288,7 @@ function avatarColor(uid: string): string {
     </div>
 
     <form v-if="showForm" class="card p-6 mb-4 space-y-5" @submit.prevent="submit">
-      <h2 class="section-title">{{ editing ? "Tahrirlash" : "Yangi perevod diplomi" }}</h2>
+      <h2 class="section-title">{{ editing ? "Tahrirlash" : "Yangi o'qishni ko'chirish diplomi" }}</h2>
 
       <div>
         <label class="field-label">Abituriyent *</label>
@@ -397,7 +397,7 @@ function avatarColor(uid: string): string {
     <Skeleton v-if="loading" type="table" />
 
     <div v-else-if="!items.length" class="card p-6">
-      <EmptyState :icon="Award" title="Perevod diplomlari yo'q">
+      <EmptyState :icon="Award" title="O'qishni ko'chirish diplomlari yo'q">
         <button class="btn-primary mt-4" @click="openCreate"><Plus class="w-4 h-4" /> Yangi diplom</button>
       </EmptyState>
     </div>

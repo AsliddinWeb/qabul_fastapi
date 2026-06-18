@@ -700,7 +700,7 @@ onMounted(async () => {
           >
             <div class="font-semibold text-slate-900 dark:text-slate-100">O'qishni ko'chirish</div>
             <div class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Boshqa universitetdan perevod
+              Boshqa universitetdan o'tkazish
             </div>
           </button>
         </div>

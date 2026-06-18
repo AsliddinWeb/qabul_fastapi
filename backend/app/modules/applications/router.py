@@ -282,8 +282,10 @@ _ENUM_LABELS: dict = {
     ApplicationStatus.ACCEPTED: "Qabul qilindi",
     ApplicationStatus.REJECTED: "Rad etildi",
 
-    AdmissionType.REGULAR:  "Yangi qabul (1-kurs)",
-    AdmissionType.TRANSFER: "Perevod (transfer)",
+    AdmissionType.REGULAR:      "Yangi qabul (1-kurs)",
+    AdmissionType.TRANSFER:     "O'qishni ko'chirish",
+    AdmissionType.SECOND_SPEC:  "2-mutaxassislik",
+    AdmissionType.MAGISTRATURA: "Magistratura",
 
     Gender.MALE:   "Erkak",
     Gender.FEMALE: "Ayol",

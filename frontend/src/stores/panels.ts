@@ -89,7 +89,7 @@ const ADMIN_NAV: NavEntry[] = [
     leaf('/admin/applicants',           'Abituriyentlar',         UsersIcon,      'violet',  { countKey: 'applicants' }),
     leaf('/admin/applications',         'Arizalar',               ClipboardList,  'amber',   { countKey: 'applications' }),
     leaf('/admin/diploms',              'Diplomlar (1-kurs)',     Award,          'emerald'),
-    leaf('/admin/transfer-diploms',     'Perevod diplomlari',     Award,          'cyan'),
+    leaf('/admin/transfer-diploms',     "O'qishni ko'ch. diplomlari", Award,     'cyan'),
     leaf('/admin/payments',             "To'lovlar",              CreditCard,     'teal',    { countKey: 'payments' }),
     leaf('/admin/referrals',            'Referal dasturi',        Gift,           'rose',    { countKey: 'referrals' }),
   ]),

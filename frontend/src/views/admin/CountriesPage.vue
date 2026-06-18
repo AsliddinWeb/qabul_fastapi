@@ -7,7 +7,7 @@ import { adminApi } from '@/api/admin.api'
 <template>
   <SimpleCatalogPage
     title="Davlatlar"
-    subtitle="Perevod diplomi uchun chet davlatlar (O'zbekiston, Qozog'iston, Rossiya, ...)"
+    subtitle="O'qishni ko'chirish diplomi uchun chet davlatlar (O'zbekiston, Qozog'iston, Rossiya, ...)"
     empty-title="Davlatlar yo'q"
     :icon="Globe"
     :api="adminApi.countries"
