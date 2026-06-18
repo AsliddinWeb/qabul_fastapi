@@ -101,25 +101,40 @@ class ApplicationsService:
                 "Program's branch / education level / education form mismatch"
             )
 
-        # Business rule: 1-kurs (yangi qabul) is kunduzgi-only. Check the
-        # form's name (not the UUID) so this stays correct if the dictionary
-        # gets renamed.
-        if payload.admission_type == AdmissionType.REGULAR:
+        # Business rule: 1-kurs (yangi qabul) AND 2-mutaxassislik are
+        # both kunduzgi-only. Check the form's name (not the UUID) so
+        # this stays correct if the dictionary gets renamed.
+        if payload.admission_type in (AdmissionType.REGULAR, AdmissionType.SECOND_SPEC):
             from sqlalchemy import select as _select
             from app.modules.programs.models import EducationForm
             form_name = await self.session.scalar(
                 _select(EducationForm.name).where(EducationForm.id == payload.education_form_id)
             )
             if form_name and "kunduz" not in form_name.lower():
-                raise ValidationError(
+                msg = (
                     "1-kursga topshirish faqat Kunduzgi shaklda mumkin"
+                    if payload.admission_type == AdmissionType.REGULAR
+                    else "2-mutaxassislik faqat Kunduzgi shaklda mumkin"
                 )
+                raise ValidationError(msg)
 
         # Diplom / transfer_diplom validation already enforced in schema.
+        # 1-kurs requires a Diplom with is_for_second_specialization=False.
         if payload.admission_type == AdmissionType.REGULAR and payload.diplom_id:
             d = await self.diploms.get(payload.diplom_id)
             if not d or d.user_id != applicant.user_id:
                 raise ValidationError("Diplom does not belong to this applicant")
+            if d.is_for_second_specialization:
+                raise ValidationError("1-kurs uchun 2-mutaxassislik diplomi yaramaydi")
+        # 2-mutaxassislik requires a Diplom with is_for_second_specialization=True.
+        if payload.admission_type == AdmissionType.SECOND_SPEC and payload.diplom_id:
+            d = await self.diploms.get(payload.diplom_id)
+            if not d or d.user_id != applicant.user_id:
+                raise ValidationError("Diplom does not belong to this applicant")
+            if not d.is_for_second_specialization:
+                raise ValidationError(
+                    "2-mutaxassislik uchun Bakalavr darajasi diplomi kerak"
+                )
         if payload.admission_type == AdmissionType.TRANSFER and payload.transfer_diplom_id:
             td = await self.transfer_diploms.get(payload.transfer_diplom_id)
             if not td or td.user_id != applicant.user_id:
@@ -136,6 +151,25 @@ class ApplicationsService:
                 "Yangi ariza topshirish uchun avval mavjudini o'chirib tashlash kerak."
             )
 
+        # 2-mutaxassislik always starts at kurs 2 (1st-year credits transfer
+        # from the prior Bachelor's). Resolve the "2-kurs" course UUID from
+        # the dictionary at submit time so we don't burden the frontend or
+        # the operator with picking it. If the dictionary doesn't have a
+        # matching row (fresh install / typo), surface a clear error
+        # instead of inserting NULL.
+        resolved_course_id = payload.course_id
+        if payload.admission_type == AdmissionType.SECOND_SPEC and resolved_course_id is None:
+            from sqlalchemy import select as _select
+            from app.modules.applicants.models import Course
+            second_course = await self.session.scalar(
+                _select(Course).where(Course.name.ilike("%2%"))
+            )
+            if not second_course:
+                raise ValidationError(
+                    "Kurslar ro'yxatida 2-kurs topilmadi — avval katalogga qo'shing"
+                )
+            resolved_course_id = second_course.id
+
         application = await self.repo.create(
             application_number=_generate_application_number(),
             applicant_id=applicant_id,
@@ -146,7 +180,7 @@ class ApplicationsService:
             program_id=payload.program_id,
             diplom_id=payload.diplom_id,
             transfer_diplom_id=payload.transfer_diplom_id,
-            course_id=payload.course_id,
+            course_id=resolved_course_id,
             status=ApplicationStatus.PENDING,
             submitted_at=datetime.now(timezone.utc),
             notes=payload.notes,

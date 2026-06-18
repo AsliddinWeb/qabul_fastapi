@@ -98,14 +98,29 @@ class CourseRepository(BaseRepository[Course]):
 class DiplomRepository(BaseRepository[Diplom]):
     model = Diplom
 
-    async def get_by_user_id(self, user_id: UUID) -> Diplom | None:
-        return await self.get_by(user_id=user_id)
+    async def get_by_user_id(
+        self,
+        user_id: UUID,
+        *,
+        is_for_second_specialization: bool = False,
+    ) -> Diplom | None:
+        """Return the diplom for this user's flow.
+
+        The Diplom row is now unique on (user_id, is_for_second_specialization),
+        so callers MUST disambiguate. Defaulting to False keeps the legacy
+        1-kurs callers behaviour-compatible.
+        """
+        return await self.get_by(
+            user_id=user_id,
+            is_for_second_specialization=is_for_second_specialization,
+        )
 
     async def list_filtered(
         self,
         *,
         user_id: UUID | None = None,
         search: str | None = None,
+        is_for_second_specialization: bool | None = None,
         limit: int = 50,
         offset: int = 0,
     ) -> tuple[list[dict], int]:
@@ -125,6 +140,9 @@ class DiplomRepository(BaseRepository[Diplom]):
         if user_id is not None:
             stmt = stmt.where(Diplom.user_id == user_id)
             count_stmt = count_stmt.where(Diplom.user_id == user_id)
+        if is_for_second_specialization is not None:
+            stmt = stmt.where(Diplom.is_for_second_specialization == is_for_second_specialization)
+            count_stmt = count_stmt.where(Diplom.is_for_second_specialization == is_for_second_specialization)
         if search:
             like = f"%{search}%"
             cond = or_(

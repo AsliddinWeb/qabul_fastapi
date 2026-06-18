@@ -169,6 +169,9 @@ class DiplomBase(AppSchema):
     region_id: UUID
     district_id: UUID
     diploma_file_id: UUID | None = None
+    # TRUE = Bachelor's diploma used for the 2-mutaxassislik flow.
+    # Defaults to FALSE so existing callers (1-kurs flow) keep working.
+    is_for_second_specialization: bool = False
 
 
 class DiplomCreate(DiplomBase):
@@ -184,6 +187,7 @@ class DiplomUpdate(AppSchema):
     region_id: UUID | None = None
     district_id: UUID | None = None
     diploma_file_id: UUID | None = None
+    is_for_second_specialization: bool | None = None
 
 
 class DiplomRead(IdSchema, TimestampedSchema, DiplomBase):

@@ -32,6 +32,14 @@ class ApplicationCreateSelf(AppSchema):
                 raise ValueError("Perevod uchun transfer_diplom_id majburiy")
             if self.course_id is None:
                 raise ValueError("Perevod uchun course_id majburiy")
+        elif self.admission_type == AdmissionType.SECOND_SPEC:
+            # 2-mutaxassislik flow: Bachelor's diploma is the new requirement
+            # (carrying is_for_second_specialization=True), and the course is
+            # always 2 — backend resolves it from the courses catalogue at
+            # service time, so the field is left optional on the API surface
+            # and operators don't see "course_id majburiy" errors.
+            if self.diplom_id is None:
+                raise ValueError("2-mutaxassislik uchun diplom_id majburiy")
         else:  # REGULAR
             if self.diplom_id is None:
                 raise ValueError("Yangi qabul uchun diplom_id majburiy")

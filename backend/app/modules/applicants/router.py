@@ -424,12 +424,17 @@ async def delete_course(
 async def list_diploms(
     user_id: UUID | None = Query(default=None),
     search: str | None = Query(default=None, min_length=1, max_length=100),
+    is_for_second_specialization: bool | None = Query(
+        default=None,
+        description="Filter by purpose: false = 1-kurs, true = 2-mutaxassislik",
+    ),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=50, ge=1, le=200),
     svc: ApplicantsService = Depends(_service),
 ) -> PageResponse[DiplomWithApplicant]:
     items, total = await svc.list_diploms(
         user_id=user_id, search=search,
+        is_for_second_specialization=is_for_second_specialization,
         limit=size, offset=(page - 1) * size,
     )
     return PageResponse[DiplomWithApplicant].build(

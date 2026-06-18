@@ -72,10 +72,18 @@ class ApplicationStatus(str, Enum):
 
 
 class AdmissionType(str, Enum):
-    """1-kurs (yangi qabul) yoki perevod."""
+    """1-kurs (yangi qabul), perevod, yoki 2-mutaxassislik.
+
+    SECOND_SPEC ("ikkinchi_mutaxassislik") — admitted to a SECOND
+    Bachelor's track on top of an existing Bachelor's degree. Always
+    starts at kurs 2 (the 1st-year general courses are credit-
+    transferred from the prior degree), and only kunduzgi form is
+    offered.
+    """
 
     REGULAR = "yangi_qabul"
     TRANSFER = "perevod"
+    SECOND_SPEC = "ikkinchi_mutaxassislik"
 
 
 class ContractType(str, Enum):

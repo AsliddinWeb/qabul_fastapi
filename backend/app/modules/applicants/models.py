@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date
 from uuid import UUID
 
-from sqlalchemy import Date, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Date, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import CITEXT, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -117,11 +117,24 @@ class Course(UUIDPKMixin, TimestampMixin, Base):
 
 
 class Diplom(UUIDPKMixin, TimestampMixin, Base):
-    """1-kurs (yangi qabul) uchun applicant diplom (lokal o'rta-maxsus / akademik)."""
+    """Local diploma (o'rta-maxsus / akademik / Bakalavr).
+
+    Used for both:
+      - 1-kurs (yangi qabul) — high school / college diploma →
+        is_for_second_specialization = False
+      - 2-mutaxassislik — prior Bachelor's degree →
+        is_for_second_specialization = True
+
+    Unique on (user_id, is_for_second_specialization) so one user
+    can carry at most one of each kind.
+    """
 
     __tablename__ = "diploms"
     __table_args__ = (
-        UniqueConstraint("user_id", name="uq_diploms_user_id"),
+        UniqueConstraint(
+            "user_id", "is_for_second_specialization",
+            name="uq_diploms_user_purpose",
+        ),
     )
 
     user_id: Mapped[UUID] = mapped_column(
@@ -156,6 +169,12 @@ class Diplom(UUIDPKMixin, TimestampMixin, Base):
         PG_UUID(as_uuid=True),
         ForeignKey("files.id", ondelete="SET NULL"),
         nullable=True,
+    )
+    # FALSE → 1-kurs diplomi (default), TRUE → 2-mutaxassislik
+    # uchun Bakalavr darajasi diplomi. The composite unique on
+    # (user_id, is_for_second_specialization) keeps one of each per user.
+    is_for_second_specialization: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false",
     )
 
 

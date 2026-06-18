@@ -47,7 +47,10 @@ const isEdit = computed(() => !!id.value)
 const form = reactive({
   applicant_id: '',
   applicant_user_id: '',
-  admission_type: 'yangi_qabul' as 'yangi_qabul' | 'perevod',
+  // 3 admission types now. 'ikkinchi_mutaxassislik' is the new
+  // 2-Bachelor's track — kunduzgi-only, course 2 auto-set on the
+  // server. Same diplom widget, but is_for_second_specialization=true.
+  admission_type: 'yangi_qabul' as 'yangi_qabul' | 'perevod' | 'ikkinchi_mutaxassislik',
   branch_id: '',
   education_level_id: '',
   education_form_id: '',
@@ -241,12 +244,24 @@ async function createApplicantInline() {
 const myDiplom = ref<any | null>(null)
 const myTransferDiplom = ref<any | null>(null)
 
+/**
+ * Loads the diplom that matches the current admission_type:
+ *   - REGULAR / TRANSFER → 1-kurs diplom (is_for_second_specialization=false)
+ *   - SECOND_SPEC → Bakalavr darajasi diplomi (=true)
+ * Same applicant can have one of EACH (composite unique on user+purpose).
+ * Re-fires when admission_type flips so the form's diplom panel shows
+ * the right row.
+ */
 async function loadDiplomsForUser(user_id: string) {
   myDiplom.value = null
   myTransferDiplom.value = null
+  const wantSecondSpec = form.admission_type === 'ikkinchi_mutaxassislik'
   try {
     const [d, t] = await Promise.all([
-      adminApi.diploms.list({ user_id }).catch(() => ({ items: [] }) as any),
+      adminApi.diploms.list({
+        user_id,
+        is_for_second_specialization: wantSecondSpec,
+      }).catch(() => ({ items: [] }) as any),
       adminApi.transferDiploms.list({ user_id }).catch(() => ({ items: [] }) as any),
     ])
     myDiplom.value = (d as any).items?.[0] || null
@@ -310,14 +325,27 @@ async function createDiplomInline() {
     return
   }
   diplomCreating.value = true
+  // Tag the diplom with the right purpose so backend's composite-unique
+  // constraint stores 1-kurs and Bakalavr diplomas as separate rows for
+  // the same applicant. A user converting from "yangi_qabul" application
+  // to a future "ikkinchi_mutaxassislik" one would otherwise overwrite
+  // their high-school diplom with the Bachelor's one.
+  const purposeFlag = form.admission_type === 'ikkinchi_mutaxassislik'
   try {
     if (myDiplom.value?.id) {
-      const updated = await adminApi.diploms.update(myDiplom.value.id, { ...diplomForm })
+      const updated = await adminApi.diploms.update(myDiplom.value.id, {
+        ...diplomForm,
+        is_for_second_specialization: purposeFlag,
+      })
       toast.success("Diplom yangilandi")
       myDiplom.value = updated
       form.diplom_id = updated.id
     } else {
-      const payload = { user_id: form.applicant_user_id, ...diplomForm }
+      const payload = {
+        user_id: form.applicant_user_id,
+        ...diplomForm,
+        is_for_second_specialization: purposeFlag,
+      }
       const created = await adminApi.diploms.create(payload)
       toast.success("Diplom qo'shildi")
       myDiplom.value = created
@@ -440,9 +468,14 @@ const availableForms = computed(() => {
       .map((p) => p.education_form_id),
   )
   let forms = allEducationForms.value.filter((f) => ids.has(f.id))
-  // Business rule: 1-kurs (yangi_qabul) applicants can only enroll in
-  // kunduzgi. Mirrors the limit applicants see in the onboarding wizard.
-  if (form.admission_type === 'yangi_qabul') {
+  // Business rule: BOTH 1-kurs (yangi_qabul) AND 2-mutaxassislik
+  // (ikkinchi_mutaxassislik) are kunduzgi-only. Perevod keeps the
+  // full list. Mirrors the same check the backend enforces in
+  // applications/service.py.
+  if (
+    form.admission_type === 'yangi_qabul'
+    || form.admission_type === 'ikkinchi_mutaxassislik'
+  ) {
     forms = forms.filter((f: any) =>
       (f.name || '').toLowerCase().includes('kunduz')
     )
@@ -473,15 +506,21 @@ watch(() => form.education_form_id, () => {
   form.program_id = ''
 })
 
-// Switching admission_type re-applies the kunduzgi-only rule.
-// If the selected form is no longer in availableForms (e.g. user picked
-// Sirtqi then switched to 1-kurs), drop it so they re-pick.
+// Switching admission_type re-applies the kunduzgi-only rule AND
+// re-loads the right diplom (1-kurs vs 2-mutaxassislik are stored as
+// separate Diplom rows now). If the selected form is no longer in
+// availableForms (e.g. user picked Sirtqi then switched to 1-kurs),
+// drop it so they re-pick.
 watch(() => form.admission_type, () => {
   if (prefilling.value) return
   if (form.education_form_id && !availableForms.value.find((f: any) => f.id === form.education_form_id)) {
     form.education_form_id = ''
     form.program_id = ''
   }
+  // Refresh the diplom panel — the two purposes (1-kurs vs Bakalavr)
+  // live in different DB rows now. Without this the operator would
+  // see the previous purpose's diplom even after switching.
+  if (form.applicant_user_id) loadDiplomsForUser(form.applicant_user_id)
 })
 
 const selectedProgram = computed(() => allPrograms.value.find((p) => p.id === form.program_id))
@@ -678,6 +717,9 @@ function validate(): boolean {
   if (form.admission_type === 'yangi_qabul' && !form.diplom_id) {
     e.diplom_id = "1-kurs uchun diplom kerak — yuqorida qo'shing"
   }
+  if (form.admission_type === 'ikkinchi_mutaxassislik' && !form.diplom_id) {
+    e.diplom_id = "2-mutaxassislik uchun Bakalavr diplomi kerak — yuqorida qo'shing"
+  }
   if (form.admission_type === 'perevod') {
     if (!form.transfer_diplom_id) e.transfer_diplom_id = "Perevod diplomi kerak — yuqorida qo'shing"
     if (!form.course_id) e.course_id = "Maqsadli kursni tanlang"
@@ -702,10 +744,13 @@ async function submit() {
       program_id: form.program_id,
       notes: form.notes || null,
     }
-    if (form.admission_type === 'yangi_qabul') {
+    if (form.admission_type === 'yangi_qabul' || form.admission_type === 'ikkinchi_mutaxassislik') {
+      // Both diplom-based flows. Backend distinguishes them by the
+      // Diplom row's is_for_second_specialization flag, which the
+      // inline diplom form already wrote when the operator saved it.
+      // 2-mutaxassislik also gets course_id auto-resolved to "2-kurs"
+      // by the server, so we pass null and let the backend pick.
       payload.diplom_id = form.diplom_id || null
-      // Clear any stale perevod FKs so switching types from edit mode
-      // doesn't leave orphaned references on the row.
       payload.transfer_diplom_id = null
       payload.course_id = null
     } else {
@@ -1069,30 +1114,56 @@ async function submit() {
           <div class="w-7 h-7 rounded-full bg-brand-600 text-white grid place-items-center text-xs font-semibold">2</div>
           <h2 class="font-semibold text-slate-900 dark:text-slate-100">Qabul turi</h2>
         </div>
-        <div class="flex gap-3">
-          <label class="flex-1 flex items-center gap-2 px-4 py-3 rounded-lg border cursor-pointer transition-colors"
+        <!-- Three options now. Wraps on mobile, equal columns on
+             sm+. Description line under each clarifies the rule:
+             1-kurs / Perevod / 2-mutaxassislik. -->
+        <div class="flex flex-col sm:flex-row gap-3">
+          <label class="flex-1 flex flex-col gap-1 px-4 py-3 rounded-lg border cursor-pointer transition-colors"
                  :class="form.admission_type === 'yangi_qabul'
                    ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/30'
                    : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'">
-            <input v-model="form.admission_type" type="radio" value="yangi_qabul" />
-            <span class="text-sm font-medium">1-kurs (Yangi qabul)</span>
+            <div class="flex items-center gap-2">
+              <input v-model="form.admission_type" type="radio" value="yangi_qabul" />
+              <span class="text-sm font-medium">1-kurs (Yangi qabul)</span>
+            </div>
+            <p class="text-[11px] text-slate-500 dark:text-slate-400 ml-6">Maktab/kollej diplomi · Kunduzgi</p>
           </label>
-          <label class="flex-1 flex items-center gap-2 px-4 py-3 rounded-lg border cursor-pointer transition-colors"
+          <label class="flex-1 flex flex-col gap-1 px-4 py-3 rounded-lg border cursor-pointer transition-colors"
                  :class="form.admission_type === 'perevod'
                    ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/30'
                    : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'">
-            <input v-model="form.admission_type" type="radio" value="perevod" />
-            <span class="text-sm font-medium">Perevod</span>
+            <div class="flex items-center gap-2">
+              <input v-model="form.admission_type" type="radio" value="perevod" />
+              <span class="text-sm font-medium">Perevod</span>
+            </div>
+            <p class="text-[11px] text-slate-500 dark:text-slate-400 ml-6">Boshqa OTM'dan ko'chirilish</p>
+          </label>
+          <label class="flex-1 flex flex-col gap-1 px-4 py-3 rounded-lg border cursor-pointer transition-colors"
+                 :class="form.admission_type === 'ikkinchi_mutaxassislik'
+                   ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/30'
+                   : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'">
+            <div class="flex items-center gap-2">
+              <input v-model="form.admission_type" type="radio" value="ikkinchi_mutaxassislik" />
+              <span class="text-sm font-medium">2-mutaxassislik</span>
+            </div>
+            <p class="text-[11px] text-slate-500 dark:text-slate-400 ml-6">Bakalavr darajasi · 2-kursdan · Kunduzgi</p>
           </label>
         </div>
       </section>
 
-      <!-- ===== STEP 2.5: Diplom (1-kurs) ===== -->
-      <section v-if="form.applicant_id && form.admission_type === 'yangi_qabul'"
+      <!-- ===== STEP 2.5: Diplom (1-kurs yoki 2-mutaxassislik) =====
+           Both flows store data in the same shape; only the
+           is_for_second_specialization flag (set in createDiplomInline)
+           and the section header differ. Field labels swap to match. -->
+      <section v-if="form.applicant_id && (form.admission_type === 'yangi_qabul' || form.admission_type === 'ikkinchi_mutaxassislik')"
                class="card p-5 space-y-4">
         <div class="flex items-center gap-3">
           <div class="w-7 h-7 rounded-full bg-brand-600 text-white grid place-items-center"><Award class="w-4 h-4" /></div>
-          <h2 class="font-semibold text-slate-900 dark:text-slate-100">Diplom (1-kurs)</h2>
+          <h2 class="font-semibold text-slate-900 dark:text-slate-100">
+            {{ form.admission_type === 'ikkinchi_mutaxassislik'
+               ? 'Bakalavr diplomi (2-mutaxassislik uchun)'
+               : 'Diplom (1-kurs)' }}
+          </h2>
         </div>
 
         <div v-if="myDiplom && !showDiplomForm"

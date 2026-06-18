@@ -312,7 +312,14 @@ class ApplicantsService:
         return obj
 
     async def upsert_diplom(self, payload: DiplomCreate) -> Diplom:
-        existing = await self.diploms.get_by_user_id(payload.user_id)
+        # Unique key is now (user_id, is_for_second_specialization), so a
+        # user can legitimately carry BOTH a 1-kurs diplom AND a Bakalavr
+        # diplom for 2-mutaxassislik. Look up the row that matches the
+        # payload's purpose; only update that one.
+        existing = await self.diploms.get_by_user_id(
+            payload.user_id,
+            is_for_second_specialization=payload.is_for_second_specialization,
+        )
         if existing:
             data = payload.model_dump(exclude={"user_id"})
             return await self.diploms.update(existing, **data)

@@ -247,7 +247,11 @@ export const adminApi = {
 
   // ---------- Diploms (1-kurs) ----------
   diploms: {
-    list: (params: { user_id?: string; search?: string; page?: number; size?: number } = {}) =>
+    list: (params: {
+      user_id?: string; search?: string; page?: number; size?: number;
+      /** false = 1-kurs (default), true = 2-mutaxassislik Bakalavr diplomi. */
+      is_for_second_specialization?: boolean;
+    } = {}) =>
       http.get<PageResponse<any>>('/applicants/diploms', { params }).then((r) => r.data),
     get: (id: string) =>
       http.get<any>(`/applicants/diploms/${id}`).then((r) => r.data),
