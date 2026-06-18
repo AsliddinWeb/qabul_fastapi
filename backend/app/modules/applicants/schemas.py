@@ -115,6 +115,13 @@ class ApplicantRead(IdSchema, TimestampedSchema, ApplicantBase):
     # Default to 'new' so pre-migration responses don't surface as null
     # and break the frontend chip / dropdown.
     contact_status: ApplicantContactStatus = ApplicantContactStatus.NEW
+    # Denormalised list-only fields. Populated by the list endpoint to
+    # let the table render "asosiy raqam" and the contract chip without
+    # an N+1 follow-up fetch. Detail / CRUD endpoints leave them None.
+    user_phone: str | None = None
+    # 'signed' / 'draft' / None — applicant's "best" non-cancelled
+    # contract status. Drives the green/amber/empty chip in the list.
+    contract_status: str | None = None
 
 
 # ---------- Diplom catalog ----------

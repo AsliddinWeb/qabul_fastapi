@@ -3,7 +3,7 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import {
   Plus, Users as UsersIcon, Pencil, Trash2, Search, Phone, Download,
-  FileCheck, FileX, Filter as FilterIcon, X as XIcon,
+  FileCheck, FileX, Filter as FilterIcon, X as XIcon, Clock,
 } from 'lucide-vue-next'
 import {
   APPLICANT_CONTACT_STATUS,
@@ -36,6 +36,10 @@ interface Applicant {
   birth_date: string
   gender: 'male' | 'female'
   additional_phone?: string | null
+  /** Asosiy login telefon raqami (User.phone). Backend list-only field. */
+  user_phone?: string | null
+  /** 'signed' / 'draft' / null — list-only enrichment. */
+  contract_status?: 'signed' | 'draft' | null
   created_at: string
   contact_status?: ApplicantContactStatus
 }
@@ -267,20 +271,21 @@ function age(birth: string): number {
             <th class="w-32">Holati</th>
             <th class="w-44">Pasport / PINFL</th>
             <th class="w-40">Tug'ilgan sana</th>
-            <th class="w-40">Telefon</th>
+            <th class="w-44">Telefon</th>
+            <th class="w-28">Shartnoma</th>
             <th class="w-32 text-right">Amallar</th>
           </tr>
         </thead>
         <tbody>
           <template v-if="loading">
             <tr v-for="i in 6" :key="`sk-row-${i}`" class="border-b border-slate-100 dark:border-slate-800/60">
-              <td v-for="c in 6" :key="`sk-${i}-${c}`" class="px-5 py-4">
+              <td v-for="c in 7" :key="`sk-${i}-${c}`" class="px-5 py-4">
                 <div class="skeleton h-3 rounded" :class="c === 1 ? 'w-3/4' : 'w-1/2'" />
               </td>
             </tr>
           </template>
           <tr v-else-if="!items.length">
-            <td colspan="6" class="p-0">
+            <td colspan="7" class="p-0">
               <EmptyState :icon="UsersIcon" title="Abituriyentlar topilmadi"
                           subtitle="Qidiruv natijasi bo'sh — boshqa kalit so'z bilan qaytadan urinib ko'ring" />
             </td>
@@ -327,10 +332,37 @@ function age(birth: string): number {
               <div class="text-xs text-slate-500 dark:text-slate-400">{{ age(a.birth_date) }} yosh</div>
             </td>
             <td>
-              <div v-if="a.additional_phone" class="inline-flex items-center gap-1.5 text-xs font-mono text-slate-600 dark:text-slate-400">
-                <Phone class="w-3 h-3" /> {{ a.additional_phone }}
+              <!-- Asosiy raqam = User.phone (login). Qo'shimcha raqam — ota-ona / qarindosh.
+                   Avval faqat additional_phone ko'rinardi → operatorlar
+                   abituriyentni telefon orqali topa olmasdi. -->
+              <div v-if="a.user_phone" class="inline-flex items-center gap-1.5 text-xs font-mono text-slate-900 dark:text-slate-100">
+                <Phone class="w-3 h-3 text-emerald-500" /> {{ a.user_phone }}
               </div>
-              <span v-else class="text-xs text-slate-400">—</span>
+              <div v-if="a.additional_phone"
+                   class="text-[11px] font-mono text-slate-500 dark:text-slate-400 mt-0.5 pl-4"
+                   title="Qo'shimcha telefon (ota-ona / qarindosh)">
+                + {{ a.additional_phone }}
+              </div>
+              <span v-if="!a.user_phone && !a.additional_phone" class="text-xs text-slate-400">—</span>
+            </td>
+            <td>
+              <!-- Shartnoma chipi. Yashil → imzolangan (officially admitted),
+                   Sariq → loyiha (imzo kutilmoqda), kulrang → yo'q. -->
+              <span v-if="a.contract_status === 'signed'"
+                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
+                    title="Shartnoma imzolangan">
+                <FileCheck class="w-3 h-3" /> Imzolangan
+              </span>
+              <span v-else-if="a.contract_status === 'draft'"
+                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
+                    title="Shartnoma loyihada — imzo kutilmoqda">
+                <Clock class="w-3 h-3" /> Loyiha
+              </span>
+              <span v-else
+                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-500 dark:bg-slate-700/40 dark:text-slate-400"
+                    title="Shartnoma yo'q">
+                <FileX class="w-3 h-3" /> Yo'q
+              </span>
             </td>
             <td class="text-right" @click.stop>
               <div class="inline-flex items-center gap-1.5">

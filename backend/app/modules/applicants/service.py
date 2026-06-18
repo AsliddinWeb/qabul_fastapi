@@ -69,7 +69,10 @@ class ApplicantsService:
         self.users = UserRepository(session)
 
     # ---------- Applicant ----------
-    async def list(self, **filters) -> tuple[list[Applicant], int]:
+    async def list(self, **filters) -> tuple[list[dict], int]:
+        # Repository returns list[dict] now (each carries every Applicant
+        # column + user_phone + contract_status). Router maps via
+        # ApplicantRead.model_validate which tolerates the extra fields.
         return await self.applicants.list_filtered(**filters)
 
     async def get(self, applicant_id: UUID) -> Applicant:

@@ -246,21 +246,26 @@ async def export_applicants_csv(
         "Pasport seriyasi", "JSHSHIR", "Millati", "Email", "Qo'shimcha telefon",
         "Telegram", "Manzil", "Yaratilgan",
     ])
+    # Repository now returns list[dict] — switched from attribute access
+    # to dict.get() so the same field set keeps exporting cleanly.
     for a in items:
+        gender = a.get("gender")
+        birth = a.get("birth_date")
+        created = a.get("created_at")
         w.writerow([
-            a.last_name or "",
-            a.first_name or "",
-            a.other_name or "",
-            a.birth_date.strftime("%Y-%m-%d") if a.birth_date else "",
-            (a.gender.value if a.gender else ""),
-            a.passport_series or "",
-            a.pinfl or "",
-            a.nationality or "",
-            a.email or "",
-            a.additional_phone or "",
-            a.telegram_username or "",
-            (a.address or "").replace("\n", " ").strip(),
-            a.created_at.strftime("%Y-%m-%d %H:%M") if a.created_at else "",
+            a.get("last_name") or "",
+            a.get("first_name") or "",
+            a.get("other_name") or "",
+            birth.strftime("%Y-%m-%d") if birth else "",
+            (gender.value if gender else ""),
+            a.get("passport_series") or "",
+            a.get("pinfl") or "",
+            a.get("nationality") or "",
+            a.get("email") or "",
+            a.get("additional_phone") or "",
+            a.get("telegram_username") or "",
+            (a.get("address") or "").replace("\n", " ").strip(),
+            created.strftime("%Y-%m-%d %H:%M") if created else "",
         ])
     fn = f"applicants-{datetime.now().strftime('%Y%m%d-%H%M')}.csv"
     return Response(

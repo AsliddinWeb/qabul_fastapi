@@ -35,15 +35,55 @@ class ApplicantRepository(BaseRepository[Applicant]):
         search: str | None = None,
         limit: int = 20,
         offset: int = 0,
-    ) -> tuple[list[Applicant], int]:
+    ) -> tuple[list[dict], int]:
+        """List applicants enriched with login phone + contract status.
+
+        Returns dicts (not raw Applicant ORM rows) carrying every
+        Applicant column PLUS:
+          - user_phone   — the User.phone the applicant logs in with
+          - contract_status — 'signed' | 'draft' | None
+              The applicant's "highest-priority" non-cancelled contract
+              status; lets the table show a green / amber / empty chip
+              without an N+1 fetch.
+
+        SIGNED > DRAFT > none. CANCELLED is ignored.
+        """
         # Local imports to keep this repo importable without pulling
         # half the domain at module-import time.
         from app.modules.applications.models import Application
         from app.modules.contracts.models import Contract
         from app.db.enums import ContractStatus
+        from sqlalchemy import exists as _exists
 
-        stmt = select(Applicant)
-        count_stmt = select(func.count(Applicant.id))
+        signed_exists = _exists(
+            select(Contract.id)
+            .join(Application, Application.id == Contract.application_id)
+            .where(
+                Application.applicant_id == Applicant.id,
+                Contract.status == ContractStatus.SIGNED,
+            )
+        ).label("has_signed")
+        draft_exists = _exists(
+            select(Contract.id)
+            .join(Application, Application.id == Contract.application_id)
+            .where(
+                Application.applicant_id == Applicant.id,
+                Contract.status == ContractStatus.DRAFT,
+            )
+        ).label("has_draft")
+
+        # Always outer-join User — we need User.phone in every row to
+        # show "asosiy raqam" in the table. 1:1 relation so the join
+        # doesn't change row counts.
+        stmt = (
+            select(Applicant, User.phone.label("user_phone"), signed_exists, draft_exists)
+            .outerjoin(User, Applicant.user_id == User.id)
+        )
+        count_stmt = (
+            select(func.count(Applicant.id))
+            .select_from(Applicant)
+            .outerjoin(User, Applicant.user_id == User.id)
+        )
 
         if region_id is not None:
             stmt = stmt.where(Applicant.region_id == region_id)
@@ -58,7 +98,6 @@ class ApplicantRepository(BaseRepository[Applicant]):
             # EXISTS subquery — applicant has a non-cancelled contract through
             # any of their applications. Index on contracts.application_id +
             # applications.applicant_id makes this O(log n) per row.
-            from sqlalchemy import exists as _exists
             contract_exists = _exists(
                 select(Contract.id)
                 .join(Application, Application.id == Contract.application_id)
@@ -77,14 +116,6 @@ class ApplicantRepository(BaseRepository[Applicant]):
             # on User.phone — operators routinely paste formatted phones.
             digits = "".join(c for c in search if c.isdigit())
             phone_like = f"%{digits}%" if digits else None
-
-            # Need User joined for phone search. Add the join and mirror it
-            # on count_stmt so totals stay correct.
-            stmt = stmt.outerjoin(User, Applicant.user_id == User.id)
-            count_stmt = (
-                count_stmt.select_from(Applicant)
-                .outerjoin(User, Applicant.user_id == User.id)
-            )
 
             or_terms = [
                 Applicant.first_name.ilike(like),
@@ -105,9 +136,20 @@ class ApplicantRepository(BaseRepository[Applicant]):
 
         stmt = stmt.order_by(Applicant.created_at.desc()).limit(limit).offset(offset)
 
-        rows = list((await self.session.scalars(stmt)).all())
+        rows = (await self.session.execute(stmt)).all()
+        result: list[dict] = []
+        for app, phone, has_signed, has_draft in rows:
+            data = {**app.__dict__}
+            data.pop("_sa_instance_state", None)
+            data["user_phone"] = phone
+            data["contract_status"] = (
+                "signed" if has_signed
+                else "draft" if has_draft
+                else None
+            )
+            result.append(data)
         total = await self.session.scalar(count_stmt) or 0
-        return rows, total
+        return result, total
 
 
 class EducationTypeRepository(BaseRepository[EducationType]):
