@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft, Save, Eye, EyeOff, KeyRound, ShieldCheck,
   User as UserIcon, Phone, Mail, Lock, Crown, Briefcase, Headphones,
-  BarChart3, Wallet, ToggleRight, Check, X,
+  BarChart3, Wallet, ToggleRight, Check, X, Inbox,
 } from 'lucide-vue-next'
 import { AxiosError } from 'axios'
 import { adminApi, type UserCreatePayload } from '@/api/admin.api'
@@ -37,6 +37,10 @@ const form = reactive<Omit<UserCreatePayload, 'phone'> & { phone: string }>({
   password: '',
   is_active: true,
   is_consulting: false,
+  // Default TRUE — a brand-new operator should start receiving leads
+  // immediately. Admins switch it OFF for operators on leave / out of
+  // rotation. Only meaningful when role === 'operator'.
+  accepts_leads: true,
 })
 
 const showPassword = ref(false)
@@ -104,6 +108,7 @@ onMounted(async () => {
       role: u.role,
       is_active: u.is_active,
       is_consulting: !!u.is_consulting,
+      accepts_leads: u.accepts_leads !== false,
       password: '',
     })
     permissionsRevoked.value = Array.isArray(u.permissions_revoked) ? [...u.permissions_revoked] : []
@@ -350,6 +355,21 @@ async function resetPassword() {
           <div class="flex-1 min-w-0">
             <div class="text-sm font-medium text-slate-900 dark:text-slate-100">Faol holatda</div>
             <div class="text-xs text-slate-500 dark:text-slate-400">Yoqilgan bo'lsa, foydalanuvchi tizimga kira oladi.</div>
+          </div>
+        </label>
+        <!-- Operator lead-intake toggle. Only meaningful for the operator
+             role; for everyone else the round-robin doesn't read this
+             flag, so we hide the row to avoid confusion. -->
+        <label v-if="form.role === 'operator'"
+               class="flex items-center gap-3 p-3 rounded-lg ring-1 ring-amber-200/60 dark:ring-amber-700/30 bg-amber-50/40 dark:bg-amber-500/10 cursor-pointer">
+          <input v-model="form.accepts_leads" type="checkbox" class="rounded" />
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-medium text-slate-900 dark:text-slate-100 inline-flex items-center gap-2">
+              <Inbox class="w-3.5 h-3.5 text-amber-500" /> Lead qabul qiladi
+            </div>
+            <div class="text-xs text-slate-500 dark:text-slate-400">
+              Yoqilgan bo'lsa, yangi lead'lar avtomatik taqsimotda shu operatorga ham tushadi. O'chirilsa — taqsimot uni o'tkazib yuboradi (qo'lda biriktirish baribir ishlaydi).
+            </div>
           </div>
         </label>
         <label v-if="auth.isRootSuperadmin"

@@ -42,6 +42,10 @@ class UserCreate(UserBase):
     password: str | None = Field(default=None, min_length=8, max_length=100)
     is_active: bool = True
     is_consulting: bool = False
+    # Operator-only flag — controls lead round-robin eligibility. New
+    # operators default to TRUE so they start receiving leads immediately
+    # without an extra admin step.
+    accepts_leads: bool = True
     # Permissions the admin wants to deny up-front (subset of role defaults).
     # Honored at create time so admins can spin up an operator with reduced
     # rights in one round-trip rather than create-then-edit-revoke.
@@ -55,6 +59,7 @@ class UserUpdate(AppSchema):
     role: UserRole | None = None
     is_active: bool | None = None
     is_consulting: bool | None = None
+    accepts_leads: bool | None = None
     permissions_revoked: list[str] | None = None
 
     @field_validator("phone", mode="before")
@@ -86,6 +91,7 @@ class UserRead(IdSchema, TimestampedSchema):
     is_phone_verified: bool
     is_consulting: bool = False
     is_root_superadmin: bool = False
+    accepts_leads: bool = True
     permissions_revoked: list[str] = Field(default_factory=list)
     referral_code: str | None = None
     last_login_at: datetime | None = None

@@ -37,6 +37,14 @@ class User(UUIDPKMixin, TimestampMixin, Base):
     is_consulting: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false", index=True
     )
+    # Lead intake toggle — only meaningful for OPERATOR users. The lead
+    # round-robin filters on this so an operator who's on leave / training
+    # / temporarily reassigned can be excluded from new lead distribution
+    # without disabling the account. Default TRUE so existing operators
+    # keep receiving leads after the migration.
+    accepts_leads: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default="true", index=True
+    )
     # Single root user — only this user can manage consulting agencies.
     # Auto-assigned to the first-ever superadmin by migration; never exposed
     # in the regular user CRUD UI.

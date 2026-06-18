@@ -8,6 +8,10 @@ export interface UserRead extends User {
   is_phone_verified: boolean
   is_consulting?: boolean
   is_root_superadmin?: boolean
+  /** Operator-only flag — controls eligibility for lead round-robin
+   *  assignment. Defaults TRUE; flip OFF when an operator is on leave
+   *  or temporarily reassigned. Ignored for non-operator roles. */
+  accepts_leads?: boolean
   permissions_revoked?: string[]
   last_login_at: string | null
   created_at: string
@@ -22,6 +26,7 @@ export interface UserCreatePayload {
   password?: string | null
   is_active?: boolean
   is_consulting?: boolean
+  accepts_leads?: boolean
   /** Permission codes to deny up-front (subset of the role's defaults). */
   permissions_revoked?: string[]
 }
@@ -33,6 +38,7 @@ export interface UserUpdatePayload {
   role?: Role
   is_active?: boolean
   is_consulting?: boolean
+  accepts_leads?: boolean
   permissions_revoked?: string[]
 }
 

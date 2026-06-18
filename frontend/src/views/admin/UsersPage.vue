@@ -354,7 +354,9 @@ async function bulkDeleteSelected() {
                 </span>
               </td>
 
-              <!-- Status -->
+              <!-- Status. Operators on intake-pause also get a small
+                   amber chip below the active/inactive line so the admin
+                   spots them at a glance from the list. -->
               <td class="px-4 py-3.5">
                 <span class="inline-flex items-center gap-1.5 text-xs font-medium"
                       :class="u.is_active ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400'">
@@ -362,6 +364,11 @@ async function bulkDeleteSelected() {
                   <XCircle v-else class="w-3.5 h-3.5" />
                   {{ u.is_active ? 'Faol' : 'Faol emas' }}
                 </span>
+                <div v-if="u.role === 'operator' && u.accepts_leads === false"
+                     class="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
+                     title="Lead taqsimotidan o'chirilgan — yangi lead'lar bu operatorga avtomatik tushmaydi.">
+                  Lead qabul qilmaydi
+                </div>
               </td>
 
               <!-- Last login -->

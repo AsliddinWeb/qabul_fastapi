@@ -204,12 +204,15 @@ class LeadService:
         """
         from sqlalchemy import func as F  # noqa: N812
 
+        # Only operators with accepts_leads=TRUE participate. The admin
+        # fallback below ignores this flag (admins always accept escalation).
         ops_stmt = (
             select(User)
             .where(
                 User.role == UserRole.OPERATOR,
                 User.is_active.is_(True),
                 User.deleted_at.is_(None),
+                User.accepts_leads.is_(True),
             )
             .order_by(User.created_at.asc(), User.id.asc())
         )
