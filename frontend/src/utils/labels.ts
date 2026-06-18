@@ -12,7 +12,7 @@ export const APPLICATION_STATUS: Record<string, string> = {
 
 export const ADMISSION_TYPE: Record<string, string> = {
   yangi_qabul:            '1-kurs (Yangi qabul)',
-  perevod:                'Perevod',
+  perevod:                "O'qishni ko'chirish",
   ikkinchi_mutaxassislik: '2-mutaxassislik',
   magistratura:           'Magistratura',
 }

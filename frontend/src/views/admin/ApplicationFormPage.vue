@@ -466,20 +466,27 @@ const institutionTypes = ref<NamedRecord[]>([])
 const countries = ref<CountryRead[]>([])
 const regions = ref<RegionRead[]>([])
 
+/**
+ * Education-level is fully determined by admission_type now:
+ *   - magistratura → "Magistr"
+ *   - everything else → "Bakalavr"
+ * The select is locked (disabled) in the template and auto-set by the
+ * watch below whenever the admission_type or branch_id changes. We
+ * still respect the branch's program catalogue, so if the branch
+ * doesn't carry the desired level, the list is empty and the
+ * placeholder asks the user to pick a different filial.
+ */
+function desiredLevelKeyword(): 'magistr' | 'bakalavr' {
+  return form.admission_type === 'magistratura' ? 'magistr' : 'bakalavr'
+}
+
 const availableLevels = computed(() => {
   if (!form.branch_id) return []
   const ids = new Set(allPrograms.value.filter((p) => p.branch_id === form.branch_id).map((p) => p.education_level_id))
-  let levels = allEducationLevels.value.filter((l) => ids.has(l.id))
-  // Magistratura ariza turi tanlangan bo'lsa, yo'nalish darajalari
-  // ro'yxati faqat "Magistr" bilan boshlanadiganlarni ko'rsatadi.
-  // Match by lowercase substring so the filter survives a typo or
-  // dictionary rename ("Magistratura", "Magistr", "magistr" all match).
-  if (form.admission_type === 'magistratura') {
-    levels = levels.filter((l: any) =>
-      (l.name || '').toLowerCase().includes('magistr')
-    )
-  }
-  return levels
+  const keyword = desiredLevelKeyword()
+  return allEducationLevels.value
+    .filter((l) => ids.has(l.id))
+    .filter((l: any) => (l.name || '').toLowerCase().includes(keyword))
 })
 const availableForms = computed(() => {
   if (!form.branch_id || !form.education_level_id) return []
@@ -544,6 +551,29 @@ watch(() => form.admission_type, () => {
   // see the previous purpose's diplom even after switching.
   if (form.applicant_user_id) loadDiplomsForUser(form.applicant_user_id)
 })
+
+/**
+ * Auto-select + lock the education level.
+ *   - magistratura → Magistr (the only level in availableLevels)
+ *   - everyone else → Bakalavr
+ * Whenever availableLevels changes (branch picked, admission_type
+ * flipped) we re-pick the first matching level. If the current
+ * education_level_id is no longer in the list, we replace it; otherwise
+ * we leave it alone (avoids resetting the dependent form+program
+ * selects on unrelated changes). prefilling.value keeps the edit-mode
+ * hydration intact.
+ */
+watch(availableLevels, (levels) => {
+  if (prefilling.value) return
+  const currentOk = !!levels.find((l: any) => l.id === form.education_level_id)
+  if (currentOk) return
+  const next = levels[0]?.id || ''
+  if (next !== form.education_level_id) {
+    form.education_level_id = next
+    form.education_form_id = ''
+    form.program_id = ''
+  }
+}, { immediate: true })
 
 const selectedProgram = computed(() => allPrograms.value.find((p) => p.id === form.program_id))
 
@@ -1164,9 +1194,9 @@ async function submit() {
                    : 'border-slate-200 dark:border-slate-800 hover:border-slate-300'">
             <div class="flex items-center gap-2">
               <input v-model="form.admission_type" type="radio" value="perevod" />
-              <span class="text-sm font-medium">Perevod</span>
+              <span class="text-sm font-medium">O'qishni ko'chirish</span>
             </div>
-            <p class="text-[11px] text-slate-500 dark:text-slate-400 ml-6">Boshqa OTM'dan ko'chirilish</p>
+            <p class="text-[11px] text-slate-500 dark:text-slate-400 ml-6">Boshqa OTM'dan o'tkazish · Bakalavr</p>
           </label>
           <label class="flex flex-col gap-1 px-4 py-3 rounded-lg border cursor-pointer transition-colors"
                  :class="form.admission_type === 'ikkinchi_mutaxassislik'
@@ -1392,9 +1422,18 @@ async function submit() {
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Ta'lim darajasi *</label>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+              Ta'lim darajasi *
+              <span class="ml-1 text-[10px] font-mono text-slate-400 dark:text-slate-500">
+                ({{ form.admission_type === 'magistratura' ? 'Magistr' : 'Bakalavr' }} — qabul turidan kelib chiqadi)
+              </span>
+            </label>
+            <!-- Locked: education level is fully determined by
+                 admission_type (Magistratura → Magistr, hammasi
+                 boshqasi → Bakalavr) and gets auto-set by a watcher
+                 above. Disabled so operators don't waste a click. -->
             <SearchSelect v-model="form.education_level_id" :options="levelOptionsList"
-                          :placeholder="levelPlaceholder" :disabled="!form.branch_id" allow-clear />
+                          :placeholder="levelPlaceholder" disabled />
             <p v-if="errors.education_level_id" class="mt-1 text-xs text-red-600">{{ errors.education_level_id }}</p>
           </div>
 
