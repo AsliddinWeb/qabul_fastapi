@@ -286,12 +286,13 @@ const funnelSteps = computed<FunnelStep[]>(() => {
   ]
 })
 const currentBlocker = computed<FunnelStep | null>(() => funnelSteps.value.find(s => !s.done) || null)
+// Manual reverse scan — Array.findLastIndex needs ES2023 lib in tsconfig
+// and we keep the project on ES2022 so the bundle stays browser-broad.
 const lastCompletedIdx = computed(() => {
-  const done = funnelSteps.value.findLastIndex?.((s: any) => s.done)
-  if (done !== undefined && done >= 0) return done
-  let last = -1
-  funnelSteps.value.forEach((s, i) => { if (s.done) last = i })
-  return last
+  for (let i = funnelSteps.value.length - 1; i >= 0; i--) {
+    if (funnelSteps.value[i].done) return i
+  }
+  return -1
 })
 
 onMounted(async () => {
