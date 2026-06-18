@@ -7,7 +7,7 @@ from uuid import UUID
 from pydantic import EmailStr, Field, field_validator
 
 from app.core.schemas import AppSchema, IdSchema, TimestampedSchema
-from app.db.enums import Gender
+from app.db.enums import ApplicantContactStatus, Gender
 
 
 def _empty_to_none(v: Any) -> Any:
@@ -92,6 +92,7 @@ class ApplicantUpdate(AppSchema):
     telegram_username: str | None = Field(default=None, max_length=64)
     image_id: UUID | None = None
     passport_file_id: UUID | None = None
+    contact_status: ApplicantContactStatus | None = None
 
     @field_validator(
         "last_name", "first_name", "other_name", "passport_series", "pinfl",
@@ -111,6 +112,9 @@ class ApplicantUpdate(AppSchema):
 class ApplicantRead(IdSchema, TimestampedSchema, ApplicantBase):
     user_id: UUID
     registered_by_id: UUID | None = None
+    # Default to 'new' so pre-migration responses don't surface as null
+    # and break the frontend chip / dropdown.
+    contact_status: ApplicantContactStatus = ApplicantContactStatus.NEW
 
 
 # ---------- Diplom catalog ----------

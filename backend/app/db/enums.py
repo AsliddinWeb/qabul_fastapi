@@ -62,6 +62,22 @@ class ApplicantStatus(str, Enum):
     ENROLLED = "enrolled"
 
 
+class ApplicantContactStatus(str, Enum):
+    """CRM-style follow-up state, manually set by operators.
+
+    Separate from ApplicantStatus (which mirrors application lifecycle).
+    Lets the team mark stages BEFORE/AFTER the application itself —
+    e.g. they talked to the candidate but no application is in yet, or
+    a contracted candidate stopped responding.
+    """
+
+    NEW = "new"                  # Default — abituriyent yangi ro'yxatga olindi
+    CONTACTED = "contacted"      # Operator gaplashdi
+    INTERESTED = "interested"    # Qiziqyapti — keyingi muloqotni kutyapti
+    LOST = "lost"                # Yo'qotildi (pul yetmadi / boshqa OTM tanladi)
+    ENROLLED = "enrolled"        # O'qishga kirdi (shartnoma imzolanganda avto)
+
+
 class ApplicationStatus(str, Enum):
     """Match old Django values verbatim."""
 

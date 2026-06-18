@@ -2,9 +2,16 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { AxiosError } from 'axios'
-import { ArrowLeft, FileText, Save, Award, GraduationCap, Pencil, Gift, ArrowRight, Phone, UserPlus } from 'lucide-vue-next'
+import {
+  ArrowLeft, FileText, Save, Award, GraduationCap, Pencil, Gift,
+  ArrowRight, Phone, UserPlus, ClipboardList, FileCheck, FileSignature,
+  CircleDot, Check, Clock, AlertTriangle,
+} from 'lucide-vue-next'
 import { staffApi } from '@/api/staff.api'
-import type { ApplicantDetailed, ApplicantBase } from '@/api/applicants.api'
+import type { ApplicantDetailed, ApplicantBase, ApplicantContactStatus } from '@/api/applicants.api'
+import {
+  APPLICANT_CONTACT_STATUS, APPLICANT_CONTACT_STATUS_TONE, tr,
+} from '@/utils/labels'
 import { adminApi, type RegionRead, type DistrictRead, type CountryRead } from '@/api/admin.api'
 import { referralsApi, type ReferralRead } from '@/api/referrals.api'
 import { useToast } from '@/composables/useToast'
@@ -43,6 +50,16 @@ const data = ref<ApplicantDetailed | null>(null)
 const loading = ref(true)
 const saving = ref(false)
 const errors = ref<Record<string, string>>({})
+
+// Funnel-stage detection + CRM status. The two are independent:
+//   - funnel is COMPUTED from artefacts (diplom / application / contract /
+//     signed / paid) — answers "qaysi bosqichda to'xtab qolgan?"
+//   - contactStatus is a manual CRM label operators set as they work the
+//     candidate. Default 'new', auto → 'enrolled' when contract is signed.
+const applications = ref<any[]>([])
+const contractsForApplicant = ref<any[]>([])
+const contactStatus = ref<ApplicantContactStatus>('new')
+const savingStatus = ref(false)
 
 // Diplom + transfer diplom rows for this applicant's user. Same data the
 // Application form uses for the inline diplom widget. Loaded lazily after
@@ -138,10 +155,144 @@ async function load() {
       telegram_username: (data.value as any).telegram_username || '',
       passport_file_id: data.value.passport_file_id || null,
     })
+    contactStatus.value = ((data.value as any).contact_status as ApplicantContactStatus) || 'new'
   } finally {
     loading.value = false
   }
 }
+
+/**
+ * Fetch this applicant's applications + their contracts so the funnel
+ * timeline can show what's done vs what's missing. Both calls are
+ * fire-and-forget — failures leave the chip muted instead of blocking
+ * the page.
+ */
+async function loadFunnelArtefacts(applicant_id: string) {
+  try {
+    const apps = await staffApi.applications.list({
+      applicant_id, page: 1, size: 50,
+    } as any)
+    applications.value = apps.items || []
+    // Pull contracts per application in parallel. Most applicants have
+    // 0-1 contracts so this is cheap.
+    const all = await Promise.all(
+      applications.value.map((a: any) =>
+        adminApi.contracts.list({ application_id: a.id, size: 50 })
+          .then((r: any) => r.items || [])
+          .catch(() => []),
+      ),
+    )
+    contractsForApplicant.value = all.flat()
+  } catch {
+    /* ignore — funnel sections fall back to "Bajarilmagan" placeholders */
+  }
+}
+
+/** Persist the CRM status pill. Optimistic — UI flips immediately. */
+async function saveContactStatus(next: ApplicantContactStatus) {
+  if (!data.value) return
+  const prev = contactStatus.value
+  contactStatus.value = next
+  savingStatus.value = true
+  try {
+    await staffApi.applicants.update(data.value.id, { contact_status: next } as any)
+    toast.success(`Holati: ${tr(APPLICANT_CONTACT_STATUS, next)}`)
+  } catch (e) {
+    contactStatus.value = prev
+    const ax = e as AxiosError<{ error?: { message?: string } }>
+    toast.error(ax.response?.data?.error?.message || "O'zgartirib bo'lmadi")
+  } finally {
+    savingStatus.value = false
+  }
+}
+
+/**
+ * Funnel stages — top to bottom. Each carries:
+ *   - done: did this step happen?
+ *   - hint: what's needed to unstick (only shown for the first
+ *           not-done step, so the operator sees ONE actionable item)
+ */
+interface FunnelStep {
+  key: string
+  label: string
+  icon: any
+  done: boolean
+  hint: string
+  href?: string
+}
+const funnelSteps = computed<FunnelStep[]>(() => {
+  if (!data.value) return []
+  const hasDiplom = diploms.value.length > 0 || transferDiploms.value.length > 0
+  const hasApp = applications.value.length > 0
+  const acceptedApp = applications.value.find((a: any) => a.status === 'qabul_qilindi')
+  const activeContract = contractsForApplicant.value.find((c: any) => c.status !== 'cancelled')
+  const signedContract = contractsForApplicant.value.find((c: any) => c.status === 'signed')
+  const paidContract = contractsForApplicant.value.find((c: any) =>
+    Number(c.paid_amount || 0) > 0,
+  )
+  const base = panelPrefix.value
+  return [
+    {
+      key: 'registered',
+      label: "Profil ro'yxatdan o'tdi",
+      icon: UserPlus,
+      done: true,
+      hint: '',
+    },
+    {
+      key: 'diplom',
+      label: 'Diplom kiritildi',
+      icon: GraduationCap,
+      done: hasDiplom,
+      hint: "Diplom hali kiritilmagan — pastdagi 'Hujjatlar' bo'limidan qo'shing.",
+    },
+    {
+      key: 'application',
+      label: 'Ariza topshirildi',
+      icon: ClipboardList,
+      done: hasApp,
+      hint: 'Ariza topshirilmagan — yangi ariza yaratib qo\'shing.',
+      href: `${base}/applications/new?applicant_id=${data.value.id}`,
+    },
+    {
+      key: 'accepted',
+      label: 'Ariza qabul qilindi',
+      icon: FileCheck,
+      done: !!acceptedApp,
+      hint: 'Ariza hali ko\'rib chiqilmadi yoki rad etildi.',
+      href: hasApp ? `${base}/applications/${applications.value[0].id}` : undefined,
+    },
+    {
+      key: 'contract',
+      label: 'Shartnoma yaratildi',
+      icon: FileText,
+      done: !!activeContract,
+      hint: 'Qabul qilingan ariza uchun shartnoma yaratish kerak.',
+    },
+    {
+      key: 'signed',
+      label: 'Shartnoma imzolandi',
+      icon: FileSignature,
+      done: !!signedContract,
+      hint: "Shartnoma loyiha holatida — imzolash kerak.",
+    },
+    {
+      key: 'paid',
+      label: "To'lov boshlandi",
+      icon: Check,
+      done: !!paidContract,
+      hint: "Birinchi to'lov hali kelmadi.",
+    },
+  ]
+})
+const currentBlocker = computed<FunnelStep | null>(() => funnelSteps.value.find(s => !s.done) || null)
+const lastCompletedIdx = computed(() => {
+  const done = funnelSteps.value.findLastIndex?.((s: any) => s.done)
+  if (done !== undefined && done >= 0) return done
+  let last = -1
+  funnelSteps.value.forEach((s, i) => { if (s.done) last = i })
+  return last
+})
 
 onMounted(async () => {
   countries.value = await adminApi.countries.list().catch(() => [])
@@ -152,9 +303,11 @@ onMounted(async () => {
     districts.value = await adminApi.districts.list(personal.region_id).catch(() => [])
   }
   if (data.value?.user_id) {
-    // Don't block initial paint — diplom and referral fetches are independent.
+    // Don't block initial paint — diplom, referral, and funnel fetches
+    // are independent and the page renders progressively.
     loadDocs(data.value.user_id)
     loadReferrals(data.value.id, data.value.user_id)
+    loadFunnelArtefacts(data.value.id)
   }
 })
 
@@ -253,6 +406,97 @@ async function generateContract() {
         <FileText class="w-4 h-4" /> Shartnoma yaratish
       </button>
     </PageHeader>
+
+    <!-- ===== Funnel + CRM status — top of detail page =====
+         Tells the operator at a glance:
+           1. Which step in the application-contract pipeline the
+              candidate is at (or stuck at).
+           2. Their current CRM funnel label (Yangi / Gaplashildi / …).
+         The blocker pill ("Bosqich: <next-step>") is the actionable
+         summary; the dropdown is the manual override. -->
+    <section class="card p-4 sm:p-6 space-y-4">
+      <div class="flex items-start justify-between gap-3 flex-wrap">
+        <div class="min-w-0 flex-1">
+          <h3 class="font-semibold text-slate-900 dark:text-slate-100 inline-flex items-center gap-2">
+            <CircleDot class="w-4 h-4 text-brand-600" /> Holat va bosqich
+          </h3>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            <span v-if="currentBlocker" class="inline-flex items-center gap-1">
+              <Clock class="w-3 h-3 text-amber-500" />
+              Bosqich: <strong class="text-amber-700 dark:text-amber-300">{{ currentBlocker.label }}</strong>
+            </span>
+            <span v-else class="inline-flex items-center gap-1">
+              <Check class="w-3 h-3 text-emerald-500" />
+              Hamma bosqichlar tugallandi
+            </span>
+          </p>
+        </div>
+        <!-- CRM status dropdown — only writable on non-accountant panels -->
+        <div class="shrink-0">
+          <label class="block text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400 mb-1">
+            CRM holati
+          </label>
+          <div class="inline-flex items-center gap-2">
+            <select
+              :value="contactStatus"
+              :disabled="isAccountantPanel || savingStatus"
+              class="input !py-1.5 !text-xs font-semibold !w-auto"
+              :class="APPLICANT_CONTACT_STATUS_TONE[contactStatus]"
+              @change="saveContactStatus(($event.target as HTMLSelectElement).value as ApplicantContactStatus)">
+              <option v-for="(label, val) in APPLICANT_CONTACT_STATUS" :key="val" :value="val">
+                {{ label }}
+              </option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Funnel stepper — horizontal on desktop, vertical on mobile.
+           Done steps glow emerald; the FIRST not-done step is amber
+           (the blocker); subsequent not-done steps stay muted. -->
+      <ol class="grid grid-cols-1 sm:grid-cols-7 gap-2">
+        <li v-for="(s, i) in funnelSteps" :key="s.key"
+            class="flex sm:flex-col items-center sm:items-stretch gap-2 sm:gap-1 p-2 rounded-lg ring-1"
+            :class="s.done
+              ? 'ring-emerald-200/60 dark:ring-emerald-700/30 bg-emerald-50/40 dark:bg-emerald-500/10'
+              : i === lastCompletedIdx + 1
+                ? 'ring-amber-200/60 dark:ring-amber-700/30 bg-amber-50/40 dark:bg-amber-500/10'
+                : 'ring-slate-200/60 dark:ring-slate-700/40 bg-slate-50/40 dark:bg-slate-800/30 opacity-70'">
+          <div class="grid place-items-center w-8 h-8 rounded-lg shrink-0"
+               :class="s.done
+                 ? 'bg-emerald-500 text-white'
+                 : i === lastCompletedIdx + 1
+                   ? 'bg-amber-500 text-white'
+                   : 'bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-400'">
+            <component :is="s.done ? Check : s.icon" class="w-4 h-4" />
+          </div>
+          <div class="min-w-0 sm:text-center">
+            <div class="text-[11px] font-semibold leading-snug"
+                 :class="s.done
+                   ? 'text-emerald-700 dark:text-emerald-300'
+                   : i === lastCompletedIdx + 1
+                     ? 'text-amber-700 dark:text-amber-300'
+                     : 'text-slate-500 dark:text-slate-400'">
+              {{ s.label }}
+            </div>
+          </div>
+        </li>
+      </ol>
+
+      <!-- Single, actionable hint for the current blocker — keeps the
+           operator's attention on ONE thing to do next. -->
+      <div v-if="currentBlocker && currentBlocker.hint"
+           class="flex items-start gap-2 p-3 rounded-lg bg-amber-50/60 dark:bg-amber-500/10 ring-1 ring-amber-200/60 dark:ring-amber-700/30 text-xs text-amber-800 dark:text-amber-300">
+        <AlertTriangle class="w-3.5 h-3.5 mt-0.5 shrink-0" />
+        <div class="flex-1">
+          {{ currentBlocker.hint }}
+          <RouterLink v-if="currentBlocker.href" :to="currentBlocker.href"
+                      class="ml-2 inline-flex items-center gap-1 font-semibold text-brand-700 dark:text-brand-300 hover:underline">
+            Sahifaga o'tish <ArrowRight class="w-3 h-3" />
+          </RouterLink>
+        </div>
+      </div>
+    </section>
 
     <section class="card p-4 sm:p-6 space-y-4">
       <h3 class="font-semibold text-slate-900 dark:text-slate-100">Shaxsiy ma'lumotlar</h3>

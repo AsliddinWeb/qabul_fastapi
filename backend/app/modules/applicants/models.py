@@ -8,7 +8,7 @@ from sqlalchemy.dialects.postgresql import CITEXT, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin, UUIDPKMixin
-from app.db.enums import Gender, pg_enum
+from app.db.enums import ApplicantContactStatus, Gender, pg_enum
 
 
 class Applicant(UUIDPKMixin, TimestampMixin, Base):
@@ -81,6 +81,18 @@ class Applicant(UUIDPKMixin, TimestampMixin, Base):
         PG_UUID(as_uuid=True),
         ForeignKey("files.id", ondelete="SET NULL"),
         nullable=True,
+    )
+
+    # CRM-style follow-up state — independent of ApplicantStatus
+    # (which reflects application lifecycle). Operators bump this
+    # manually as they work the candidate; 'enrolled' is also flipped
+    # automatically when a contract is signed (see contracts service).
+    contact_status: Mapped[ApplicantContactStatus] = mapped_column(
+        pg_enum(ApplicantContactStatus, "applicant_contact_status", create_type=True),
+        nullable=False,
+        default=ApplicantContactStatus.NEW,
+        server_default=ApplicantContactStatus.NEW.value,
+        index=True,
     )
 
     registered_by_id: Mapped[UUID | None] = mapped_column(

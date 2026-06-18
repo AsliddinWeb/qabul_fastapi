@@ -17,6 +17,29 @@ export const ADMISSION_TYPE: Record<string, string> = {
   magistratura:           'Magistratura',
 }
 
+/**
+ * Abituriyent CRM funnel statusi — leadlardagidek, lekin sodda.
+ * Default 'new'. Shartnoma imzolanganda backend avtomatik
+ * 'enrolled'ga o'tkazadi (faqat operator allaqachon 'lost'ga
+ * o'rnatmagan bo'lsa).
+ */
+export const APPLICANT_CONTACT_STATUS: Record<string, string> = {
+  new:        'Yangi',
+  contacted:  'Gaplashildi',
+  interested: 'Qiziqyapti',
+  lost:       "Yo'qotildi",
+  enrolled:   "O'qishga kirdi",
+}
+
+/** Tailwind chip-style class per status — used in lists + detail page. */
+export const APPLICANT_CONTACT_STATUS_TONE: Record<string, string> = {
+  new:        'bg-slate-100 text-slate-700 dark:bg-slate-700/40 dark:text-slate-300',
+  contacted:  'bg-sky-100 text-sky-700 dark:bg-sky-500/15 dark:text-sky-300',
+  interested: 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300',
+  lost:       'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300',
+  enrolled:   'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
+}
+
 export const CONTRACT_STATUS: Record<string, string> = {
   draft:     'Qoralama',
   signed:    'Imzolangan',

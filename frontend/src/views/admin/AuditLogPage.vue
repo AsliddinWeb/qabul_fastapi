@@ -38,6 +38,7 @@ const loading = ref(false)
 const { filters, clear: clearAllFilters, hasActiveFilters } = useUrlFilters({
   action: '',
   entity_type: '',
+  user_id: '',
   date_from: '',
   date_to: '',
   search: '',
@@ -48,6 +49,33 @@ const { filters, clear: clearAllFilters, hasActiveFilters } = useUrlFilters({
 const ACTION_OPTIONS = Object.entries(AUDIT_ACTIONS).map(([id, label]) => ({ id, label, sub: id }))
 const ENTITY_OPTIONS = Object.entries(AUDIT_ENTITY_TYPES).map(([id, label]) => ({ id, label, sub: id }))
 
+// User options for the filter dropdown — loaded from the auth-safe
+// public-lookup endpoint (works for every staff role). Mix every
+// non-applicant role together so the audit search covers operators,
+// admins, accountants and directors in a single list.
+const userOptions = ref<Array<{ id: string; label: string; sub?: string }>>([])
+async function loadUserOptions() {
+  const { usersApi } = await import('@/api/users.api')
+  const roles = ['admin', 'superadmin', 'operator', 'director', 'accountant']
+  const lists = await Promise.all(roles.map(r => usersApi.byRole(r).catch(() => [])))
+  const seen = new Set<string>()
+  const opts: Array<{ id: string; label: string; sub?: string }> = []
+  for (const list of lists) {
+    for (const u of list) {
+      if (seen.has(u.id)) continue
+      seen.add(u.id)
+      opts.push({
+        id: u.id,
+        label: u.full_name || u.phone || u.id.slice(0, 8),
+        sub: u.phone || undefined,
+      })
+    }
+  }
+  // Sort alphabetically by label so the dropdown stays predictable.
+  opts.sort((a, b) => a.label.localeCompare(b.label, 'uz'))
+  userOptions.value = opts
+}
+
 async function load() {
   loading.value = true
   try {
@@ -55,6 +83,7 @@ async function load() {
       params: {
         action: filters.action || undefined,
         entity_type: filters.entity_type || undefined,
+        user_id: filters.user_id || undefined,
         date_from: filters.date_from ? new Date(filters.date_from).toISOString() : undefined,
         date_to: filters.date_to ? new Date(filters.date_to).toISOString() : undefined,
         page: filters.page,
@@ -82,9 +111,13 @@ const filtered = computed(() => {
   )
 })
 
-onMounted(load)
+onMounted(async () => {
+  loadUserOptions()
+  await load()
+})
 watch(() => filters.action, () => { filters.page = 1; load() })
 watch(() => filters.entity_type, () => { filters.page = 1; load() })
+watch(() => filters.user_id, () => { filters.page = 1; load() })
 watch(() => filters.date_from, () => { filters.page = 1; load() })
 watch(() => filters.date_to, () => { filters.page = 1; load() })
 watch(() => filters.page, load)
@@ -140,6 +173,7 @@ const activeCount = computed(() => {
   let n = 0
   if (filters.action) n++
   if (filters.entity_type) n++
+  if (filters.user_id) n++
   if (filters.date_from) n++
   if (filters.date_to) n++
   return n
@@ -184,6 +218,10 @@ const activeCount = computed(() => {
         <div>
           <label class="field-label">Obyekt</label>
           <SearchSelect v-model="filters.entity_type" :options="ENTITY_OPTIONS" placeholder="— hammasi —" allow-clear />
+        </div>
+        <div>
+          <label class="field-label">Foydalanuvchi</label>
+          <SearchSelect v-model="filters.user_id" :options="userOptions" placeholder="— hammasi —" allow-clear />
         </div>
         <div class="grid grid-cols-2 gap-2 sm:col-span-3 lg:col-span-1">
           <div>

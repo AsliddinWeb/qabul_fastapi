@@ -2,6 +2,9 @@ import { http } from '@/api/http'
 
 export type Gender = 'male' | 'female'
 
+export type ApplicantContactStatus =
+  | 'new' | 'contacted' | 'interested' | 'lost' | 'enrolled'
+
 /** Reflects new backend AbituriyentProfile-shape. */
 export interface ApplicantBase {
   last_name: string
@@ -23,6 +26,8 @@ export interface ApplicantBase {
   // Optional invite code captured from the ?ref=CODE link at sign-in;
   // server records a pending referral row when present.
   referrer_code?: string | null
+  /** CRM funnel state — manually set by operators. Default 'new'. */
+  contact_status?: ApplicantContactStatus | null
 }
 
 export interface ApplicantRead extends ApplicantBase {

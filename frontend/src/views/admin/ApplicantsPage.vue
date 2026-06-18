@@ -1,7 +1,17 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
-import { Plus, Users as UsersIcon, Pencil, Trash2, Search, Phone, Download } from 'lucide-vue-next'
+import {
+  Plus, Users as UsersIcon, Pencil, Trash2, Search, Phone, Download,
+  FileCheck, FileX, Filter as FilterIcon, X as XIcon,
+} from 'lucide-vue-next'
+import {
+  APPLICANT_CONTACT_STATUS,
+  APPLICANT_CONTACT_STATUS_TONE,
+  tr,
+} from '@/utils/labels'
+import SearchSelect from '@/components/ui/SearchSelect.vue'
+import type { ApplicantContactStatus } from '@/api/applicants.api'
 import { AxiosError } from 'axios'
 import { adminApi } from '@/api/admin.api'
 import { downloadCsv } from '@/api/http'
@@ -27,6 +37,7 @@ interface Applicant {
   gender: 'male' | 'female'
   additional_phone?: string | null
   created_at: string
+  contact_status?: ApplicantContactStatus
 }
 
 const router = useRouter()
@@ -45,7 +56,35 @@ const auth = useAuthStore()
 const items = ref<Applicant[]>([])
 const total = ref(0)
 const loading = ref(false)
-const filters = reactive({ search: '', page: 1, size: 20 })
+const filters = reactive({
+  search: '',
+  contact_status: '' as '' | ApplicantContactStatus,
+  // '' = hammasi, 'yes' = shartnoma bor, 'no' = shartnomasiz
+  contract: '' as '' | 'yes' | 'no',
+  page: 1,
+  size: 20,
+})
+
+const CONTACT_STATUS_OPTIONS = Object.entries(APPLICANT_CONTACT_STATUS).map(
+  ([id, label]) => ({ id, label }),
+)
+const CONTRACT_OPTIONS = [
+  { id: 'yes', label: 'Shartnoma olganlar' },
+  { id: 'no',  label: 'Shartnomasiz' },
+]
+
+const activeFilterCount = computed(() => {
+  let n = 0
+  if (filters.contact_status) n++
+  if (filters.contract) n++
+  return n
+})
+function clearAllFilters() {
+  filters.search = ''
+  filters.contact_status = ''
+  filters.contract = ''
+  filters.page = 1
+}
 
 const bulk = useBulkSelect<Applicant>(() => items.value)
 const bulkBusy = ref(false)
@@ -59,6 +98,11 @@ async function load() {
     // (top of filter bar) to scope manually when needed.
     const res = await adminApi.applicants.list({
       search: filters.search || undefined,
+      contact_status: filters.contact_status || undefined,
+      has_contract:
+        filters.contract === 'yes' ? true
+        : filters.contract === 'no' ? false
+        : undefined,
       page: filters.page,
       size: filters.size,
     })
@@ -97,6 +141,8 @@ async function bulkDeleteSelected() {
 }
 
 let searchTimer: ReturnType<typeof setTimeout> | null = null
+watch(() => filters.contact_status, () => { filters.page = 1; load() })
+watch(() => filters.contract,       () => { filters.page = 1; load() })
 watch(() => filters.search, () => {
   if (searchTimer) clearTimeout(searchTimer)
   searchTimer = setTimeout(() => { filters.page = 1; load() }, 300)
@@ -186,6 +232,25 @@ function age(birth: string): number {
                  placeholder="F.I.Sh., pasport (AA1234567), PINFL..." />
         </div>
       </div>
+      <div class="min-w-[200px]">
+        <label class="field-label">Holati</label>
+        <SearchSelect v-model="filters.contact_status" :options="CONTACT_STATUS_OPTIONS"
+                      placeholder="— hammasi —" allow-clear />
+      </div>
+      <div class="min-w-[180px]">
+        <label class="field-label">Shartnoma</label>
+        <SearchSelect v-model="filters.contract" :options="CONTRACT_OPTIONS"
+                      placeholder="— hammasi —" allow-clear />
+      </div>
+      <div v-if="activeFilterCount" class="flex items-end">
+        <button class="btn-ghost" @click="clearAllFilters">
+          <XIcon class="w-4 h-4" />
+          Tozalash
+          <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-brand-50 dark:bg-brand-500/15 text-brand-700 dark:text-brand-300 text-[10px] font-bold ml-1">
+            {{ activeFilterCount }}
+          </span>
+        </button>
+      </div>
     </div>
 
     <div class="card">
@@ -199,6 +264,7 @@ function age(birth: string): number {
                      @change="bulk.toggleAll()" />
             </th>
             <th>Abituriyent</th>
+            <th class="w-32">Holati</th>
             <th class="w-44">Pasport / PINFL</th>
             <th class="w-40">Tug'ilgan sana</th>
             <th class="w-40">Telefon</th>
@@ -208,13 +274,13 @@ function age(birth: string): number {
         <tbody>
           <template v-if="loading">
             <tr v-for="i in 6" :key="`sk-row-${i}`" class="border-b border-slate-100 dark:border-slate-800/60">
-              <td v-for="c in 5" :key="`sk-${i}-${c}`" class="px-5 py-4">
+              <td v-for="c in 6" :key="`sk-${i}-${c}`" class="px-5 py-4">
                 <div class="skeleton h-3 rounded" :class="c === 1 ? 'w-3/4' : 'w-1/2'" />
               </td>
             </tr>
           </template>
           <tr v-else-if="!items.length">
-            <td colspan="5" class="p-0">
+            <td colspan="6" class="p-0">
               <EmptyState :icon="UsersIcon" title="Abituriyentlar topilmadi"
                           subtitle="Qidiruv natijasi bo'sh — boshqa kalit so'z bilan qaytadan urinib ko'ring" />
             </td>
@@ -241,6 +307,16 @@ function age(birth: string): number {
                   </div>
                 </div>
               </div>
+            </td>
+            <td>
+              <!-- CRM funnel chip. 'enrolled' = green (officially admitted
+                   via signed contract), 'lost' = red, others use their
+                   own muted tone. See APPLICANT_CONTACT_STATUS_TONE in
+                   utils/labels.ts. -->
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold"
+                    :class="APPLICANT_CONTACT_STATUS_TONE[a.contact_status || 'new']">
+                {{ tr(APPLICANT_CONTACT_STATUS, a.contact_status || 'new') }}
+              </span>
             </td>
             <td class="text-xs text-slate-600 dark:text-slate-400 font-mono">
               <div>{{ a.passport_series || '—' }}</div>

@@ -37,6 +37,7 @@ from app.modules.applicants.schemas import (
     TransferDiplomUpdate,
     TransferDiplomWithApplicant,
 )
+from app.db.enums import ApplicantContactStatus
 from app.modules.applicants.service import ApplicantsService
 from app.modules.audit.service import AuditService
 
@@ -190,6 +191,11 @@ async def operator_create_applicant(
 async def list_applicants(
     region_id: UUID | None = Query(default=None),
     registered_by_id: UUID | None = Query(default=None),
+    contact_status: ApplicantContactStatus | None = Query(default=None),
+    has_contract: bool | None = Query(
+        default=None,
+        description="true → faqat shartnoma olganlar; false → shartnomasizlar",
+    ),
     search: str | None = Query(default=None, min_length=1, max_length=100),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=100),
@@ -198,6 +204,8 @@ async def list_applicants(
     items, total = await svc.list(
         region_id=region_id,
         registered_by_id=registered_by_id,
+        contact_status=contact_status,
+        has_contract=has_contract,
         search=search,
         limit=size,
         offset=(page - 1) * size,
@@ -215,6 +223,8 @@ async def list_applicants(
 async def export_applicants_csv(
     region_id: UUID | None = Query(default=None),
     registered_by_id: UUID | None = Query(default=None),
+    contact_status: ApplicantContactStatus | None = Query(default=None),
+    has_contract: bool | None = Query(default=None),
     search: str | None = Query(default=None, max_length=100),
     svc: ApplicantsService = Depends(_service),
 ) -> Response:
@@ -222,6 +232,8 @@ async def export_applicants_csv(
     items, _ = await svc.list(
         region_id=region_id,
         registered_by_id=registered_by_id,
+        contact_status=contact_status,
+        has_contract=has_contract,
         search=search,
         limit=10_000,
         offset=0,

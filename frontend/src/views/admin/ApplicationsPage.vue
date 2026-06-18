@@ -118,8 +118,10 @@ const STATUS_OPTIONS = [
   { id: 'rad_etildi',        label: APPLICATION_STATUS.rad_etildi },
 ]
 const TYPE_OPTIONS = [
-  { id: 'yangi_qabul', label: ADMISSION_TYPE.yangi_qabul },
-  { id: 'perevod',     label: ADMISSION_TYPE.perevod },
+  { id: 'yangi_qabul',            label: ADMISSION_TYPE.yangi_qabul },
+  { id: 'perevod',                label: ADMISSION_TYPE.perevod },
+  { id: 'ikkinchi_mutaxassislik', label: ADMISSION_TYPE.ikkinchi_mutaxassislik },
+  { id: 'magistratura',           label: ADMISSION_TYPE.magistratura },
 ]
 const SOURCE_OPTIONS = [
   { id: 'lead',   label: "Lead'dan o'tkazildi" },

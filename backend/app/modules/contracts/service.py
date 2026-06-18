@@ -407,6 +407,24 @@ class ContractsService:
         obj.status = ContractStatus.SIGNED
         obj.signed_at = datetime.now(timezone.utc)
         obj.signed_by_id = actor_id
+        # Auto-advance the linked applicant's CRM funnel to "enrolled"
+        # (signed contract = officially admitted). Don't overwrite a
+        # manually-set 'lost' status — operators may have flagged a
+        # cancellation/dropout that's about to undo this contract.
+        try:
+            from app.db.enums import ApplicantContactStatus
+            from app.modules.applicants.models import Applicant
+            from app.modules.applications.models import Application
+            from sqlalchemy import select as _select
+            applicant_id = await self.session.scalar(
+                _select(Application.applicant_id).where(Application.id == obj.application_id)
+            )
+            if applicant_id:
+                applicant = await self.session.get(Applicant, applicant_id)
+                if applicant and applicant.contact_status != ApplicantContactStatus.LOST:
+                    applicant.contact_status = ApplicantContactStatus.ENROLLED
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("contract.sign.auto_enroll_failed", error=str(exc))
         await self.session.flush()
         return obj
 

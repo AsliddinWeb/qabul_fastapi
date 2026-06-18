@@ -22,6 +22,10 @@ export interface ApplicantListFilters {
   status?: string
   region_id?: string
   registered_by_id?: string
+  /** CRM funnel filter — 'new' | 'contacted' | 'interested' | 'lost' | 'enrolled' */
+  contact_status?: string
+  /** true → faqat shartnoma olganlar, false → shartnomasizlar */
+  has_contract?: boolean
   search?: string
   page?: number
   size?: number

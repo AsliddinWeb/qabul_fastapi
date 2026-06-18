@@ -30,10 +30,18 @@ class ApplicantRepository(BaseRepository[Applicant]):
         *,
         region_id: UUID | None = None,
         registered_by_id: UUID | None = None,
+        contact_status=None,
+        has_contract: bool | None = None,
         search: str | None = None,
         limit: int = 20,
         offset: int = 0,
     ) -> tuple[list[Applicant], int]:
+        # Local imports to keep this repo importable without pulling
+        # half the domain at module-import time.
+        from app.modules.applications.models import Application
+        from app.modules.contracts.models import Contract
+        from app.db.enums import ContractStatus
+
         stmt = select(Applicant)
         count_stmt = select(func.count(Applicant.id))
 
@@ -43,6 +51,25 @@ class ApplicantRepository(BaseRepository[Applicant]):
         if registered_by_id is not None:
             stmt = stmt.where(Applicant.registered_by_id == registered_by_id)
             count_stmt = count_stmt.where(Applicant.registered_by_id == registered_by_id)
+        if contact_status is not None:
+            stmt = stmt.where(Applicant.contact_status == contact_status)
+            count_stmt = count_stmt.where(Applicant.contact_status == contact_status)
+        if has_contract is not None:
+            # EXISTS subquery — applicant has a non-cancelled contract through
+            # any of their applications. Index on contracts.application_id +
+            # applications.applicant_id makes this O(log n) per row.
+            from sqlalchemy import exists as _exists
+            contract_exists = _exists(
+                select(Contract.id)
+                .join(Application, Application.id == Contract.application_id)
+                .where(
+                    Application.applicant_id == Applicant.id,
+                    Contract.status != ContractStatus.CANCELLED,
+                )
+            )
+            cond = contract_exists if has_contract else ~contract_exists
+            stmt = stmt.where(cond)
+            count_stmt = count_stmt.where(cond)
         if search:
             like = f"%{search}%"
             # If the search looks phone-like, also build a digits-only
