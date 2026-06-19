@@ -303,72 +303,83 @@ _SOURCE_LABELS: dict[str, str] = {
     "self":   "Saytdan o'zi",
 }
 
-# Human-readable labels used as XLSX header row. Order drives the column
-# order in the file. Priorities, descending:
-#   1. Ariza identity (№ → F.I.Sh.) so the user can scan rows by name
-#   2. Status / type — the second thing accountants/admins ask about
-#   3. Academic + contract — the bulk of decision-making data
-#   4. Identity detail (passport, DOB, gender) — needed when looking
-#      up one row but rarely scanned
-#   5. Contact + geo
-#   6. Timeline (created/submitted/reviewed) + free-text fields
-#   7. UUIDs at the very END — system identifiers, almost never read
+# Human-readable labels used as XLSX header row. Order drives the
+# column order in the file. Layout follows the university's existing
+# Excel template (the one staff already use):
+#
+#   Block 1 — Shartnoma raqami → Shartnoma sanasi → F.I.Sh.
+#             (the 3 cells that drive every search-by-contract or
+#             search-by-name flow; placed first so they're on screen
+#             without horizontal scrolling)
+#   Block 2 — Pasport, PINFL, Guruhi (group code), Telefon, Filial,
+#             Ta'lim yo'nalishi, Ta'lim shakli, Shartnoma summasi, Kurs
+#             (matches the legacy template column order verbatim)
+#   Block 3 — O'qishni ko'chirish info — country + prior university +
+#             prior diplom + applicant's diplom (1-kurs OR Bakalavr)
+#   Block 4 — Remaining applicant identity / contact / geo
+#   Block 5 — Misc application meta (status, manba, operator, …)
+#   Block 6 — Timeline + free-text + UUIDs at the very end
 _XLSX_COLUMNS: list[tuple[str, str]] = [
-    # 1) Identity at-a-glance
-    ("application_number",     "Ariza №"),
-    ("applicant_full_name",    "F.I.Sh."),
+    # -- Block 1: Top-of-mind --
+    ("contract_number",         "Shartnoma №"),
+    ("contract_signed_at",      "Shartnoma sanasi"),
+    ("applicant_full_name",     "F.I.Sh."),
 
-    # 2) Status / type
-    ("status",                 "Holati"),
-    ("admission_type",         "Topshirish turi"),
-    ("source",                 "Manba"),
+    # -- Block 2: Legacy template columns, in the SAME order the staff
+    #             already use day-to-day --
+    ("passport_series",         "Pasport"),
+    ("pinfl",                   "PINFL"),
+    ("guruhi",                  "Guruhi"),
+    ("phone",                   "Telefon"),
+    ("branch_name",             "Fakultet / Filial"),
+    ("program_name",            "Ta'lim yo'nalishi"),
+    ("education_form_name",     "Ta'lim shakli"),
+    ("contract_total_amount",   "Shartnoma summasi"),
+    ("course_label",            "Kurs"),
 
-    # 3) Academic
-    ("program_name",           "Yo'nalish"),
-    ("program_code",           "Yo'nalish kodi"),
-    ("branch_name",            "Filial"),
-    ("education_level_name",   "Ta'lim darajasi"),
-    ("education_form_name",    "Ta'lim shakli"),
-    ("program_tuition_fee",    "Yo'nalish summasi"),
+    # -- Block 3: O'qishni ko'chirish (perevod) source + diplom info --
+    ("transfer_country_name",   "Ko'chirish: Davlat"),
+    ("transfer_university_name", "Ko'chirish: OTM nomi"),
+    ("diplom_serial_number",    "Diplom №"),
+    ("diplom_university_name",  "Diplom OTM"),
+    ("diplom_graduation_year",  "Bitirgan yil"),
+    ("diplom_region_name",      "Diplom viloyati"),
+    ("diplom_district_name",    "Diplom tumani"),
 
-    # 4) Contract
-    ("contract_number",        "Shartnoma №"),
-    ("contract_status",        "Shartnoma holati"),
-    ("contract_total_amount",  "Shartnoma summasi"),
-    ("contract_signed_at",     "Imzolangan sana"),
+    # -- Block 4: Remaining identity / contact / geo --
+    ("last_name",               "Familiya"),
+    ("first_name",              "Ism"),
+    ("other_name",              "Otasining ismi"),
+    ("birth_date",              "Tug'ilgan sana"),
+    ("gender",                  "Jinsi"),
+    ("nationality",             "Millati"),
+    ("telegram_username",       "Telegram"),
+    ("additional_phone",        "Qo'shimcha telefon"),
+    ("region_name",             "Viloyat"),
+    ("district_name",           "Tuman"),
+    ("address",                 "Manzil"),
 
-    # 5) Attribution
-    ("operator_full_name",     "Operator"),
-    ("consulting_agency_name", "Konsalting agentligi"),
-    ("lead_source_code",       "Lead manba kodi"),
+    # -- Block 5: Application meta --
+    ("application_number",      "Ariza №"),
+    ("status",                  "Ariza holati"),
+    ("admission_type",          "Qabul turi"),
+    ("source",                  "Manba"),
+    ("lead_source_code",        "Lead manba kodi"),
+    ("program_code",            "Yo'nalish kodi"),
+    ("education_level_name",    "Ta'lim darajasi"),
+    ("program_tuition_fee",     "Yo'nalish summasi"),
+    ("operator_full_name",      "Operator"),
+    ("consulting_agency_name",  "Konsalting agentligi"),
+    ("contract_status",         "Shartnoma holati"),
 
-    # 6) Applicant detail
-    ("last_name",              "Familiya"),
-    ("first_name",             "Ism"),
-    ("other_name",             "Otasining ismi"),
-    ("birth_date",             "Tug'ilgan sana"),
-    ("gender",                 "Jinsi"),
-    ("nationality",            "Millati"),
-    ("pinfl",                  "JSHSHIR (PINFL)"),
-    ("passport_series",        "Pasport"),
-
-    # 7) Contact + geo
-    ("phone",                  "Telefon"),
-    ("telegram_username",      "Telegram"),
-    ("region_name",            "Viloyat"),
-    ("district_name",          "Tuman"),
-    ("address",                "Manzil"),
-
-    # 8) Timeline + notes
-    ("created_at",             "Yaratilgan"),
-    ("submitted_at",           "Topshirilgan"),
-    ("reviewed_at",            "Ko'rib chiqilgan"),
-    ("rejection_reason",       "Rad etish sababi"),
-    ("notes",                  "Izoh"),
-
-    # 9) System IDs — last
-    ("application_id",         "Ariza UUID"),
-    ("applicant_id",           "Abituriyent UUID"),
+    # -- Block 6: Timeline + free-text + UUIDs --
+    ("created_at",              "Yaratilgan"),
+    ("submitted_at",            "Topshirilgan"),
+    ("reviewed_at",             "Ko'rib chiqilgan"),
+    ("rejection_reason",        "Rad etish sababi"),
+    ("notes",                   "Izoh"),
+    ("application_id",          "Ariza UUID"),
+    ("applicant_id",            "Abituriyent UUID"),
 ]
 
 

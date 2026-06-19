@@ -303,9 +303,19 @@ class ApplicationRepository(BaseRepository[Application]):
         """
         # User table is needed twice: once for the applicant's own login row
         # (phone), once for the operator who registered them (full_name).
-        # Aliased to disambiguate.
+        # Aliased to disambiguate. Diplom region/district need their own
+        # aliases too — Region+District are already joined for the
+        # applicant's home address.
         from sqlalchemy.orm import aliased
+        from app.modules.applicants.models import (
+            Course as _Course,
+            Diplom as _Diplom,
+            TransferDiplom as _TransferDiplom,
+        )
+        from app.modules.regions.models import Country as _Country
         OperatorUser = aliased(User)
+        DiplomRegion = aliased(Region)
+        DiplomDistrict = aliased(District)
 
         stmt = (
             select(
@@ -326,6 +336,19 @@ class ApplicationRepository(BaseRepository[Application]):
                 Contract.status.label("contract_status"),
                 Contract.signed_at.label("contract_signed_at"),
                 Contract.total_amount.label("contract_total_amount"),
+                # Course (kursi) — set for perevod & ikkinchi_mutaxassislik;
+                # for yangi_qabul + magistratura the field is NULL so the
+                # export falls back to "1-kurs" derived from admission_type.
+                _Course.name.label("course_name"),
+                # 1-kurs OR Bakalavr diplom (depends on admission_type)
+                _Diplom.serial_number.label("diplom_serial_number"),
+                _Diplom.university_name.label("diplom_university_name"),
+                _Diplom.graduation_year.label("diplom_graduation_year"),
+                DiplomRegion.name.label("diplom_region_name"),
+                DiplomDistrict.name.label("diplom_district_name"),
+                # Transfer diplom (perevod) — where they're coming FROM
+                _TransferDiplom.university_name.label("transfer_university_name"),
+                _Country.name.label("transfer_country_name"),
             )
             .join(Applicant, Application.applicant_id == Applicant.id)
             .outerjoin(User, Applicant.user_id == User.id)
@@ -340,6 +363,15 @@ class ApplicationRepository(BaseRepository[Application]):
             # Contract is 0-or-1 per application; outerjoin keeps unsigned/no-
             # contract applications visible in the export.
             .outerjoin(Contract, Contract.application_id == Application.id)
+            # New joins — all LEFT so apps without a course / diplom / transfer
+            # diplom still appear in the export with empty cells. FKs all
+            # indexed so each join is O(log n) per row.
+            .outerjoin(_Course, Application.course_id == _Course.id)
+            .outerjoin(_Diplom, Application.diplom_id == _Diplom.id)
+            .outerjoin(DiplomRegion, _Diplom.region_id == DiplomRegion.id)
+            .outerjoin(DiplomDistrict, _Diplom.district_id == DiplomDistrict.id)
+            .outerjoin(_TransferDiplom, Application.transfer_diplom_id == _TransferDiplom.id)
+            .outerjoin(_Country, _TransferDiplom.country_id == _Country.id)
         )
 
         clauses = []
@@ -390,10 +422,27 @@ class ApplicationRepository(BaseRepository[Application]):
         for row in rows:
             (app, applicant, applicant_phone, p_name, p_code, p_fee, b_name,
              lvl_name, form_name, region_name, district_name, ca_name,
-             operator_name, ct_num, ct_status, ct_signed_at, ct_total) = row
+             operator_name, ct_num, ct_status, ct_signed_at, ct_total,
+             course_name,
+             diplom_serial, diplom_university, diplom_grad_year,
+             diplom_region, diplom_district,
+             transfer_university, transfer_country) = row
             full_name = " ".join(
                 filter(None, [applicant.last_name, applicant.first_name, applicant.other_name])
             ).strip() or None
+
+            # "Kurs" — match the column in the user's template:
+            #   - perevod: target course they're transferring into
+            #     (course_name from Application.course_id)
+            #   - ikkinchi_mutaxassislik: course 2 (auto-set on submit)
+            #   - magistratura + yangi_qabul: course 1 by definition
+            if course_name:
+                course_label = course_name
+            elif app.admission_type and app.admission_type.value == "ikkinchi_mutaxassislik":
+                course_label = "2-kurs"
+            else:
+                course_label = "1-kurs"
+
             out.append({
                 "application_id": app.id,
                 "application_number": app.application_number,
@@ -437,6 +486,7 @@ class ApplicationRepository(BaseRepository[Application]):
                 "branch_name": b_name,
                 "education_level_name": lvl_name,
                 "education_form_name": form_name,
+                "course_label": course_label,
                 # Attribution
                 "consulting_agency_name": ca_name,
                 "operator_full_name": operator_name,
@@ -445,6 +495,21 @@ class ApplicationRepository(BaseRepository[Application]):
                 "contract_status": ct_status,
                 "contract_signed_at": ct_signed_at,
                 "contract_total_amount": ct_total,
+                # Diplom (1-kurs or Bakalavr — depends on admission_type
+                # which row was selected; for perevod the field is empty)
+                "diplom_serial_number": diplom_serial,
+                "diplom_university_name": diplom_university,
+                "diplom_graduation_year": diplom_grad_year,
+                "diplom_region_name": diplom_region,
+                "diplom_district_name": diplom_district,
+                # Perevod source (where the applicant is transferring FROM)
+                "transfer_university_name": transfer_university,
+                "transfer_country_name": transfer_country,
+                # "Guruhi" — group code (e.g. Ped-25-01M) is not stored
+                # in this system. Left as an empty cell so the template
+                # column lines up; can be filled by hand or via a future
+                # import once the university assigns groups.
+                "guruhi": None,
             })
         return out
 
