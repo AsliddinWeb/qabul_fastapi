@@ -11,8 +11,11 @@
  * route as light as possible for first-time visitors.
  */
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Globe, FileText, Image as ImageIcon, IdCard, Check, AlertTriangle } from 'lucide-vue-next'
+import { FileText, Image as ImageIcon, IdCard, Check, AlertTriangle, Sun, Moon, ArrowLeft } from 'lucide-vue-next'
 import { http } from '@/api/http'
+import { useThemeStore } from '@/stores/theme'
+
+const theme = useThemeStore()
 
 type Lang = 'en' | 'ru' | 'uz'
 
@@ -231,58 +234,63 @@ function resetForm() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans antialiased">
-    <!-- Brand header — matches operator hero gradient -->
-    <header class="relative overflow-hidden text-white shadow-lg"
-            style="background: linear-gradient(135deg, #3f56ef 0%, #5b6cf5 50%, #8b5cf6 100%);">
-      <div class="absolute inset-0 opacity-30 pointer-events-none"
-           style="background-image: radial-gradient(circle at 15% 100%, rgba(255,255,255,.18) 0%, transparent 50%), radial-gradient(circle at 85% 0%, rgba(255,255,255,.12) 0%, transparent 55%);"></div>
-      <div class="relative max-w-6xl mx-auto px-6 py-5 flex items-center gap-4">
-        <div class="flex items-center gap-3">
-          <span class="grid place-items-center w-11 h-11 rounded-xl bg-white/15 backdrop-blur ring-1 ring-white/25 font-bold text-sm tracking-tight">
-            XIU
-          </span>
+  <!-- Background, blob accents, and dot-grid are LIFTED VERBATIM from
+       AuthLayout so the public form sits in the same visual world as
+       the login page. No bespoke gradients, no AI-flavoured chrome. -->
+  <div class="min-h-screen relative overflow-hidden px-4 py-10 sm:py-14
+              bg-stone-50 dark:bg-zinc-950 font-sans antialiased">
+    <div class="absolute -top-40 -left-40 w-[560px] h-[560px] rounded-full opacity-30 dark:opacity-20 blur-3xl pointer-events-none"
+         style="background: radial-gradient(closest-side, rgb(99 102 241 / 0.40), transparent 70%);"></div>
+    <div class="absolute -bottom-40 -right-40 w-[600px] h-[600px] rounded-full opacity-25 dark:opacity-15 blur-3xl pointer-events-none"
+         style="background: radial-gradient(closest-side, rgb(245 158 11 / 0.35), transparent 70%);"></div>
+    <div class="absolute inset-0 pointer-events-none opacity-40 dark:opacity-25"
+         style="background-image: radial-gradient(circle, rgb(113 113 122 / 0.18) 1px, transparent 1.4px); background-size: 28px 28px; mask-image: radial-gradient(ellipse 70% 50% at 50% 30%, black, transparent 80%); -webkit-mask-image: radial-gradient(ellipse 70% 50% at 50% 30%, black, transparent 80%);"></div>
+
+    <div class="w-full max-w-3xl mx-auto relative">
+      <!-- Brand row — same as AuthLayout: logo.webp tile, real wordmark,
+           language switch + theme toggle on the right. -->
+      <div class="flex items-center justify-between mb-5">
+        <a href="/" class="flex items-center gap-3 group">
+          <img src="/logo.webp" alt="XIU"
+               class="w-11 h-11 rounded-xl shadow-md transition-transform group-hover:scale-105 object-contain"
+               loading="eager" />
           <div class="leading-tight">
-            <div class="font-bold tracking-tight">{{ t.brand }}</div>
-            <div class="text-[11px] opacity-80 mt-0.5">{{ t.brandSub }}</div>
+            <div class="font-bold tracking-tight text-slate-900 dark:text-slate-100">Xalqaro innovatsion</div>
+            <div class="text-xs text-slate-500 dark:text-slate-400 -mt-0.5">Universiteti</div>
           </div>
-        </div>
-        <div class="ml-auto inline-flex bg-white/15 backdrop-blur rounded-lg p-0.5 text-xs font-bold">
-          <button v-for="l in (['en','ru','uz'] as const)" :key="l"
-                  class="px-3 py-1.5 rounded-md transition-colors"
-                  :class="lang === l
-                    ? 'bg-white text-brand-700'
-                    : 'text-white/80 hover:text-white'"
-                  @click="lang = l">
-            {{ l.toUpperCase() }}
+        </a>
+
+        <div class="flex items-center gap-2">
+          <div class="inline-flex bg-slate-200/60 dark:bg-slate-800/60 rounded-lg p-0.5 text-[11px] font-bold">
+            <button v-for="l in (['en','ru','uz'] as const)" :key="l"
+                    class="px-2.5 py-1 rounded-md transition-colors"
+                    :class="lang === l
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-sm'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100'"
+                    @click="lang = l">
+              {{ l.toUpperCase() }}
+            </button>
+          </div>
+          <button
+            class="grid place-items-center w-9 h-9 rounded-full text-slate-500 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors"
+            :title="theme.isDark ? 'Kunduzgi rejim' : 'Tungi rejim'"
+            @click="theme.toggle"
+          >
+            <Sun v-if="theme.isDark" class="w-[17px] h-[17px]" />
+            <Moon v-else class="w-[17px] h-[17px]" />
           </button>
         </div>
       </div>
-    </header>
 
-    <main class="max-w-6xl mx-auto px-4 sm:px-6 py-8 pb-16">
-      <!-- Hero -->
-      <section class="relative overflow-hidden rounded-2xl text-white shadow-card mb-7 p-6 sm:p-9"
-               style="background: linear-gradient(135deg, #3f56ef 0%, #5b6cf5 50%, #8b5cf6 100%);">
-        <div class="absolute inset-0 opacity-30 pointer-events-none"
-             style="background-image: radial-gradient(circle at 20% 100%, rgba(255,255,255,.18) 0%, transparent 50%), radial-gradient(circle at 80% 0%, rgba(255,255,255,.14) 0%, transparent 55%);"></div>
-        <div class="relative">
-          <div class="inline-flex items-center gap-2 text-[11px] uppercase tracking-wider opacity-85 mb-2">
-            <Globe class="w-3.5 h-3.5" /> International
-          </div>
-          <h1 class="text-2xl sm:text-3xl font-bold tracking-tight max-w-2xl">{{ t.heroH }}</h1>
-          <p class="text-white/85 max-w-xl mt-2 text-sm sm:text-base">{{ t.heroP }}</p>
-          <div class="mt-5 flex flex-wrap gap-2">
-            <span v-for="i in 6" :key="i"
-                  class="inline-flex items-center px-3 py-1.5 rounded-full text-[12px] font-semibold bg-white/15 ring-1 ring-white/25 backdrop-blur">
-              {{ (t as any)['s' + i] }}
-            </span>
-          </div>
-        </div>
-      </section>
+      <a href="/"
+         class="inline-flex items-center gap-1.5 mb-4 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 transition-colors">
+        <ArrowLeft class="w-3.5 h-3.5" />
+        Bosh sahifaga qaytish
+      </a>
 
-      <!-- Form / Success -->
-      <div class="card max-w-3xl mx-auto p-6 sm:p-8">
+      <!-- Same card chrome as the login box: rounded-2xl, shadow-xl,
+           ring-1 ring-slate-200/60. -->
+      <div class="bg-white dark:bg-slate-900 rounded-2xl shadow-xl ring-1 ring-slate-200/60 dark:ring-slate-800 p-6 sm:p-8">
         <template v-if="!submitted">
           <h2 class="text-xl font-bold text-slate-900 dark:text-slate-100">{{ t.formH }}</h2>
           <p class="text-sm text-slate-500 dark:text-slate-400 mt-1 mb-5">{{ t.formSub }}</p>
@@ -301,11 +309,8 @@ function resetForm() {
 
             <!-- Personal -->
             <div class="space-y-4">
-              <div class="flex items-center gap-3 pt-2 pb-1 border-b border-slate-200 dark:border-slate-800">
-                <span class="inline-block w-4 h-0.5 bg-brand-500"></span>
-                <span class="text-[11px] uppercase tracking-[0.08em] font-bold text-brand-700 dark:text-brand-300">
-                  {{ t.secPersonal }}
-                </span>
+              <div class="text-[11px] uppercase tracking-[0.08em] font-semibold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 pb-2">
+                {{ t.secPersonal }}
               </div>
 
               <div>
@@ -348,11 +353,8 @@ function resetForm() {
 
             <!-- Program -->
             <div class="space-y-4 mt-7">
-              <div class="flex items-center gap-3 pt-2 pb-1 border-b border-slate-200 dark:border-slate-800">
-                <span class="inline-block w-4 h-0.5 bg-brand-500"></span>
-                <span class="text-[11px] uppercase tracking-[0.08em] font-bold text-brand-700 dark:text-brand-300">
-                  {{ t.secProgram }}
-                </span>
+              <div class="text-[11px] uppercase tracking-[0.08em] font-semibold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 pb-2">
+                {{ t.secProgram }}
               </div>
               <div class="grid sm:grid-cols-2 gap-4">
                 <div>
@@ -378,11 +380,8 @@ function resetForm() {
 
             <!-- Documents -->
             <div class="space-y-4 mt-7">
-              <div class="flex items-center gap-3 pt-2 pb-1 border-b border-slate-200 dark:border-slate-800">
-                <span class="inline-block w-4 h-0.5 bg-brand-500"></span>
-                <span class="text-[11px] uppercase tracking-[0.08em] font-bold text-brand-700 dark:text-brand-300">
-                  {{ t.secDocs }}
-                </span>
+              <div class="text-[11px] uppercase tracking-[0.08em] font-semibold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 pb-2">
+                {{ t.secDocs }}
               </div>
               <div class="grid sm:grid-cols-3 gap-4">
                 <label class="block">
@@ -390,7 +389,7 @@ function resetForm() {
                   <div class="rounded-xl border-2 border-dashed p-4 text-center cursor-pointer transition"
                        :class="form.passport_file
                          ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-500/10'
-                         : 'border-slate-200 dark:border-slate-700 hover:border-brand-400 hover:bg-brand-50/40 dark:hover:bg-brand-500/10'">
+                         : 'border-slate-200 dark:border-slate-700 hover:border-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'">
                     <IdCard class="w-5 h-5 mx-auto mb-1.5"
                             :class="form.passport_file ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-400 dark:text-slate-500'" />
                     <div class="text-[12px] font-medium"
@@ -413,7 +412,7 @@ function resetForm() {
                   <div class="rounded-xl border-2 border-dashed p-4 text-center cursor-pointer transition"
                        :class="form.diploma_file
                          ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-500/10'
-                         : 'border-slate-200 dark:border-slate-700 hover:border-brand-400 hover:bg-brand-50/40 dark:hover:bg-brand-500/10'">
+                         : 'border-slate-200 dark:border-slate-700 hover:border-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'">
                     <FileText class="w-5 h-5 mx-auto mb-1.5"
                               :class="form.diploma_file ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-400 dark:text-slate-500'" />
                     <div class="text-[12px] font-medium"
@@ -436,7 +435,7 @@ function resetForm() {
                   <div class="rounded-xl border-2 border-dashed p-4 text-center cursor-pointer transition"
                        :class="form.photo_file
                          ? 'border-emerald-400 bg-emerald-50 dark:bg-emerald-500/10'
-                         : 'border-slate-200 dark:border-slate-700 hover:border-brand-400 hover:bg-brand-50/40 dark:hover:bg-brand-500/10'">
+                         : 'border-slate-200 dark:border-slate-700 hover:border-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'">
                     <ImageIcon class="w-5 h-5 mx-auto mb-1.5"
                                :class="form.photo_file ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-400 dark:text-slate-500'" />
                     <div class="text-[12px] font-medium"
@@ -464,15 +463,14 @@ function resetForm() {
           </form>
         </template>
 
-        <!-- Success card -->
+        <!-- Success card — solid emerald check, slate ref pill -->
         <div v-else class="text-center py-6">
-          <div class="grid place-items-center w-16 h-16 rounded-full mx-auto mb-5 text-white shadow-lg"
-               style="background: linear-gradient(135deg, #10b981, #34d399);">
-            <Check class="w-8 h-8" />
+          <div class="grid place-items-center w-14 h-14 rounded-full mx-auto mb-5 bg-emerald-100 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 ring-1 ring-emerald-200 dark:ring-emerald-700/40">
+            <Check class="w-7 h-7" />
           </div>
-          <h2 class="text-2xl font-bold text-slate-900 dark:text-slate-100">{{ t.okH }}</h2>
-          <p class="text-slate-500 dark:text-slate-400 mt-2 max-w-md mx-auto">{{ t.okP }}</p>
-          <div class="inline-block mt-5 px-5 py-2.5 rounded-xl font-mono font-bold text-brand-700 dark:text-brand-300 bg-brand-50 dark:bg-brand-500/10 ring-1 ring-brand-200 dark:ring-brand-700/40 tracking-wider">
+          <h2 class="text-xl font-bold text-slate-900 dark:text-slate-100">{{ t.okH }}</h2>
+          <p class="text-sm text-slate-500 dark:text-slate-400 mt-2 max-w-md mx-auto">{{ t.okP }}</p>
+          <div class="inline-block mt-5 px-4 py-2 rounded-lg font-mono font-semibold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 ring-1 ring-slate-200 dark:ring-slate-700 tracking-wider text-sm">
             {{ submitted.ref_number }}
           </div>
           <div class="mt-6">
@@ -484,6 +482,6 @@ function resetForm() {
       <p class="text-center text-xs text-slate-400 dark:text-slate-500 mt-6">
         {{ t.footnote }} · qabul.xiuedu.uz
       </p>
-    </main>
+    </div>
   </div>
 </template>
