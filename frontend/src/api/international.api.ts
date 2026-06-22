@@ -1,9 +1,11 @@
 /**
- * International admissions API client.
+ * International admissions API client — staff endpoints.
  *
- * The public /apply submission lives in the standalone landing page —
- * this module only covers the staff-facing endpoints (list, detail,
- * stage advance/regress, reject/unreject, notes, delete).
+ * The public /apply submission happens directly from the
+ * IntlAdmissionsApplyPage component using `http` + FormData, so it
+ * does not need a wrapper here. This module covers the staff
+ * surface only: list, detail, stage advance/regress, reject/unreject,
+ * notes, delete.
  */
 import { http } from '@/api/http'
 import type { PageResponse } from '@/api/staff.api'

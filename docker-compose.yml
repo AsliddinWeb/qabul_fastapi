@@ -91,9 +91,6 @@ services:
     volumes:
       - ./deploy/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
       - backend_media:/var/www/media:ro
-      # International-admissions public landing — single static HTML.
-      # nginx serves it at /intl/ via the location block above.
-      - ./leadd/xiu-admissions.html:/usr/share/nginx/html/intl/index.html:ro
     depends_on:
       - backend
       - frontend

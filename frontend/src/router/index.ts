@@ -186,6 +186,17 @@ const routes: RouteRecordRaw[] = [
   },
 
   { path: '/forbidden',       name: 'forbidden',  component: () => import('@/views/public/ForbiddenPage.vue') },
+
+  // Public international admissions form — no auth, no layout (renders its
+  // own brand header). Lives at /app/intl-apply; nginx 301-redirects the
+  // friendlier /intl URL here.
+  {
+    path: '/intl-apply',
+    name: 'intl-apply',
+    component: () => import('@/views/public/IntlAdmissionsApplyPage.vue'),
+    meta: { title: 'XIU International Admissions' },
+  },
+
   { path: '/:pathMatch(.*)*', name: 'not-found',  component: () => import('@/views/public/NotFoundPage.vue') },
 ]
 
