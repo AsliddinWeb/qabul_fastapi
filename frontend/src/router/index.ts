@@ -132,6 +132,10 @@ const routes: RouteRecordRaw[] = [
 
       { path: 'referrals',              name: 'admin-referrals',    component: () => import('@/views/admin/ReferralsDashboardPage.vue'), meta: { title: 'Referal dasturi' } },
 
+      // International admissions — separate funnel for non-resident applicants.
+      { path: 'international-admissions',      name: 'admin-intl-list',  component: () => import('@/views/admin/InternationalAdmissionsPage.vue'), meta: { title: 'Xalqaro arizalar' } },
+      { path: 'international-admissions/:id',  name: 'admin-intl-detail', component: () => import('@/views/admin/InternationalAdmissionDetailPage.vue'), meta: { title: 'Xalqaro ariza' } },
+
       { path: 'operator-analytics',     name: 'admin-operator-analytics', component: () => import('@/views/admin/OperatorAnalyticsPage.vue'), meta: { title: 'Operatorlar analitikasi' } },
       { path: 'operator-analytics/:id', name: 'admin-operator-analytics-detail', component: () => import('@/views/admin/OperatorAnalyticsDetailPage.vue'), meta: { title: 'Operator tafsiloti' } },
 

@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<!--
+  XIU International Admissions — public application form.
+
+  This file is served as a static asset at /intl/ on the production
+  domain. There is NO admin dashboard here — staff manage submissions
+  through the main SPA at /app/admin/international-admissions.
+
+  Anti-spam (in order of how the backend checks them):
+    1. Honeypot field `website` — display:none, must arrive empty.
+    2. Session token from GET /apply/session — HMAC-signed timestamp
+       echoed back so the server can verify min/max fill time.
+    3. Sliding-window rate limit per IP (server-side, Redis).
+    4. Duplicate-passport guard for last 24h (server-side).
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>XIU International Admissions</title>
+<style>
+  :root{
+    --navy:#0d2c54; --navy2:#163d6e; --gold:#c9a227; --bg:#f4f6fa;
+    --card:#ffffff; --line:#e3e8f0; --txt:#1c2b3a; --muted:#6b7a8d;
+    --green:#1f9d55; --blue:#2563eb; --amber:#d97706; --red:#dc2626;
+    --shadow:0 1px 3px rgba(16,38,73,.08),0 6px 24px rgba(16,38,73,.06);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--txt);line-height:1.5}
+  a{color:inherit}
+  header{background:linear-gradient(120deg,var(--navy),var(--navy2));color:#fff;padding:0 22px;position:sticky;top:0;z-index:50;box-shadow:0 2px 12px rgba(13,44,84,.25)}
+  .bar{display:flex;align-items:center;gap:16px;height:62px;max-width:1180px;margin:0 auto}
+  .logo{display:flex;align-items:center;gap:11px;font-weight:700;font-size:18px;letter-spacing:.3px}
+  .logo .mark{width:38px;height:38px;border-radius:9px;background:var(--gold);color:var(--navy);display:grid;place-items:center;font-weight:800;font-size:16px}
+  .logo small{display:block;font-weight:400;font-size:11px;opacity:.8;letter-spacing:.5px}
+  .lang{margin-left:auto;display:flex;background:rgba(255,255,255,.1);border-radius:8px;overflow:hidden}
+  .lang button{padding:7px 11px;font-size:12px;font-weight:700;background:transparent;border:0;color:#dce5f2;cursor:pointer}
+  .lang button.active{background:var(--gold);color:var(--navy)}
+  main{max-width:1180px;margin:0 auto;padding:26px 22px 60px}
+  .hero{background:linear-gradient(120deg,var(--navy),var(--navy2));color:#fff;border-radius:18px;padding:34px 32px;margin-bottom:26px;position:relative;overflow:hidden}
+  .hero:after{content:"";position:absolute;right:-40px;top:-40px;width:220px;height:220px;background:radial-gradient(circle,var(--gold),transparent 65%);opacity:.25}
+  .hero h1{font-size:30px;color:#fff;max-width:640px;margin:0}
+  .hero p{color:#cbd8ea;max-width:600px;margin:8px 0 0}
+  .steps{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
+  .chip{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);padding:7px 13px;border-radius:30px;font-size:12.5px;font-weight:600}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
+  .formwrap{max-width:760px;margin:0 auto;padding:30px 32px}
+  .formwrap h1{margin:0 0 4px;font-size:25px} .sub{color:var(--muted);margin:0 0 22px;font-size:15px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 20px}
+  .full{grid-column:1/-1}
+  .section-title{grid-column:1/-1;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--navy);border-bottom:1px solid var(--line);padding-bottom:8px;margin-top:8px}
+  label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:#2a3a4d}
+  label .req{color:var(--red)}
+  input,select,textarea{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:9px;font-size:14px;font-family:inherit;background:#fbfcfe;transition:.15s}
+  input:focus,select:focus,textarea:focus{outline:0;border-color:var(--navy2);box-shadow:0 0 0 3px rgba(22,61,110,.12);background:#fff}
+  .file{display:block;border:1.5px dashed #c4d0e0;border-radius:10px;padding:14px;text-align:center;cursor:pointer;background:#fafcff;font-size:13px;color:var(--muted)}
+  .file.has{border-color:var(--green);background:#f0fdf4;color:var(--green);font-weight:600}
+  .file input{display:none}
+  /* Honeypot — hidden from real users; only filled by dumb bots. */
+  .hp{position:absolute;left:-9999px;opacity:0;pointer-events:none;height:0;width:0}
+  .btn{padding:12px 22px;border:0;border-radius:10px;font-weight:700;font-size:14.5px;cursor:pointer;font-family:inherit;background:var(--navy);color:#fff;transition:.15s}
+  .btn:hover{background:var(--navy2)}
+  .btn.gold{background:var(--gold);color:var(--navy)}
+  .btn.gold:hover{filter:brightness(.95)}
+  .btn:disabled{opacity:.6;cursor:not-allowed}
+  .error{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;border-radius:9px;padding:10px 14px;font-size:13.5px;margin-bottom:14px}
+  .success{text-align:center;padding:18px}
+  .success .ic{width:64px;height:64px;border-radius:50%;background:#dcfce7;color:var(--green);font-size:32px;display:grid;place-items:center;margin:0 auto 14px}
+  .success h2{margin:0 0 8px;font-size:23px}
+  .success .ref{display:inline-block;background:#eef2f8;border-radius:8px;padding:8px 16px;font-weight:800;letter-spacing:1px;color:var(--navy);margin:10px 0 22px;font-family:'Courier New',monospace}
+  @media(max-width:780px){.grid{grid-template-columns:1fr 1fr}.hero h1{font-size:24px}.formwrap{padding:22px}}
+  @media(max-width:520px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="logo">
+      <span class="mark">XIU</span>
+      <span data-i="brand">Xalqaro Innovatsiya Universiteti<small data-i="brandSub">International Admissions Office</small></span>
+    </div>
+    <div class="lang">
+      <button onclick="setLang('en')" id="lg-en" class="active">EN</button>
+      <button onclick="setLang('ru')" id="lg-ru">RU</button>
+      <button onclick="setLang('uz')" id="lg-uz">UZ</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section>
+    <div class="hero">
+      <h1 data-i="heroH">Study in Uzbekistan at XIU</h1>
+      <p data-i="heroP">Submit your application for Bachelor's and Master's programs. Our admissions team will review your documents and guide you through every step — from offer letter to visa invitation.</p>
+      <div class="steps">
+        <span class="chip" data-i="s1">1 · Apply</span>
+        <span class="chip" data-i="s2">2 · Document review</span>
+        <span class="chip" data-i="s3">3 · Conditional Offer</span>
+        <span class="chip" data-i="s4">4 · Contract</span>
+        <span class="chip" data-i="s5">5 · Payment 30–50%</span>
+        <span class="chip" data-i="s6">6 · Admission + Invitation</span>
+      </div>
+    </div>
+
+    <div class="card formwrap" id="formCard">
+      <h1 data-i="formH">Application Form</h1>
+      <p class="sub" data-i="formSub">All fields marked with * are required. Uploads accept PDF, JPG or PNG.</p>
+      <div id="formError" class="error" style="display:none"></div>
+      <form id="appForm" onsubmit="return submitApp(event)" enctype="multipart/form-data">
+        <!-- Honeypot — DO NOT label or move into the visible grid. -->
+        <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off">
+        <!-- Session token populated by GET /apply/session on page load -->
+        <input type="hidden" name="session_token" id="session_token">
+
+        <div class="grid">
+          <div class="section-title" data-i="secPersonal">Personal Information</div>
+          <div class="full">
+            <label data-i="fName">Full Name <span class="req">*</span></label>
+            <input name="full_name" required placeholder="As written in passport" maxlength="200">
+          </div>
+          <div>
+            <label data-i="fCountry">Country <span class="req">*</span></label>
+            <select name="country" required>
+              <option value="" data-i="choose">— Select —</option>
+              <option>Afghanistan</option><option>Bangladesh</option><option>Egypt</option>
+              <option>India</option><option>Indonesia</option><option>Kazakhstan</option>
+              <option>Kyrgyzstan</option><option>Malaysia</option><option>Nigeria</option>
+              <option>Pakistan</option><option>Russia</option><option>Tajikistan</option>
+              <option>Turkey</option><option>Turkmenistan</option><option>Other</option>
+            </select>
+          </div>
+          <div>
+            <label data-i="fPassport">Passport Number <span class="req">*</span></label>
+            <input name="passport_number" required placeholder="e.g. AA1234567" maxlength="40">
+          </div>
+          <div>
+            <label data-i="fDob">Date of Birth <span class="req">*</span></label>
+            <input name="birth_date" type="date" required>
+          </div>
+          <div>
+            <label data-i="fPhone">Phone (WhatsApp) <span class="req">*</span></label>
+            <input name="phone" required placeholder="+998 90 123 45 67" maxlength="30">
+          </div>
+          <div class="full">
+            <label data-i="fEmail">Email <span class="req">*</span></label>
+            <input name="email" type="email" required placeholder="you@example.com" maxlength="120">
+          </div>
+
+          <div class="section-title" data-i="secProgram">Program Choice</div>
+          <div>
+            <label data-i="fProgram">Program <span class="req">*</span></label>
+            <select name="program" required>
+              <option value="" data-i="choose">— Select —</option>
+              <option value="Bachelor" data-i="bachelor">Bachelor</option>
+              <option value="Master" data-i="master">Master</option>
+            </select>
+          </div>
+          <div>
+            <label data-i="fFaculty">Faculty <span class="req">*</span></label>
+            <select name="faculty_text" required id="facultySelect">
+              <option value="" data-i="choose">— Select —</option>
+              <option value="Information Technologies" data-fc="fac1" data-i="fac1">Information Technologies</option>
+              <option value="Business & Economics" data-fc="fac2" data-i="fac2">Business &amp; Economics</option>
+              <option value="Engineering" data-fc="fac3" data-i="fac3">Engineering</option>
+              <option value="Medicine" data-fc="fac4" data-i="fac4">Medicine</option>
+              <option value="Law" data-fc="fac5" data-i="fac5">Law</option>
+              <option value="International Relations" data-fc="fac6" data-i="fac6">International Relations</option>
+              <option value="Philology &amp; Languages" data-fc="fac7" data-i="fac7">Philology &amp; Languages</option>
+              <option value="Architecture &amp; Design" data-fc="fac8" data-i="fac8">Architecture &amp; Design</option>
+            </select>
+          </div>
+
+          <div class="section-title" data-i="secDocs">Documents</div>
+          <div>
+            <label data-i="fUpPass">Passport <span class="req">*</span></label>
+            <label class="file" id="lbl-passport_file">
+              <span data-i="upHint">Click to upload</span>
+              <input type="file" name="passport_file" accept=".pdf,.jpg,.jpeg,.png" required onchange="markFile(this)">
+            </label>
+          </div>
+          <div>
+            <label data-i="fUpDip">Diploma / Certificate <span class="req">*</span></label>
+            <label class="file" id="lbl-diploma_file">
+              <span data-i="upHint">Click to upload</span>
+              <input type="file" name="diploma_file" accept=".pdf,.jpg,.jpeg,.png" required onchange="markFile(this)">
+            </label>
+          </div>
+          <div>
+            <label data-i="fUpPhoto">Photo (3x4) <span class="req">*</span></label>
+            <label class="file" id="lbl-photo_file">
+              <span data-i="upHint">Click to upload</span>
+              <input type="file" name="photo_file" accept=".jpg,.jpeg,.png" required onchange="markFile(this)">
+            </label>
+          </div>
+
+          <div class="full" style="margin-top:14px">
+            <button class="btn gold" type="submit" id="submitBtn" data-i="submit">Submit Application</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </section>
+</main>
+
+<script>
+/* ---------- i18n ---------- */
+const I = {
+  en:{brand:"International Innovation University",brandSub:"International Admissions Office",
+    heroH:"Study in Uzbekistan at XIU",heroP:"Submit your application for Bachelor's and Master's programs. Our admissions team will review your documents and guide you through every step — from offer letter to visa invitation.",
+    s1:"1 · Apply",s2:"2 · Document review",s3:"3 · Conditional Offer",s4:"4 · Contract",s5:"5 · Payment 30–50%",s6:"6 · Admission + Invitation",
+    formH:"Application Form",formSub:"All fields marked with * are required. Uploads accept PDF, JPG or PNG.",
+    secPersonal:"Personal Information",secProgram:"Program Choice",secDocs:"Documents",
+    fName:"Full Name",fCountry:"Country",fPassport:"Passport Number",fDob:"Date of Birth",fPhone:"Phone (WhatsApp)",fEmail:"Email",
+    fProgram:"Program",fFaculty:"Faculty",bachelor:"Bachelor",master:"Master",choose:"— Select —",
+    fUpPass:"Passport",fUpDip:"Diploma / Certificate",fUpPhoto:"Photo (3x4)",upHint:"Click to upload",submit:"Submit Application",
+    fac1:"Information Technologies",fac2:"Business & Economics",fac3:"Engineering",fac4:"Medicine",fac5:"Law",fac6:"International Relations",fac7:"Philology & Languages",fac8:"Architecture & Design",
+    okH:"Application submitted!",okP:"Thank you. Your application has been received by the XIU admissions office. We will contact you on WhatsApp and email.",refL:"Reference",another:"Submit another",
+    errGeneric:"Unable to submit. Please try again in a moment.",errSubmitting:"Submitting…"},
+  ru:{brand:"Международный инновационный университет",brandSub:"Отдел международного приёма",
+    heroH:"Учитесь в Узбекистане в XIU",heroP:"Подайте заявку на программы бакалавриата и магистратуры. Наша приёмная комиссия проверит документы и проведёт вас через каждый этап — от письма-предложения до приглашения на визу.",
+    s1:"1 · Заявка",s2:"2 · Проверка документов",s3:"3 · Условное предложение",s4:"4 · Договор",s5:"5 · Оплата 30–50%",s6:"6 · Зачисление + приглашение",
+    formH:"Форма заявки",formSub:"Поля со * обязательны. Загрузка: PDF, JPG или PNG.",
+    secPersonal:"Личные данные",secProgram:"Выбор программы",secDocs:"Документы",
+    fName:"ФИО",fCountry:"Страна",fPassport:"Номер паспорта",fDob:"Дата рождения",fPhone:"Телефон (WhatsApp)",fEmail:"Эл. почта",
+    fProgram:"Программа",fFaculty:"Факультет",bachelor:"Бакалавриат",master:"Магистратура",choose:"— Выберите —",
+    fUpPass:"Паспорт",fUpDip:"Диплом / сертификат",fUpPhoto:"Фото (3x4)",upHint:"Нажмите для загрузки",submit:"Отправить заявку",
+    fac1:"Информационные технологии",fac2:"Бизнес и экономика",fac3:"Инженерия",fac4:"Медицина",fac5:"Право",fac6:"Международные отношения",fac7:"Филология и языки",fac8:"Архитектура и дизайн",
+    okH:"Заявка отправлена!",okP:"Спасибо. Ваша заявка получена приёмной комиссией XIU. Мы свяжемся с вами в WhatsApp и по эл. почте.",refL:"Номер",another:"Подать ещё",
+    errGeneric:"Не удалось отправить. Попробуйте через минуту.",errSubmitting:"Отправка…"},
+  uz:{brand:"Xalqaro Innovatsiya Universiteti",brandSub:"Xalqaro qabul bo'limi",
+    heroH:"XIU'da O'zbekistonda tahsil oling",heroP:"Bakalavr va magistratura dasturlariga ariza topshiring. Qabul bo'limimiz hujjatlaringizni tekshiradi va sizni har bir bosqichdan — taklif xatidan viza taklifnomasigacha — yo'naltiradi.",
+    s1:"1 · Ariza",s2:"2 · Hujjat tekshiruvi",s3:"3 · Shartli taklif",s4:"4 · Shartnoma",s5:"5 · To'lov 30–50%",s6:"6 · Qabul + Taklifnoma",
+    formH:"Ariza shakli",formSub:"* belgili maydonlar majburiy. Yuklash: PDF, JPG yoki PNG.",
+    secPersonal:"Shaxsiy ma'lumotlar",secProgram:"Dastur tanlovi",secDocs:"Hujjatlar",
+    fName:"To'liq ism",fCountry:"Davlat",fPassport:"Pasport raqami",fDob:"Tug'ilgan sana",fPhone:"Telefon (WhatsApp)",fEmail:"Email",
+    fProgram:"Dastur",fFaculty:"Fakultet",bachelor:"Bakalavr",master:"Magistr",choose:"— Tanlang —",
+    fUpPass:"Pasport",fUpDip:"Diplom / sertifikat",fUpPhoto:"Surat (3x4)",upHint:"Yuklash uchun bosing",submit:"Arizani yuborish",
+    fac1:"Axborot texnologiyalari",fac2:"Biznes va iqtisodiyot",fac3:"Muhandislik",fac4:"Tibbiyot",fac5:"Huquqshunoslik",fac6:"Xalqaro munosabatlar",fac7:"Filologiya va tillar",fac8:"Arxitektura va dizayn",
+    okH:"Ariza yuborildi!",okP:"Rahmat. Arizangiz XIU qabul bo'limiga yetib bordi. Siz bilan WhatsApp va email orqali bog'lanamiz.",refL:"Raqam",another:"Yana ariza topshirish",
+    errGeneric:"Yuborib bo'lmadi. Birozdan keyin qaytadan urinib ko'ring.",errSubmitting:"Yuborilmoqda…"}
+};
+
+let lang = "en";
+
+function setLang(l){
+  lang = l;
+  document.querySelectorAll('.lang button').forEach(b => b.classList.remove('active'));
+  document.getElementById('lg-' + l).classList.add('active');
+  document.documentElement.lang = l;
+  applyI18n();
+}
+function applyI18n(){
+  const t = I[lang];
+  document.querySelectorAll('[data-i]').forEach(el => {
+    const k = el.getAttribute('data-i');
+    if (t[k]) el.innerHTML = t[k];
+  });
+}
+
+function markFile(input){
+  const lbl = input.closest('label.file');
+  if (input.files[0]) {
+    lbl.classList.add('has');
+    lbl.querySelector('span').textContent = "✓ " + input.files[0].name;
+  }
+}
+
+// API base — same origin. Nginx proxies /api/ to backend.
+const API = '/api/v1/international-admissions';
+
+/**
+ * Fetch a session token from the backend before the form mounts.
+ * The token carries an HMAC-signed timestamp; the server verifies
+ * the elapsed time when the form is submitted (must be > 5s).
+ */
+async function loadSession(){
+  try {
+    const r = await fetch(API + '/apply/session', {cache: 'no-store'});
+    const j = await r.json();
+    if (j && j.token) document.getElementById('session_token').value = j.token;
+  } catch (e) {
+    // Token will be empty → server rejects with 400. Show a refresh hint.
+    showError(I[lang].errGeneric);
+  }
+}
+
+function showError(msg){
+  const el = document.getElementById('formError');
+  el.textContent = msg;
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 6000);
+}
+
+async function submitApp(e){
+  e.preventDefault();
+  const f = e.target;
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  const originalLabel = btn.textContent;
+  btn.textContent = I[lang].errSubmitting;
+  document.getElementById('formError').style.display = 'none';
+
+  // Build the multipart payload — append the i18n-friendly faculty
+  // text + the data-fc code from the selected <option> so the server
+  // can group by language-independent faculty key later.
+  const fd = new FormData(f);
+  const facultyOpt = document.getElementById('facultySelect').selectedOptions[0];
+  const facultyCode = facultyOpt ? (facultyOpt.getAttribute('data-fc') || 'other') : 'other';
+  fd.set('faculty_code', facultyCode);
+  fd.set('language', lang);
+
+  try {
+    const r = await fetch(API + '/apply', { method: 'POST', body: fd });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const msg = (j && (j.detail || (j.error && j.error.message))) || I[lang].errGeneric;
+      showError(typeof msg === 'string' ? msg : I[lang].errGeneric);
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+      // Pull a fresh session token so the time-trap window restarts.
+      loadSession();
+      return false;
+    }
+    // Success — swap the form for a thank-you card.
+    const t = I[lang];
+    document.getElementById('formCard').innerHTML =
+      `<div class="success">
+        <div class="ic">✓</div>
+        <h2>${t.okH}</h2>
+        <p class="sub" style="max-width:440px;margin:0 auto 4px">${t.okP}</p>
+        <div class="ref">${j.ref_number || ''}</div>
+        <div><button class="btn" onclick="location.reload()">${t.another}</button></div>
+      </div>`;
+    window.scrollTo(0, 0);
+  } catch (e) {
+    showError(I[lang].errGeneric);
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
+  return false;
+}
+
+/* ---------- init ---------- */
+applyI18n();
+loadSession();
+</script>
+</body>
+</html>

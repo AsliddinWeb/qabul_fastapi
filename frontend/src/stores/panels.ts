@@ -94,6 +94,10 @@ const ADMIN_NAV: NavEntry[] = [
     leaf('/admin/referrals',            'Referal dasturi',        Gift,           'rose',    { countKey: 'referrals' }),
   ]),
 
+  group('intl', 'Xalqaro qabul', Globe, [
+    leaf('/admin/international-admissions', 'Arizalar (xalqaro)',  Globe,         'indigo'),
+  ]),
+
   group('programs', "Ta'lim", School, [
     leaf('/admin/branches',             'Filiallar',              Building2,      'rose'),
     leaf('/admin/programs',             "Yo'nalishlar",           GraduationCap,  'indigo'),

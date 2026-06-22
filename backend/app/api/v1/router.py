@@ -12,6 +12,7 @@ from app.modules.consulting.router import router as consulting_router
 from app.modules.contracts.router import router as contracts_router
 from app.modules.dictionaries.router import router as dictionaries_router
 from app.modules.files.router import router as files_router
+from app.modules.international_admissions.router import router as international_router
 from app.modules.leads.router import router as leads_router
 from app.modules.payments.router import router as payments_router
 from app.modules.programs.router import router as programs_router
@@ -43,3 +44,4 @@ api_router.include_router(consulting_router,   prefix="/consulting-agencies", ta
 api_router.include_router(referrals_router,    prefix="/referrals",    tags=["referrals"])
 api_router.include_router(analytics_router,    prefix="/analytics",    tags=["analytics"])
 api_router.include_router(crm_admin_router,    prefix="/integrations/crm", tags=["integrations"])
+api_router.include_router(international_router, prefix="/international-admissions", tags=["international-admissions"])

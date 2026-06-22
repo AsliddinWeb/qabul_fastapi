@@ -91,6 +91,13 @@ class Permission(str, Enum):
     LEADS_DELETE = "leads.delete"
     LEADS_SETTINGS = "leads.settings"  # pipelines/stages/sources/lost-reasons CRUD
 
+    # International admissions — separate funnel for non-resident
+    # applicants, managed via /admin/international-admissions.
+    INTL_ADMISSIONS_LIST   = "intl_admissions.list"
+    INTL_ADMISSIONS_READ   = "intl_admissions.read"
+    INTL_ADMISSIONS_MANAGE = "intl_admissions.manage"  # advance/reject/notes
+    INTL_ADMISSIONS_DELETE = "intl_admissions.delete"
+
 
 # ---------- Role groups (kept for legacy `require_roles` usage) ----------
 STAFF_ROLES = {Role.SUPERADMIN, Role.ADMIN, Role.OPERATOR, Role.DIRECTOR, Role.ACCOUNTANT}
@@ -128,6 +135,10 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
         _P.LEADS_LIST, _P.LEADS_READ, _P.LEADS_CREATE, _P.LEADS_UPDATE,
         _P.LEADS_MOVE, _P.LEADS_ASSIGN, _P.LEADS_CONVERT, _P.LEADS_LOSE,
         _P.LEADS_DELETE, _P.LEADS_SETTINGS,
+
+        # International admissions — full manage rights
+        _P.INTL_ADMISSIONS_LIST, _P.INTL_ADMISSIONS_READ,
+        _P.INTL_ADMISSIONS_MANAGE, _P.INTL_ADMISSIONS_DELETE,
     }),
     Role.OPERATOR: frozenset({
         _P.APPLICANTS_LIST, _P.APPLICANTS_READ, _P.APPLICANTS_WRITE,
@@ -153,6 +164,9 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
         _P.AUDIT_READ,
 
         _P.LEADS_LIST, _P.LEADS_READ,
+
+        # International admissions — read-only for the director.
+        _P.INTL_ADMISSIONS_LIST, _P.INTL_ADMISSIONS_READ,
     }),
     Role.ACCOUNTANT: frozenset({
         _P.APPLICANTS_LIST, _P.APPLICANTS_READ,

@@ -19,6 +19,8 @@ export type Permission =
   | 'users.list' | 'users.read' | 'users.create' | 'users.update' | 'users.delete' | 'users.reset_password'
   | 'audit.read' | 'reports.view' | 'reports.financial'
   | 'contract_templates.read' | 'contract_templates.write'
+  | 'intl_admissions.list' | 'intl_admissions.read'
+  | 'intl_admissions.manage' | 'intl_admissions.delete'
 
 const ROLE_PERMS: Record<Role, Permission[]> = {
   superadmin: [
@@ -33,6 +35,7 @@ const ROLE_PERMS: Record<Role, Permission[]> = {
     'users.list', 'users.read', 'users.create', 'users.update', 'users.delete', 'users.reset_password',
     'audit.read', 'reports.view', 'reports.financial',
     'contract_templates.read', 'contract_templates.write',
+    'intl_admissions.list', 'intl_admissions.read', 'intl_admissions.manage', 'intl_admissions.delete',
   ],
   admin: [
     'contracts.read', 'contracts.create', 'contracts.sign',
@@ -44,6 +47,7 @@ const ROLE_PERMS: Record<Role, Permission[]> = {
     'users.list', 'users.read', 'users.create', 'users.update', 'users.delete', 'users.reset_password',
     'audit.read', 'reports.view', 'reports.financial',
     'contract_templates.read', 'contract_templates.write',
+    'intl_admissions.list', 'intl_admissions.read', 'intl_admissions.manage', 'intl_admissions.delete',
   ],
   operator: [
     'contracts.read', 'contracts.create', 'contracts.sign',
@@ -63,6 +67,7 @@ const ROLE_PERMS: Record<Role, Permission[]> = {
     'users.list', 'users.read',
     'audit.read', 'reports.view', 'reports.financial',
     'contract_templates.read',
+    'intl_admissions.list', 'intl_admissions.read',
   ],
   accountant: [
     'contracts.read',
