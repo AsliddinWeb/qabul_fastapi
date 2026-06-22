@@ -2,82 +2,456 @@
 <!--
   XIU International Admissions — public application form.
 
-  This file is served as a static asset at /intl/ on the production
-  domain. There is NO admin dashboard here — staff manage submissions
-  through the main SPA at /app/admin/international-admissions.
+  Visual language matches the SPA at /app/ — brand-500 gradient header,
+  Inter font, rounded-xl cards, soft shadows, slate text. Lives at
+  /intl/ as a single static file; submits to the API at
+  /api/v1/international-admissions/apply.
 
-  Anti-spam (in order of how the backend checks them):
-    1. Honeypot field `website` — display:none, must arrive empty.
+  Anti-spam stack (server-side):
+    1. Honeypot field `website` — display:none, must arrive empty
     2. Session token from GET /apply/session — HMAC-signed timestamp
-       echoed back so the server can verify min/max fill time.
-    3. Sliding-window rate limit per IP (server-side, Redis).
-    4. Duplicate-passport guard for last 24h (server-side).
+    3. Sliding-window rate limit per IP (Redis)
+    4. Duplicate-passport guard for last 24h
 -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>XIU International Admissions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
+  /* ===== Brand palette mirrors frontend/tailwind.config.js ===== */
   :root{
-    --navy:#0d2c54; --navy2:#163d6e; --gold:#c9a227; --bg:#f4f6fa;
-    --card:#ffffff; --line:#e3e8f0; --txt:#1c2b3a; --muted:#6b7a8d;
-    --green:#1f9d55; --blue:#2563eb; --amber:#d97706; --red:#dc2626;
-    --shadow:0 1px 3px rgba(16,38,73,.08),0 6px 24px rgba(16,38,73,.06);
+    --brand-50:#eef4ff; --brand-100:#dae6ff; --brand-200:#b8ccff;
+    --brand-300:#8fa9ff; --brand-400:#647ffb; --brand-500:#3f56ef;
+    --brand-600:#2d3dd1; --brand-700:#2530a4; --brand-800:#1f2880;
+    --brand-900:#1a2167;
+    --violet-500:#8b5cf6;
+    --slate-50:#f8fafc; --slate-100:#f1f5f9; --slate-200:#e2e8f0;
+    --slate-300:#cbd5e1; --slate-400:#94a3b8; --slate-500:#64748b;
+    --slate-600:#475569; --slate-700:#334155; --slate-800:#1e293b;
+    --slate-900:#0f172a;
+    --emerald-500:#10b981; --emerald-50:#ecfdf5; --emerald-600:#059669;
+    --amber-500:#f59e0b;
+    --rose-50:#fff1f2; --rose-600:#e11d48; --rose-700:#be123c;
+
+    --shadow-card:0 1px 2px 0 rgb(0 0 0 / .04), 0 0 0 1px rgb(0 0 0 / .04);
+    --shadow-pop:0 10px 30px -10px rgb(0 0 0 / .18), 0 4px 12px -4px rgb(0 0 0 / .08);
   }
-  *{box-sizing:border-box}
-  body{margin:0;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--txt);line-height:1.5}
-  a{color:inherit}
-  header{background:linear-gradient(120deg,var(--navy),var(--navy2));color:#fff;padding:0 22px;position:sticky;top:0;z-index:50;box-shadow:0 2px 12px rgba(13,44,84,.25)}
-  .bar{display:flex;align-items:center;gap:16px;height:62px;max-width:1180px;margin:0 auto}
-  .logo{display:flex;align-items:center;gap:11px;font-weight:700;font-size:18px;letter-spacing:.3px}
-  .logo .mark{width:38px;height:38px;border-radius:9px;background:var(--gold);color:var(--navy);display:grid;place-items:center;font-weight:800;font-size:16px}
-  .logo small{display:block;font-weight:400;font-size:11px;opacity:.8;letter-spacing:.5px}
-  .lang{margin-left:auto;display:flex;background:rgba(255,255,255,.1);border-radius:8px;overflow:hidden}
-  .lang button{padding:7px 11px;font-size:12px;font-weight:700;background:transparent;border:0;color:#dce5f2;cursor:pointer}
-  .lang button.active{background:var(--gold);color:var(--navy)}
-  main{max-width:1180px;margin:0 auto;padding:26px 22px 60px}
-  .hero{background:linear-gradient(120deg,var(--navy),var(--navy2));color:#fff;border-radius:18px;padding:34px 32px;margin-bottom:26px;position:relative;overflow:hidden}
-  .hero:after{content:"";position:absolute;right:-40px;top:-40px;width:220px;height:220px;background:radial-gradient(circle,var(--gold),transparent 65%);opacity:.25}
-  .hero h1{font-size:30px;color:#fff;max-width:640px;margin:0}
-  .hero p{color:#cbd8ea;max-width:600px;margin:8px 0 0}
-  .steps{display:flex;gap:10px;flex-wrap:wrap;margin-top:22px}
-  .chip{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);padding:7px 13px;border-radius:30px;font-size:12.5px;font-weight:600}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow)}
-  .formwrap{max-width:760px;margin:0 auto;padding:30px 32px}
-  .formwrap h1{margin:0 0 4px;font-size:25px} .sub{color:var(--muted);margin:0 0 22px;font-size:15px}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px 20px}
+
+  *,*::before,*::after{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:'Inter','ui-sans-serif','system-ui',-apple-system,'Segoe UI',sans-serif;
+    background:var(--slate-50);
+    color:var(--slate-900);
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit;text-decoration:none}
+  ::selection{background:var(--brand-100);color:var(--brand-800)}
+
+  /* ===== Header — brand gradient, matches the SPA's operator hero ===== */
+  header{
+    background:linear-gradient(135deg, var(--brand-500) 0%, #5b6cf5 50%, var(--violet-500) 100%);
+    color:#fff;
+    position:relative;
+    overflow:hidden;
+    box-shadow:0 2px 16px -2px rgb(63 86 239 / .3);
+  }
+  header::after{
+    content:"";
+    position:absolute;
+    inset:0;
+    background-image:
+      radial-gradient(circle at 15% 100%, rgba(255,255,255,.18) 0%, transparent 50%),
+      radial-gradient(circle at 85% 0%, rgba(255,255,255,.12) 0%, transparent 55%);
+    pointer-events:none;
+  }
+  .bar{
+    position:relative;
+    max-width:1140px;
+    margin:0 auto;
+    padding:18px 24px;
+    display:flex;
+    align-items:center;
+    gap:16px;
+  }
+  .logo{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    font-weight:700;
+    font-size:16px;
+    letter-spacing:-.01em;
+  }
+  .logo .mk{
+    width:42px;
+    height:42px;
+    border-radius:11px;
+    background:rgba(255,255,255,.18);
+    backdrop-filter:blur(8px);
+    color:#fff;
+    display:grid;
+    place-items:center;
+    font-weight:800;
+    font-size:15px;
+    letter-spacing:-.02em;
+    ring:1px solid rgba(255,255,255,.25);
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.15);
+  }
+  .logo-text{line-height:1.2}
+  .logo-text small{
+    display:block;
+    font-weight:400;
+    font-size:11px;
+    opacity:.78;
+    letter-spacing:.02em;
+    margin-top:2px;
+  }
+  .lang{
+    margin-left:auto;
+    display:flex;
+    background:rgba(255,255,255,.15);
+    border-radius:9px;
+    padding:3px;
+    backdrop-filter:blur(8px);
+  }
+  .lang button{
+    border:0;
+    background:transparent;
+    color:rgba(255,255,255,.78);
+    padding:6px 12px;
+    font-size:12px;
+    font-weight:700;
+    font-family:inherit;
+    border-radius:6px;
+    cursor:pointer;
+    transition:.15s;
+  }
+  .lang button:hover{color:#fff}
+  .lang button.active{
+    background:#fff;
+    color:var(--brand-700);
+    box-shadow:0 1px 2px rgb(0 0 0 / .08);
+  }
+
+  /* ===== Layout ===== */
+  main{max-width:1140px;margin:0 auto;padding:28px 24px 64px}
+
+  /* ===== Hero ===== */
+  .hero{
+    background:linear-gradient(135deg, var(--brand-500) 0%, #5b6cf5 50%, var(--violet-500) 100%);
+    color:#fff;
+    border-radius:20px;
+    padding:38px 36px;
+    margin-bottom:28px;
+    position:relative;
+    overflow:hidden;
+    box-shadow:0 10px 40px -12px rgb(63 86 239 / .35);
+  }
+  .hero::after{
+    content:"";
+    position:absolute;
+    right:-60px;
+    top:-60px;
+    width:260px;
+    height:260px;
+    background:radial-gradient(circle, rgba(255,255,255,.18), transparent 65%);
+  }
+  .hero::before{
+    content:"";
+    position:absolute;
+    left:-40px;
+    bottom:-40px;
+    width:200px;
+    height:200px;
+    background:radial-gradient(circle, rgba(139,92,246,.3), transparent 60%);
+  }
+  .hero-inner{position:relative;z-index:1}
+  .hero h1{
+    font-size:32px;
+    margin:0;
+    font-weight:800;
+    letter-spacing:-.02em;
+    line-height:1.15;
+    max-width:660px;
+  }
+  .hero p{
+    color:rgba(255,255,255,.88);
+    max-width:620px;
+    margin:10px 0 0;
+    font-size:15.5px;
+    line-height:1.55;
+  }
+  .steps{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    margin-top:24px;
+  }
+  .chip{
+    background:rgba(255,255,255,.14);
+    border:1px solid rgba(255,255,255,.22);
+    padding:7px 14px;
+    border-radius:999px;
+    font-size:12.5px;
+    font-weight:600;
+    backdrop-filter:blur(8px);
+    color:rgba(255,255,255,.95);
+  }
+
+  /* ===== Card ===== */
+  .card{
+    background:#fff;
+    border-radius:16px;
+    box-shadow:var(--shadow-card);
+    border:1px solid var(--slate-200);
+  }
+  .formwrap{
+    max-width:820px;
+    margin:0 auto;
+    padding:32px 36px;
+  }
+  .formwrap h2{
+    margin:0 0 4px;
+    font-size:22px;
+    font-weight:700;
+    letter-spacing:-.01em;
+    color:var(--slate-900);
+  }
+  .sub{
+    color:var(--slate-500);
+    margin:0 0 26px;
+    font-size:14.5px;
+  }
+
+  /* ===== Grid ===== */
+  .grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:18px 22px;
+  }
   .full{grid-column:1/-1}
-  .section-title{grid-column:1/-1;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--navy);border-bottom:1px solid var(--line);padding-bottom:8px;margin-top:8px}
-  label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;color:#2a3a4d}
-  label .req{color:var(--red)}
-  input,select,textarea{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:9px;font-size:14px;font-family:inherit;background:#fbfcfe;transition:.15s}
-  input:focus,select:focus,textarea:focus{outline:0;border-color:var(--navy2);box-shadow:0 0 0 3px rgba(22,61,110,.12);background:#fff}
-  .file{display:block;border:1.5px dashed #c4d0e0;border-radius:10px;padding:14px;text-align:center;cursor:pointer;background:#fafcff;font-size:13px;color:var(--muted)}
-  .file.has{border-color:var(--green);background:#f0fdf4;color:var(--green);font-weight:600}
+
+  /* ===== Section header inside form ===== */
+  .section-title{
+    grid-column:1/-1;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-size:11px;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    color:var(--brand-700);
+    padding-bottom:10px;
+    border-bottom:1px solid var(--slate-200);
+    margin-top:8px;
+  }
+  .section-title::before{
+    content:"";
+    display:inline-block;
+    width:18px;
+    height:2px;
+    background:var(--brand-500);
+    border-radius:2px;
+  }
+
+  /* ===== Form controls ===== */
+  label{
+    display:block;
+    font-size:13px;
+    font-weight:600;
+    margin-bottom:6px;
+    color:var(--slate-700);
+  }
+  label .req{color:var(--rose-600);margin-left:2px}
+  input,select,textarea{
+    width:100%;
+    padding:11px 13px;
+    border:1px solid var(--slate-200);
+    border-radius:10px;
+    font-size:14px;
+    font-family:inherit;
+    background:#fff;
+    color:var(--slate-900);
+    transition:.15s;
+    line-height:1.4;
+  }
+  input::placeholder{color:var(--slate-400)}
+  input:hover,select:hover,textarea:hover{border-color:var(--slate-300)}
+  input:focus,select:focus,textarea:focus{
+    outline:0;
+    border-color:var(--brand-500);
+    box-shadow:0 0 0 3px rgb(63 86 239 / .15);
+  }
+  select{
+    appearance:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
+    background-repeat:no-repeat;
+    background-position:right 12px center;
+    padding-right:36px;
+  }
+
+  /* ===== File upload tile ===== */
+  .file{
+    display:block;
+    border:1.5px dashed var(--slate-300);
+    border-radius:11px;
+    padding:14px;
+    text-align:center;
+    cursor:pointer;
+    background:var(--slate-50);
+    font-size:13px;
+    color:var(--slate-500);
+    transition:.15s;
+  }
+  .file:hover{border-color:var(--brand-400);background:var(--brand-50);color:var(--brand-700)}
+  .file.has{
+    border-color:var(--emerald-500);
+    border-style:solid;
+    background:var(--emerald-50);
+    color:var(--emerald-600);
+    font-weight:600;
+  }
   .file input{display:none}
-  /* Honeypot — hidden from real users; only filled by dumb bots. */
-  .hp{position:absolute;left:-9999px;opacity:0;pointer-events:none;height:0;width:0}
-  .btn{padding:12px 22px;border:0;border-radius:10px;font-weight:700;font-size:14.5px;cursor:pointer;font-family:inherit;background:var(--navy);color:#fff;transition:.15s}
-  .btn:hover{background:var(--navy2)}
-  .btn.gold{background:var(--gold);color:var(--navy)}
-  .btn.gold:hover{filter:brightness(.95)}
-  .btn:disabled{opacity:.6;cursor:not-allowed}
-  .error{background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;border-radius:9px;padding:10px 14px;font-size:13.5px;margin-bottom:14px}
-  .success{text-align:center;padding:18px}
-  .success .ic{width:64px;height:64px;border-radius:50%;background:#dcfce7;color:var(--green);font-size:32px;display:grid;place-items:center;margin:0 auto 14px}
-  .success h2{margin:0 0 8px;font-size:23px}
-  .success .ref{display:inline-block;background:#eef2f8;border-radius:8px;padding:8px 16px;font-weight:800;letter-spacing:1px;color:var(--navy);margin:10px 0 22px;font-family:'Courier New',monospace}
-  @media(max-width:780px){.grid{grid-template-columns:1fr 1fr}.hero h1{font-size:24px}.formwrap{padding:22px}}
-  @media(max-width:520px){.grid{grid-template-columns:1fr}}
+  .file-icon{
+    display:inline-block;
+    margin-bottom:4px;
+    opacity:.6;
+  }
+  .file.has .file-icon{opacity:1}
+
+  /* ===== Honeypot — out of viewport, zero a11y impact ===== */
+  .hp{
+    position:absolute;
+    left:-9999px;
+    opacity:0;
+    pointer-events:none;
+    width:0;
+    height:0;
+  }
+
+  /* ===== Buttons ===== */
+  .btn{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    padding:13px 24px;
+    border:0;
+    border-radius:11px;
+    font-weight:600;
+    font-size:14.5px;
+    cursor:pointer;
+    font-family:inherit;
+    transition:.15s;
+    background:var(--brand-500);
+    color:#fff;
+    box-shadow:0 4px 12px -2px rgb(63 86 239 / .35);
+  }
+  .btn:hover{background:var(--brand-600);box-shadow:0 6px 18px -2px rgb(63 86 239 / .45);transform:translateY(-1px)}
+  .btn:active{transform:translateY(0)}
+  .btn:disabled{opacity:.6;cursor:not-allowed;box-shadow:none;transform:none}
+  .btn.ghost{
+    background:var(--slate-100);
+    color:var(--slate-700);
+    box-shadow:none;
+  }
+  .btn.ghost:hover{background:var(--slate-200);color:var(--slate-900)}
+
+  /* ===== Error banner ===== */
+  .error{
+    background:var(--rose-50);
+    color:var(--rose-700);
+    border:1px solid #fecdd3;
+    border-radius:11px;
+    padding:12px 16px;
+    font-size:14px;
+    margin-bottom:18px;
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+  }
+  .error::before{
+    content:"⚠";
+    font-size:16px;
+    flex-shrink:0;
+  }
+
+  /* ===== Success card ===== */
+  .success{text-align:center;padding:20px 8px}
+  .success .ic{
+    width:72px;
+    height:72px;
+    border-radius:50%;
+    background:linear-gradient(135deg, var(--emerald-500), #34d399);
+    color:#fff;
+    font-size:36px;
+    font-weight:300;
+    display:grid;
+    place-items:center;
+    margin:0 auto 18px;
+    box-shadow:0 8px 24px -6px rgb(16 185 129 / .45);
+  }
+  .success h2{
+    margin:0 0 10px;
+    font-size:25px;
+    font-weight:700;
+    letter-spacing:-.01em;
+  }
+  .success .sub{margin:0 auto 8px;max-width:460px;color:var(--slate-500)}
+  .success .ref{
+    display:inline-block;
+    background:linear-gradient(135deg, var(--brand-50), var(--brand-100));
+    border:1px solid var(--brand-200);
+    border-radius:11px;
+    padding:10px 20px;
+    font-weight:800;
+    letter-spacing:.05em;
+    color:var(--brand-700);
+    margin:18px 0 24px;
+    font-family:'Inter','ui-monospace','Menlo','Courier New',monospace;
+    font-size:15px;
+  }
+
+  /* ===== Footer note ===== */
+  .footnote{
+    text-align:center;
+    color:var(--slate-400);
+    font-size:12.5px;
+    margin-top:20px;
+  }
+
+  /* ===== Responsive ===== */
+  @media(max-width:820px){
+    .hero{padding:30px 26px;border-radius:16px}
+    .hero h1{font-size:26px}
+    .formwrap{padding:26px 24px}
+  }
+  @media(max-width:560px){
+    .grid{grid-template-columns:1fr}
+    .bar{padding:14px 18px}
+    main{padding:20px 16px 48px}
+    .formwrap{padding:22px 18px}
+    .hero{padding:24px 20px}
+    .hero h1{font-size:22px}
+    .logo-text small{display:none}
+  }
 </style>
 </head>
 <body>
 <header>
   <div class="bar">
     <div class="logo">
-      <span class="mark">XIU</span>
-      <span data-i="brand">Xalqaro Innovatsiya Universiteti<small data-i="brandSub">International Admissions Office</small></span>
+      <span class="mk">XIU</span>
+      <span class="logo-text" data-i="brand">
+        Xalqaro Innovatsiya Universiteti
+        <small data-i="brandSub">International Admissions Office</small>
+      </span>
     </div>
     <div class="lang">
       <button onclick="setLang('en')" id="lg-en" class="active">EN</button>
@@ -88,8 +462,8 @@
 </header>
 
 <main>
-  <section>
-    <div class="hero">
+  <section class="hero">
+    <div class="hero-inner">
       <h1 data-i="heroH">Study in Uzbekistan at XIU</h1>
       <p data-i="heroP">Submit your application for Bachelor's and Master's programs. Our admissions team will review your documents and guide you through every step — from offer letter to visa invitation.</p>
       <div class="steps">
@@ -101,197 +475,250 @@
         <span class="chip" data-i="s6">6 · Admission + Invitation</span>
       </div>
     </div>
-
-    <div class="card formwrap" id="formCard">
-      <h1 data-i="formH">Application Form</h1>
-      <p class="sub" data-i="formSub">All fields marked with * are required. Uploads accept PDF, JPG or PNG.</p>
-      <div id="formError" class="error" style="display:none"></div>
-      <form id="appForm" onsubmit="return submitApp(event)" enctype="multipart/form-data">
-        <!-- Honeypot — DO NOT label or move into the visible grid. -->
-        <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off">
-        <!-- Session token populated by GET /apply/session on page load -->
-        <input type="hidden" name="session_token" id="session_token">
-
-        <div class="grid">
-          <div class="section-title" data-i="secPersonal">Personal Information</div>
-          <div class="full">
-            <label data-i="fName">Full Name <span class="req">*</span></label>
-            <input name="full_name" required placeholder="As written in passport" maxlength="200">
-          </div>
-          <div>
-            <label data-i="fCountry">Country <span class="req">*</span></label>
-            <select name="country" required>
-              <option value="" data-i="choose">— Select —</option>
-              <option>Afghanistan</option><option>Bangladesh</option><option>Egypt</option>
-              <option>India</option><option>Indonesia</option><option>Kazakhstan</option>
-              <option>Kyrgyzstan</option><option>Malaysia</option><option>Nigeria</option>
-              <option>Pakistan</option><option>Russia</option><option>Tajikistan</option>
-              <option>Turkey</option><option>Turkmenistan</option><option>Other</option>
-            </select>
-          </div>
-          <div>
-            <label data-i="fPassport">Passport Number <span class="req">*</span></label>
-            <input name="passport_number" required placeholder="e.g. AA1234567" maxlength="40">
-          </div>
-          <div>
-            <label data-i="fDob">Date of Birth <span class="req">*</span></label>
-            <input name="birth_date" type="date" required>
-          </div>
-          <div>
-            <label data-i="fPhone">Phone (WhatsApp) <span class="req">*</span></label>
-            <input name="phone" required placeholder="+998 90 123 45 67" maxlength="30">
-          </div>
-          <div class="full">
-            <label data-i="fEmail">Email <span class="req">*</span></label>
-            <input name="email" type="email" required placeholder="you@example.com" maxlength="120">
-          </div>
-
-          <div class="section-title" data-i="secProgram">Program Choice</div>
-          <div>
-            <label data-i="fProgram">Program <span class="req">*</span></label>
-            <select name="program" required>
-              <option value="" data-i="choose">— Select —</option>
-              <option value="Bachelor" data-i="bachelor">Bachelor</option>
-              <option value="Master" data-i="master">Master</option>
-            </select>
-          </div>
-          <div>
-            <label data-i="fFaculty">Faculty <span class="req">*</span></label>
-            <select name="faculty_text" required id="facultySelect">
-              <option value="" data-i="choose">— Select —</option>
-              <option value="Information Technologies" data-fc="fac1" data-i="fac1">Information Technologies</option>
-              <option value="Business & Economics" data-fc="fac2" data-i="fac2">Business &amp; Economics</option>
-              <option value="Engineering" data-fc="fac3" data-i="fac3">Engineering</option>
-              <option value="Medicine" data-fc="fac4" data-i="fac4">Medicine</option>
-              <option value="Law" data-fc="fac5" data-i="fac5">Law</option>
-              <option value="International Relations" data-fc="fac6" data-i="fac6">International Relations</option>
-              <option value="Philology &amp; Languages" data-fc="fac7" data-i="fac7">Philology &amp; Languages</option>
-              <option value="Architecture &amp; Design" data-fc="fac8" data-i="fac8">Architecture &amp; Design</option>
-            </select>
-          </div>
-
-          <div class="section-title" data-i="secDocs">Documents</div>
-          <div>
-            <label data-i="fUpPass">Passport <span class="req">*</span></label>
-            <label class="file" id="lbl-passport_file">
-              <span data-i="upHint">Click to upload</span>
-              <input type="file" name="passport_file" accept=".pdf,.jpg,.jpeg,.png" required onchange="markFile(this)">
-            </label>
-          </div>
-          <div>
-            <label data-i="fUpDip">Diploma / Certificate <span class="req">*</span></label>
-            <label class="file" id="lbl-diploma_file">
-              <span data-i="upHint">Click to upload</span>
-              <input type="file" name="diploma_file" accept=".pdf,.jpg,.jpeg,.png" required onchange="markFile(this)">
-            </label>
-          </div>
-          <div>
-            <label data-i="fUpPhoto">Photo (3x4) <span class="req">*</span></label>
-            <label class="file" id="lbl-photo_file">
-              <span data-i="upHint">Click to upload</span>
-              <input type="file" name="photo_file" accept=".jpg,.jpeg,.png" required onchange="markFile(this)">
-            </label>
-          </div>
-
-          <div class="full" style="margin-top:14px">
-            <button class="btn gold" type="submit" id="submitBtn" data-i="submit">Submit Application</button>
-          </div>
-        </div>
-      </form>
-    </div>
   </section>
+
+  <div class="card formwrap" id="formCard">
+    <h2 data-i="formH">Application Form</h2>
+    <p class="sub" data-i="formSub">All fields marked with * are required. Uploads accept PDF, JPG or PNG.</p>
+    <div id="formError" class="error" style="display:none"></div>
+    <form id="appForm" onsubmit="return submitApp(event)" enctype="multipart/form-data" autocomplete="off">
+      <!-- Honeypot — bots fill every input; humans never see it. -->
+      <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+      <!-- Session token populated by GET /apply/session on mount. -->
+      <input type="hidden" name="session_token" id="session_token">
+
+      <div class="grid">
+        <div class="section-title" data-i="secPersonal">Personal Information</div>
+
+        <div class="full">
+          <label data-i="fName">Full Name <span class="req">*</span></label>
+          <input name="full_name" required placeholder="As written in passport" maxlength="200" autocomplete="name">
+        </div>
+        <div>
+          <label data-i="fCountry">Country <span class="req">*</span></label>
+          <select name="country" required autocomplete="country-name">
+            <option value="" data-i="choose">— Select —</option>
+            <option>Afghanistan</option><option>Bangladesh</option><option>Egypt</option>
+            <option>India</option><option>Indonesia</option><option>Kazakhstan</option>
+            <option>Kyrgyzstan</option><option>Malaysia</option><option>Nigeria</option>
+            <option>Pakistan</option><option>Russia</option><option>Tajikistan</option>
+            <option>Turkey</option><option>Turkmenistan</option><option>Other</option>
+          </select>
+        </div>
+        <div>
+          <label data-i="fPassport">Passport Number <span class="req">*</span></label>
+          <input name="passport_number" required placeholder="e.g. AA1234567" maxlength="40" autocomplete="off">
+        </div>
+        <div>
+          <label data-i="fDob">Date of Birth <span class="req">*</span></label>
+          <input name="birth_date" type="date" required autocomplete="bday">
+        </div>
+        <div>
+          <label data-i="fPhone">Phone (WhatsApp) <span class="req">*</span></label>
+          <input name="phone" required placeholder="+998 90 123 45 67" maxlength="30" autocomplete="tel">
+        </div>
+        <div class="full">
+          <label data-i="fEmail">Email <span class="req">*</span></label>
+          <input name="email" type="email" required placeholder="you@example.com" maxlength="120" autocomplete="email">
+        </div>
+
+        <div class="section-title" data-i="secProgram">Program Choice</div>
+        <div>
+          <label data-i="fProgram">Program <span class="req">*</span></label>
+          <select name="program" required>
+            <option value="" data-i="choose">— Select —</option>
+            <option value="Bachelor" data-i="bachelor">Bachelor</option>
+            <option value="Master" data-i="master">Master</option>
+          </select>
+        </div>
+        <div>
+          <label data-i="fFaculty">Faculty <span class="req">*</span></label>
+          <select name="faculty_text" required id="facultySelect">
+            <option value="" data-i="choose">— Select —</option>
+            <option value="Information Technologies" data-fc="fac1" data-i="fac1">Information Technologies</option>
+            <option value="Business & Economics" data-fc="fac2" data-i="fac2">Business &amp; Economics</option>
+            <option value="Engineering" data-fc="fac3" data-i="fac3">Engineering</option>
+            <option value="Medicine" data-fc="fac4" data-i="fac4">Medicine</option>
+            <option value="Law" data-fc="fac5" data-i="fac5">Law</option>
+            <option value="International Relations" data-fc="fac6" data-i="fac6">International Relations</option>
+            <option value="Philology &amp; Languages" data-fc="fac7" data-i="fac7">Philology &amp; Languages</option>
+            <option value="Architecture &amp; Design" data-fc="fac8" data-i="fac8">Architecture &amp; Design</option>
+          </select>
+        </div>
+
+        <div class="section-title" data-i="secDocs">Documents</div>
+        <div>
+          <label data-i="fUpPass">Passport <span class="req">*</span></label>
+          <label class="file" id="lbl-passport_file">
+            <span class="file-icon">📄</span>
+            <div><span data-i="upHint">Click to upload</span></div>
+            <input type="file" name="passport_file" accept=".pdf,.jpg,.jpeg,.png" required onchange="markFile(this)">
+          </label>
+        </div>
+        <div>
+          <label data-i="fUpDip">Diploma / Certificate <span class="req">*</span></label>
+          <label class="file" id="lbl-diploma_file">
+            <span class="file-icon">🎓</span>
+            <div><span data-i="upHint">Click to upload</span></div>
+            <input type="file" name="diploma_file" accept=".pdf,.jpg,.jpeg,.png" required onchange="markFile(this)">
+          </label>
+        </div>
+        <div>
+          <label data-i="fUpPhoto">Photo (3x4) <span class="req">*</span></label>
+          <label class="file" id="lbl-photo_file">
+            <span class="file-icon">📷</span>
+            <div><span data-i="upHint">Click to upload</span></div>
+            <input type="file" name="photo_file" accept=".jpg,.jpeg,.png" required onchange="markFile(this)">
+          </label>
+        </div>
+
+        <div class="full" style="margin-top:18px">
+          <button class="btn" type="submit" id="submitBtn" style="width:100%" data-i="submit">Submit Application</button>
+        </div>
+      </div>
+    </form>
+    <p class="footnote" data-i="footnote">© XIU International Admissions Office · qabul.xiuedu.uz</p>
+  </div>
 </main>
 
 <script>
-/* ---------- i18n ---------- */
+/* ============ i18n ============ */
 const I = {
-  en:{brand:"International Innovation University",brandSub:"International Admissions Office",
-    heroH:"Study in Uzbekistan at XIU",heroP:"Submit your application for Bachelor's and Master's programs. Our admissions team will review your documents and guide you through every step — from offer letter to visa invitation.",
-    s1:"1 · Apply",s2:"2 · Document review",s3:"3 · Conditional Offer",s4:"4 · Contract",s5:"5 · Payment 30–50%",s6:"6 · Admission + Invitation",
-    formH:"Application Form",formSub:"All fields marked with * are required. Uploads accept PDF, JPG or PNG.",
-    secPersonal:"Personal Information",secProgram:"Program Choice",secDocs:"Documents",
-    fName:"Full Name",fCountry:"Country",fPassport:"Passport Number",fDob:"Date of Birth",fPhone:"Phone (WhatsApp)",fEmail:"Email",
-    fProgram:"Program",fFaculty:"Faculty",bachelor:"Bachelor",master:"Master",choose:"— Select —",
-    fUpPass:"Passport",fUpDip:"Diploma / Certificate",fUpPhoto:"Photo (3x4)",upHint:"Click to upload",submit:"Submit Application",
-    fac1:"Information Technologies",fac2:"Business & Economics",fac3:"Engineering",fac4:"Medicine",fac5:"Law",fac6:"International Relations",fac7:"Philology & Languages",fac8:"Architecture & Design",
-    okH:"Application submitted!",okP:"Thank you. Your application has been received by the XIU admissions office. We will contact you on WhatsApp and email.",refL:"Reference",another:"Submit another",
-    errGeneric:"Unable to submit. Please try again in a moment.",errSubmitting:"Submitting…"},
-  ru:{brand:"Международный инновационный университет",brandSub:"Отдел международного приёма",
-    heroH:"Учитесь в Узбекистане в XIU",heroP:"Подайте заявку на программы бакалавриата и магистратуры. Наша приёмная комиссия проверит документы и проведёт вас через каждый этап — от письма-предложения до приглашения на визу.",
-    s1:"1 · Заявка",s2:"2 · Проверка документов",s3:"3 · Условное предложение",s4:"4 · Договор",s5:"5 · Оплата 30–50%",s6:"6 · Зачисление + приглашение",
-    formH:"Форма заявки",formSub:"Поля со * обязательны. Загрузка: PDF, JPG или PNG.",
-    secPersonal:"Личные данные",secProgram:"Выбор программы",secDocs:"Документы",
-    fName:"ФИО",fCountry:"Страна",fPassport:"Номер паспорта",fDob:"Дата рождения",fPhone:"Телефон (WhatsApp)",fEmail:"Эл. почта",
-    fProgram:"Программа",fFaculty:"Факультет",bachelor:"Бакалавриат",master:"Магистратура",choose:"— Выберите —",
-    fUpPass:"Паспорт",fUpDip:"Диплом / сертификат",fUpPhoto:"Фото (3x4)",upHint:"Нажмите для загрузки",submit:"Отправить заявку",
-    fac1:"Информационные технологии",fac2:"Бизнес и экономика",fac3:"Инженерия",fac4:"Медицина",fac5:"Право",fac6:"Международные отношения",fac7:"Филология и языки",fac8:"Архитектура и дизайн",
-    okH:"Заявка отправлена!",okP:"Спасибо. Ваша заявка получена приёмной комиссией XIU. Мы свяжемся с вами в WhatsApp и по эл. почте.",refL:"Номер",another:"Подать ещё",
-    errGeneric:"Не удалось отправить. Попробуйте через минуту.",errSubmitting:"Отправка…"},
-  uz:{brand:"Xalqaro Innovatsiya Universiteti",brandSub:"Xalqaro qabul bo'limi",
-    heroH:"XIU'da O'zbekistonda tahsil oling",heroP:"Bakalavr va magistratura dasturlariga ariza topshiring. Qabul bo'limimiz hujjatlaringizni tekshiradi va sizni har bir bosqichdan — taklif xatidan viza taklifnomasigacha — yo'naltiradi.",
-    s1:"1 · Ariza",s2:"2 · Hujjat tekshiruvi",s3:"3 · Shartli taklif",s4:"4 · Shartnoma",s5:"5 · To'lov 30–50%",s6:"6 · Qabul + Taklifnoma",
-    formH:"Ariza shakli",formSub:"* belgili maydonlar majburiy. Yuklash: PDF, JPG yoki PNG.",
-    secPersonal:"Shaxsiy ma'lumotlar",secProgram:"Dastur tanlovi",secDocs:"Hujjatlar",
-    fName:"To'liq ism",fCountry:"Davlat",fPassport:"Pasport raqami",fDob:"Tug'ilgan sana",fPhone:"Telefon (WhatsApp)",fEmail:"Email",
-    fProgram:"Dastur",fFaculty:"Fakultet",bachelor:"Bakalavr",master:"Magistr",choose:"— Tanlang —",
-    fUpPass:"Pasport",fUpDip:"Diplom / sertifikat",fUpPhoto:"Surat (3x4)",upHint:"Yuklash uchun bosing",submit:"Arizani yuborish",
-    fac1:"Axborot texnologiyalari",fac2:"Biznes va iqtisodiyot",fac3:"Muhandislik",fac4:"Tibbiyot",fac5:"Huquqshunoslik",fac6:"Xalqaro munosabatlar",fac7:"Filologiya va tillar",fac8:"Arxitektura va dizayn",
-    okH:"Ariza yuborildi!",okP:"Rahmat. Arizangiz XIU qabul bo'limiga yetib bordi. Siz bilan WhatsApp va email orqali bog'lanamiz.",refL:"Raqam",another:"Yana ariza topshirish",
-    errGeneric:"Yuborib bo'lmadi. Birozdan keyin qaytadan urinib ko'ring.",errSubmitting:"Yuborilmoqda…"}
+  en: {
+    brand: "International Innovation University", brandSub: "International Admissions Office",
+    heroH: "Study in Uzbekistan at XIU",
+    heroP: "Submit your application for Bachelor's and Master's programs. Our admissions team will review your documents and guide you through every step — from offer letter to visa invitation.",
+    s1: "1 · Apply", s2: "2 · Document review", s3: "3 · Conditional Offer",
+    s4: "4 · Contract", s5: "5 · Payment 30–50%", s6: "6 · Admission + Invitation",
+    formH: "Application Form",
+    formSub: "All fields marked with * are required. Uploads accept PDF, JPG or PNG.",
+    secPersonal: "Personal Information", secProgram: "Program Choice", secDocs: "Documents",
+    fName: "Full Name", fCountry: "Country", fPassport: "Passport Number",
+    fDob: "Date of Birth", fPhone: "Phone (WhatsApp)", fEmail: "Email",
+    fProgram: "Program", fFaculty: "Faculty",
+    bachelor: "Bachelor", master: "Master", choose: "— Select —",
+    fUpPass: "Passport", fUpDip: "Diploma / Certificate", fUpPhoto: "Photo (3x4)",
+    upHint: "Click to upload", submit: "Submit Application",
+    fac1: "Information Technologies", fac2: "Business & Economics", fac3: "Engineering",
+    fac4: "Medicine", fac5: "Law", fac6: "International Relations",
+    fac7: "Philology & Languages", fac8: "Architecture & Design",
+    okH: "Application submitted!",
+    okP: "Thank you. Your application has been received by the XIU admissions office. We will contact you on WhatsApp and email.",
+    refL: "Reference", another: "Submit another",
+    errGeneric: "Unable to submit. Please try again in a moment.",
+    errSubmitting: "Submitting…",
+    footnote: "© XIU International Admissions Office · qabul.xiuedu.uz",
+  },
+  ru: {
+    brand: "Международный инновационный университет", brandSub: "Отдел международного приёма",
+    heroH: "Учитесь в Узбекистане в XIU",
+    heroP: "Подайте заявку на программы бакалавриата и магистратуры. Наша приёмная комиссия проверит документы и проведёт вас через каждый этап — от письма-предложения до приглашения на визу.",
+    s1: "1 · Заявка", s2: "2 · Проверка документов", s3: "3 · Условное предложение",
+    s4: "4 · Договор", s5: "5 · Оплата 30–50%", s6: "6 · Зачисление + приглашение",
+    formH: "Форма заявки",
+    formSub: "Поля со * обязательны. Загрузка: PDF, JPG или PNG.",
+    secPersonal: "Личные данные", secProgram: "Выбор программы", secDocs: "Документы",
+    fName: "ФИО", fCountry: "Страна", fPassport: "Номер паспорта",
+    fDob: "Дата рождения", fPhone: "Телефон (WhatsApp)", fEmail: "Эл. почта",
+    fProgram: "Программа", fFaculty: "Факультет",
+    bachelor: "Бакалавриат", master: "Магистратура", choose: "— Выберите —",
+    fUpPass: "Паспорт", fUpDip: "Диплом / сертификат", fUpPhoto: "Фото (3x4)",
+    upHint: "Нажмите для загрузки", submit: "Отправить заявку",
+    fac1: "Информационные технологии", fac2: "Бизнес и экономика", fac3: "Инженерия",
+    fac4: "Медицина", fac5: "Право", fac6: "Международные отношения",
+    fac7: "Филология и языки", fac8: "Архитектура и дизайн",
+    okH: "Заявка отправлена!",
+    okP: "Спасибо. Ваша заявка получена приёмной комиссией XIU. Мы свяжемся с вами в WhatsApp и по эл. почте.",
+    refL: "Номер", another: "Подать ещё",
+    errGeneric: "Не удалось отправить. Попробуйте через минуту.",
+    errSubmitting: "Отправка…",
+    footnote: "© XIU Международный отдел приёма · qabul.xiuedu.uz",
+  },
+  uz: {
+    brand: "Xalqaro Innovatsiya Universiteti", brandSub: "Xalqaro qabul bo'limi",
+    heroH: "XIU'da O'zbekistonda tahsil oling",
+    heroP: "Bakalavr va magistratura dasturlariga ariza topshiring. Qabul bo'limimiz hujjatlaringizni tekshiradi va sizni har bir bosqichdan — taklif xatidan viza taklifnomasigacha — yo'naltiradi.",
+    s1: "1 · Ariza", s2: "2 · Hujjat tekshiruvi", s3: "3 · Shartli taklif",
+    s4: "4 · Shartnoma", s5: "5 · To'lov 30–50%", s6: "6 · Qabul + Taklifnoma",
+    formH: "Ariza shakli",
+    formSub: "* belgili maydonlar majburiy. Yuklash: PDF, JPG yoki PNG.",
+    secPersonal: "Shaxsiy ma'lumotlar", secProgram: "Dastur tanlovi", secDocs: "Hujjatlar",
+    fName: "To'liq ism", fCountry: "Davlat", fPassport: "Pasport raqami",
+    fDob: "Tug'ilgan sana", fPhone: "Telefon (WhatsApp)", fEmail: "Email",
+    fProgram: "Dastur", fFaculty: "Fakultet",
+    bachelor: "Bakalavr", master: "Magistr", choose: "— Tanlang —",
+    fUpPass: "Pasport", fUpDip: "Diplom / sertifikat", fUpPhoto: "Surat (3x4)",
+    upHint: "Yuklash uchun bosing", submit: "Arizani yuborish",
+    fac1: "Axborot texnologiyalari", fac2: "Biznes va iqtisodiyot", fac3: "Muhandislik",
+    fac4: "Tibbiyot", fac5: "Huquqshunoslik", fac6: "Xalqaro munosabatlar",
+    fac7: "Filologiya va tillar", fac8: "Arxitektura va dizayn",
+    okH: "Ariza yuborildi!",
+    okP: "Rahmat. Arizangiz XIU qabul bo'limiga yetib bordi. Siz bilan WhatsApp va email orqali bog'lanamiz.",
+    refL: "Raqam", another: "Yana ariza topshirish",
+    errGeneric: "Yuborib bo'lmadi. Birozdan keyin qaytadan urinib ko'ring.",
+    errSubmitting: "Yuborilmoqda…",
+    footnote: "© XIU Xalqaro qabul bo'limi · qabul.xiuedu.uz",
+  }
 };
 
 let lang = "en";
 
-function setLang(l){
+function setLang(l) {
   lang = l;
   document.querySelectorAll('.lang button').forEach(b => b.classList.remove('active'));
   document.getElementById('lg-' + l).classList.add('active');
   document.documentElement.lang = l;
   applyI18n();
 }
-function applyI18n(){
+
+function applyI18n() {
   const t = I[lang];
   document.querySelectorAll('[data-i]').forEach(el => {
     const k = el.getAttribute('data-i');
-    if (t[k]) el.innerHTML = t[k];
+    if (t[k]) {
+      // Keep the inner <small> if present — only replace the leading text.
+      if (el.querySelector('small')) {
+        const small = el.querySelector('small');
+        el.firstChild.nodeValue = t[k] + (el.firstChild.nodeValue.endsWith(' ') ? ' ' : '');
+        const sk = small.getAttribute('data-i');
+        if (sk && t[sk]) small.textContent = t[sk];
+      } else {
+        el.innerHTML = t[k];
+      }
+    }
   });
 }
 
-function markFile(input){
+function markFile(input) {
   const lbl = input.closest('label.file');
   if (input.files[0]) {
     lbl.classList.add('has');
-    lbl.querySelector('span').textContent = "✓ " + input.files[0].name;
+    lbl.querySelector('div').innerHTML = "✓ " + input.files[0].name;
   }
 }
 
 // API base — same origin. Nginx proxies /api/ to backend.
 const API = '/api/v1/international-admissions';
 
-/**
- * Fetch a session token from the backend before the form mounts.
- * The token carries an HMAC-signed timestamp; the server verifies
- * the elapsed time when the form is submitted (must be > 5s).
- */
-async function loadSession(){
+async function loadSession() {
   try {
-    const r = await fetch(API + '/apply/session', {cache: 'no-store'});
+    const r = await fetch(API + '/apply/session', { cache: 'no-store' });
     const j = await r.json();
     if (j && j.token) document.getElementById('session_token').value = j.token;
   } catch (e) {
-    // Token will be empty → server rejects with 400. Show a refresh hint.
     showError(I[lang].errGeneric);
   }
 }
 
-function showError(msg){
+function showError(msg) {
   const el = document.getElementById('formError');
   el.textContent = msg;
-  el.style.display = 'block';
+  el.style.display = 'flex';
   setTimeout(() => { el.style.display = 'none'; }, 6000);
+  window.scrollTo({ top: el.offsetTop - 80, behavior: 'smooth' });
 }
 
-async function submitApp(e){
+async function submitApp(e) {
   e.preventDefault();
   const f = e.target;
   const btn = document.getElementById('submitBtn');
@@ -300,9 +727,9 @@ async function submitApp(e){
   btn.textContent = I[lang].errSubmitting;
   document.getElementById('formError').style.display = 'none';
 
-  // Build the multipart payload — append the i18n-friendly faculty
-  // text + the data-fc code from the selected <option> so the server
-  // can group by language-independent faculty key later.
+  // FormData carries every native input. Add the faculty code +
+  // language separately because the server keys faculty in a
+  // language-independent way.
   const fd = new FormData(f);
   const facultyOpt = document.getElementById('facultySelect').selectedOptions[0];
   const facultyCode = facultyOpt ? (facultyOpt.getAttribute('data-fc') || 'other') : 'other';
@@ -317,8 +744,7 @@ async function submitApp(e){
       showError(typeof msg === 'string' ? msg : I[lang].errGeneric);
       btn.disabled = false;
       btn.textContent = originalLabel;
-      // Pull a fresh session token so the time-trap window restarts.
-      loadSession();
+      loadSession();   // refresh session token so the time-trap window restarts
       return false;
     }
     // Success — swap the form for a thank-you card.
@@ -327,11 +753,11 @@ async function submitApp(e){
       `<div class="success">
         <div class="ic">✓</div>
         <h2>${t.okH}</h2>
-        <p class="sub" style="max-width:440px;margin:0 auto 4px">${t.okP}</p>
+        <p class="sub">${t.okP}</p>
         <div class="ref">${j.ref_number || ''}</div>
-        <div><button class="btn" onclick="location.reload()">${t.another}</button></div>
+        <button class="btn ghost" onclick="location.reload()">${t.another}</button>
       </div>`;
-    window.scrollTo(0, 0);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   } catch (e) {
     showError(I[lang].errGeneric);
     btn.disabled = false;
@@ -340,7 +766,7 @@ async function submitApp(e){
   return false;
 }
 
-/* ---------- init ---------- */
+/* ============ init ============ */
 applyI18n();
 loadSession();
 </script>
