@@ -559,8 +559,12 @@ def _build_context(
         None,
     )
 
-    # Course label: "1-kurs" for new admission, course name for transfer
-    if application.admission_type == AdmissionType.TRANSFER and course:
+    # Course label: use the resolved course name whenever the application
+    # carries one — perevod lets the operator pick it, and 2-mutaxassislik
+    # auto-resolves to "2-kurs" (1st-year credits transfer from the prior
+    # degree). Otherwise it's a fresh start at 1-kurs (yangi qabul,
+    # magistratura — neither sets a course_id).
+    if course:
         course_label = course.name
     else:
         course_label = "1-kurs"
