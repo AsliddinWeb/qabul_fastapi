@@ -336,7 +336,9 @@ async def create_lead(
     current: CurrentUser = Depends(get_current_user),
     svc: LeadService = Depends(_service),
 ) -> LeadCreateResponse:
-    lead, merged = await svc.create_lead(payload, actor_id=UUID(current.user_id))
+    lead, merged = await svc.create_lead(
+        payload, actor_id=UUID(current.user_id), block_on_duplicate=True,
+    )
     # Only audit fresh creates; merges already get a 'merge' lead_activity row
     # via _merge_into_existing, so duplicating into audit_logs is noise.
     if not merged:

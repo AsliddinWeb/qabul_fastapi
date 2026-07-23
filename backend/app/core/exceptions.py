@@ -19,13 +19,24 @@ class AppError(Exception):
     code: str = "app_error"
     message: str = "Application error"
 
-    def __init__(self, message: str | None = None, *, code: str | None = None, status_code: int | None = None):
+    details: object | None = None
+
+    def __init__(
+        self,
+        message: str | None = None,
+        *,
+        code: str | None = None,
+        status_code: int | None = None,
+        details: object | None = None,
+    ):
         if message is not None:
             self.message = message
         if code is not None:
             self.code = code
         if status_code is not None:
             self.status_code = status_code
+        if details is not None:
+            self.details = details
         super().__init__(self.message)
 
 
@@ -174,7 +185,7 @@ def _format_validation_summary(errors: list[dict]) -> str:
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def _app_error_handler(_: Request, exc: AppError) -> JSONResponse:
-        return _error_response(exc.status_code, exc.code, exc.message)
+        return _error_response(exc.status_code, exc.code, exc.message, exc.details)
 
     @app.exception_handler(RequestValidationError)
     async def _validation_handler(_: Request, exc: RequestValidationError) -> JSONResponse:

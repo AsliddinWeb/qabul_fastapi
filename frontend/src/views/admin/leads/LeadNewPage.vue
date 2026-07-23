@@ -226,22 +226,24 @@ async function submit() {
       auto_assign: form.auto_assign,
       notes: form.notes.trim() || null,
     })
-    if (res.merged) {
-      // Backend deduped into an existing OPEN lead. Tell the operator
-      // who owns it (or that it's unassigned) and jump them to that lead
-      // so they see the existing context instead of thinking they made a
-      // new record.
-      const owner = res.lead.assigned_to_name
-      toast.success(owner
-        ? `Bu telefon allaqachon "${owner}" operatorga biriktirilgan. Mavjud lead'ga yo'naltirilmoqda...`
-        : `Bu telefon allaqachon ro'yxatda. Mavjud lead'ga yo'naltirilmoqda...`)
-    } else {
-      toast.success("Lead yaratildi")
-    }
+    toast.success("Lead yaratildi")
     router.push(`${panelPrefix.value}/leads/${res.lead.id}`)
   } catch (e) {
-    const ax = e as AxiosError<{ error?: { message?: string }; detail?: string }>
-    toast.error(ax.response?.data?.error?.message || ax.response?.data?.detail || "Xatolik")
+    const ax = e as AxiosError<{ error?: { code?: string; message?: string; details?: DuplicateHint }; detail?: string }>
+    const err = ax.response?.data?.error
+    // Duplicate phone: backend refuses to create/merge. Surface the existing
+    // lead as a link instead of silently pulling it into this operator's funnel.
+    if (ax.response?.status === 409 && err?.code === "lead_duplicate_phone" && err.details?.lead_id) {
+      duplicateHint.value = {
+        lead_id: err.details.lead_id,
+        full_name: err.details.full_name,
+        assigned_to_name: err.details.assigned_to_name,
+        stage_name: err.details.stage_name,
+      }
+      toast.error("Bu telefon allaqachon ro'yxatda — mavjud lead'ni oching")
+    } else {
+      toast.error(err?.message || ax.response?.data?.detail || "Xatolik")
+    }
   } finally {
     saving.value = false
   }
@@ -408,7 +410,7 @@ async function submit() {
       <!-- Submit -->
       <div class="flex items-center justify-between gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
         <RouterLink :to="`${panelPrefix}/leads`" class="text-sm text-slate-500 hover:text-slate-900 dark:hover:text-slate-100">Bekor</RouterLink>
-        <button type="submit" class="btn-primary" :disabled="saving || !isValid">
+        <button type="submit" class="btn-primary" :disabled="saving || !isValid || !!duplicateHint">
           <Save class="w-4 h-4" /> {{ saving ? 'Saqlanmoqda...' : 'Lead yaratish' }}
         </button>
       </div>

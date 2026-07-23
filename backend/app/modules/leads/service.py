@@ -77,10 +77,17 @@ class LeadService:
     # ------------------------------------------------------------------ #
     async def create_lead(
         self, payload: LeadCreate, *, actor_id: UUID | None,
+        block_on_duplicate: bool = False,
     ) -> tuple[Lead, bool]:
         """Returns (lead, merged_flag). When merged_flag is True the lead is
         an existing OPEN one we deduped into — caller should surface that to
         the operator so they don't think they created a new record.
+
+        When `block_on_duplicate` is True (operator-initiated create), an
+        existing OPEN lead is NOT merged into — we raise ConflictError so the
+        UI can link to it instead. Silent merging yanks the lead out of its
+        current operator's funnel, which confuses operators. The public
+        landing flow leaves this False and keeps soft-merging.
         """
         phone = payload.phone.strip()
         if not phone:
@@ -103,9 +110,23 @@ class LeadService:
         if stage is None:
             raise ValidationError("Pipeline has no stages")
 
-        # 2) De-dup: existing OPEN lead with same phone → merge
+        # 2) De-dup: existing OPEN lead with same phone.
         existing = await self.leads.find_by_phone_open(phone)
         if existing:
+            if block_on_duplicate:
+                # Operator flow: refuse instead of merging. Hand the UI the
+                # existing lead so it can link to it.
+                full = await self.leads.get_with_labels(existing.id)
+                raise ConflictError(
+                    "Bu telefon raqami bilan lead allaqachon mavjud",
+                    code="lead_duplicate_phone",
+                    details={
+                        "lead_id": str(existing.id),
+                        "full_name": existing.full_name,
+                        "assigned_to_name": (full or {}).get("assigned_to_name"),
+                        "stage_name": (full or {}).get("stage_name"),
+                    },
+                )
             merged = await self._merge_into_existing(
                 existing, payload=payload, actor_id=actor_id,
             )
