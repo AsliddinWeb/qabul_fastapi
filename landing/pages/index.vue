@@ -368,11 +368,11 @@ const stats = [
         <div class="lg:col-span-5">
           <span class="eyebrow mb-3 sm:mb-4">Universitet haqida</span>
           <h2 class="display-3 mt-3">
-            Yangi avlod<br /><span class="gradient-text">Universiteti</span>
+            Xalqaro innovatsion<br /><span class="gradient-text">universiteti</span>
           </h2>
           <p class="lead mt-4 sm:mt-6">
-            Qarshi shahridagi xususiy oliy ta'lim muassasasi. Bakalavr va magistratura
-            yo'nalishlarida keng imkoniyatlar yaratuvchi zamonaviy universitet.
+            Qarshi shahridagi nodavlat oliy ta'lim muassasasi. Bakalavr va magistratura
+            yo'nalishlarida zamonaviy va innovatsion ta'lim beruvchi universitet.
           </p>
           <div class="mt-6 sm:mt-8 flex flex-col xs:flex-row gap-3">
             <a :href="`${appUrl}/auth/login`" class="btn-primary w-full xs:w-auto">Ariza topshirish</a>
