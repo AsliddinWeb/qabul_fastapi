@@ -7,7 +7,7 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.core.exceptions import ForbiddenError, UnauthorizedError
+from app.core.exceptions import ForbiddenError, TooManyRequestsError, UnauthorizedError
 from app.core.logging import get_logger
 from app.core.security import (
     create_access_token,
@@ -51,7 +51,32 @@ class AuthService:
         self.otp = OtpService(redis=redis, sms=sms_client or EskizClient())
 
     # ---------- OTP (applicant flow) ----------
-    async def request_otp(self, payload: OtpRequest) -> OtpRequestResponse:
+    # ---- Abuse throttles (Redis; fail-open if Redis is down) ----
+    _OTP_REQ_MAX_IP = 15          # OTP sends per IP per hour (anti SMS-bombing)
+    _OTP_REQ_WINDOW = 3600
+    _LOGIN_FAIL_MAX_PHONE = 10    # failed password logins per phone …
+    _LOGIN_FAIL_MAX_IP = 30       # … and per IP, before a temporary block
+    _LOGIN_FAIL_WINDOW = 900      # 15 min sliding block window
+
+    async def request_otp(
+        self, payload: OtpRequest, *, ip: str | None = None
+    ) -> OtpRequestResponse:
+        # Per-IP cap so one host can't bomb SMS to many numbers (each number is
+        # separately protected by the per-phone resend cooldown in OtpService).
+        if ip:
+            try:
+                k = f"auth:otp_ip:{ip}"
+                n = await self.redis.incr(k)
+                if n == 1:
+                    await self.redis.expire(k, self._OTP_REQ_WINDOW)
+                if n > self._OTP_REQ_MAX_IP:
+                    raise TooManyRequestsError(
+                        "Juda ko'p so'rov yuborildi. Bir ozdan so'ng urinib ko'ring."
+                    )
+            except TooManyRequestsError:
+                raise
+            except Exception:
+                pass  # Redis down — degrade gracefully, don't block real users
         # We allow OTP for any phone — if user exists with non-applicant role,
         # verify_otp will reject. This avoids leaking which phones are staff.
         ttl, cooldown, delivered = await self.otp.issue(payload.phone, OtpPurpose.LOGIN)
@@ -91,19 +116,63 @@ class AuthService:
         return LoginResponse(session=self._session_dto(user), tokens=tokens)
 
     # ---------- Staff (password) login ----------
-    async def staff_login(self, payload: StaffLogin) -> LoginResponse:
+    async def staff_login(
+        self, payload: StaffLogin, *, ip: str | None = None
+    ) -> LoginResponse:
+        pkey = f"auth:login_fail:phone:{payload.phone}"
+        ikey = f"auth:login_fail:ip:{ip}" if ip else None
+
+        # Reject early if this phone or IP is already over the failure budget.
+        if await self._login_blocked(pkey, ikey):
+            raise TooManyRequestsError(
+                "Juda ko'p urinish. 15 daqiqadan so'ng qayta urinib ko'ring."
+            )
+
         user = await self.users.get_by_phone(payload.phone)
-        if not user or user.role == UserRole.APPLICANT:
-            raise UnauthorizedError("Invalid phone or password")
-        if not user.password_hash or not verify_password(payload.password, user.password_hash):
+        # Same generic error for unknown phone and wrong password — no user
+        # enumeration. Password mismatch and non-staff both count as a failure.
+        credentials_ok = (
+            user is not None
+            and user.role != UserRole.APPLICANT
+            and bool(user.password_hash)
+            and verify_password(payload.password, user.password_hash)
+        )
+        if not credentials_ok:
+            await self._register_login_failure(pkey, ikey)
             raise UnauthorizedError("Invalid phone or password")
         if not user.is_active:
             raise ForbiddenError("Account is deactivated")
+
+        # Success — clear the failure counters for this phone.
+        try:
+            await self.redis.delete(pkey)
+        except Exception:
+            pass
 
         await self.users.update(user, last_login_at=datetime.now(timezone.utc))
         tokens = await self._issue_tokens(user)
         await self.session.commit()
         return LoginResponse(session=self._session_dto(user), tokens=tokens)
+
+    async def _login_blocked(self, pkey: str, ikey: str | None) -> bool:
+        try:
+            pfails = int(await self.redis.get(pkey) or 0)
+            ifails = int(await self.redis.get(ikey) or 0) if ikey else 0
+        except Exception:
+            return False  # Redis down — fail open, don't lock everyone out
+        return pfails >= self._LOGIN_FAIL_MAX_PHONE or ifails >= self._LOGIN_FAIL_MAX_IP
+
+    async def _register_login_failure(self, pkey: str, ikey: str | None) -> None:
+        try:
+            async with self.redis.pipeline(transaction=True) as pipe:
+                pipe.incr(pkey)
+                pipe.expire(pkey, self._LOGIN_FAIL_WINDOW)
+                if ikey:
+                    pipe.incr(ikey)
+                    pipe.expire(ikey, self._LOGIN_FAIL_WINDOW)
+                await pipe.execute()
+        except Exception:
+            pass
 
     # ---------- Refresh ----------
     # Grace window: a refresh token revoked within the last N seconds is

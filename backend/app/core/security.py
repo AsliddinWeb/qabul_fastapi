@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
+from uuid import uuid4
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -31,6 +32,9 @@ def _create_token(subject: str, token_type: TokenType, ttl: timedelta, extra: di
         "type": token_type,
         "iat": int(now.timestamp()),
         "exp": int((now + ttl).timestamp()),
+        # Unique per token so two tokens minted in the same second (e.g. a
+        # double-clicked login) don't collide on uq_refresh_tokens_token_hash.
+        "jti": uuid4().hex,
     }
     if extra:
         payload.update(extra)

@@ -70,6 +70,12 @@ class ValidationError(AppError):
     message = "Validation error"
 
 
+class TooManyRequestsError(AppError):
+    status_code = status.HTTP_429_TOO_MANY_REQUESTS
+    code = "too_many_requests"
+    message = "Too many requests"
+
+
 def _error_response(status_code: int, code: str, message: str, details: object | None = None) -> JSONResponse:
     body: dict = {"error": {"code": code, "message": message}}
     if details is not None:
