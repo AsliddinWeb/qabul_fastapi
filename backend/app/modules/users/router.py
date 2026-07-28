@@ -10,13 +10,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import CurrentUser, get_current_user, get_db, require_permission
 from app.core.permissions import Permission
-from app.core.schemas import PageResponse
+from app.core.schemas import MessageResponse, PageResponse
 from app.db.enums import UserRole
 from app.modules.audit.service import AuditService
 from app.modules.users.schemas import (
     UserCreate,
     UserPasswordChange,
     UserRead,
+    UserSelfPasswordChange,
     UserUpdate,
 )
 from app.modules.users.service import UserService
@@ -35,6 +36,28 @@ async def me(
 ) -> UserRead:
     user = await svc.get(UUID(current.user_id))
     return UserRead.model_validate(user)
+
+
+# NOTE: must be declared before "/{user_id}/password" so "me" isn't parsed
+# as a UUID path param. Any authenticated staff can change their OWN password
+# (no admin permission needed) — the current password is the authorisation.
+@router.put("/me/password", response_model=MessageResponse)
+async def change_own_password(
+    payload: UserSelfPasswordChange,
+    request: Request,
+    current: CurrentUser = Depends(get_current_user),
+    svc: UserService = Depends(_service),
+) -> MessageResponse:
+    await svc.change_own_password(UUID(current.user_id), payload)
+    await AuditService(svc.session).log(
+        "user.change_own_password",
+        user_id=UUID(current.user_id),
+        entity_type="users",
+        entity_id=UUID(current.user_id),
+        request=request,
+    )
+    await svc.session.commit()
+    return MessageResponse(message="password_changed")
 
 
 @router.get("/public-lookup")

@@ -5,11 +5,16 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError, NotFoundError, ValidationError
-from app.core.security import hash_password
+from app.core.security import hash_password, verify_password
 from app.db.enums import UserRole
 from app.modules.users.models import User
 from app.modules.users.repository import UserRepository
-from app.modules.users.schemas import UserCreate, UserPasswordChange, UserUpdate
+from app.modules.users.schemas import (
+    UserCreate,
+    UserPasswordChange,
+    UserSelfPasswordChange,
+    UserUpdate,
+)
 
 
 class UserService:
@@ -77,6 +82,23 @@ class UserService:
     async def change_password(self, user_id: UUID, payload: UserPasswordChange) -> User:
         user = await self.get(user_id)
         return await self.repo.update(user, password_hash=hash_password(payload.new_password))
+
+    async def change_own_password(
+        self, user_id: UUID, payload: UserSelfPasswordChange
+    ) -> User:
+        """Self-service: verify the caller's current password before setting a
+        new one. Applicants log in via OTP and have no password_hash — reject
+        them with a clear message rather than a generic 'wrong password'."""
+        user = await self.get(user_id)
+        if not user.password_hash:
+            raise ValidationError("Bu hisob parol bilan kirmaydi")
+        if not verify_password(payload.current_password, user.password_hash):
+            raise ValidationError("Joriy parol noto'g'ri")
+        if verify_password(payload.new_password, user.password_hash):
+            raise ValidationError("Yangi parol eskisidan farq qilishi kerak")
+        return await self.repo.update(
+            user, password_hash=hash_password(payload.new_password)
+        )
 
     async def deactivate(self, user_id: UUID) -> User:
         user = await self.get(user_id)

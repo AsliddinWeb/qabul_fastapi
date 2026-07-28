@@ -4,6 +4,7 @@ import { AxiosError } from 'axios'
 import { authApi } from '@/api/auth.api'
 import { useAuthStore } from '@/stores/auth'
 import { http } from '@/api/http'
+import { password as vPassword } from '@/utils/validators'
 import Skeleton from '@/components/ui/Skeleton.vue'
 
 const auth = useAuthStore()
@@ -52,11 +53,12 @@ async function save() {
       email: form.email || null,
     })
     message.value = { type: 'ok', text: "Ma'lumotlar saqlandi" }
+    // Update local state in place instead of re-fetching the whole profile.
+    me.value = { ...me.value, full_name: form.full_name || null, email: form.email || null }
     if (auth.user) {
       auth.user.full_name = form.full_name
       localStorage.setItem('user', JSON.stringify(auth.user))
     }
-    await load()
   } catch (e) {
     const ax = e as AxiosError<{ error?: { message?: string } }>
     message.value = {
@@ -69,6 +71,38 @@ async function save() {
 }
 
 onMounted(load)
+
+// ---- Password change (self-service) ----
+const pw = reactive({ current: '', next: '', confirm: '' })
+const pwSaving = ref(false)
+const pwMessage = ref<{ type: 'ok' | 'err'; text: string } | null>(null)
+
+async function changePassword() {
+  pwMessage.value = null
+  if (!pw.current) {
+    pwMessage.value = { type: 'err', text: "Joriy parolni kiriting" }
+    return
+  }
+  if (vPassword(pw.next)) {
+    pwMessage.value = { type: 'err', text: "Yangi parol kamida 8 belgi bo'lishi kerak" }
+    return
+  }
+  if (pw.next !== pw.confirm) {
+    pwMessage.value = { type: 'err', text: "Yangi parollar mos kelmadi" }
+    return
+  }
+  pwSaving.value = true
+  try {
+    await authApi.changePassword(pw.current, pw.next)
+    pwMessage.value = { type: 'ok', text: "Parol yangilandi" }
+    pw.current = pw.next = pw.confirm = ''
+  } catch (e) {
+    const ax = e as AxiosError<{ error?: { message?: string } }>
+    pwMessage.value = { type: 'err', text: ax.response?.data?.error?.message || "Parolni yangilab bo'lmadi" }
+  } finally {
+    pwSaving.value = false
+  }
+}
 
 const roleLabel = computed(() => {
   const map: Record<string, string> = {
@@ -142,6 +176,43 @@ const initials = computed(() => {
         <button class="btn-primary" :disabled="saving" @click="save">
           {{ saving ? 'Saqlanmoqda...' : 'Saqlash' }}
         </button>
+      </section>
+
+      <!-- Password change -->
+      <section class="card p-6 space-y-4">
+        <div>
+          <h2 class="font-semibold text-slate-900 dark:text-slate-100">Parolni o'zgartirish</h2>
+          <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Xavfsizlik uchun avval joriy parolingizni kiriting.
+          </p>
+        </div>
+
+        <div v-if="pwMessage" class="text-sm rounded-lg p-3"
+             :class="pwMessage.type === 'ok'
+               ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+               : 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300'">
+          {{ pwMessage.text }}
+        </div>
+
+        <form class="space-y-4" @submit.prevent="changePassword">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Joriy parol</label>
+            <input v-model="pw.current" type="password" autocomplete="current-password" class="input" placeholder="••••••••" />
+          </div>
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Yangi parol</label>
+              <input v-model="pw.next" type="password" autocomplete="new-password" class="input" placeholder="Kamida 8 belgi" />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Yangi parolni takrorlang</label>
+              <input v-model="pw.confirm" type="password" autocomplete="new-password" class="input" placeholder="••••••••" />
+            </div>
+          </div>
+          <button type="submit" class="btn-primary" :disabled="pwSaving">
+            {{ pwSaving ? 'Yangilanmoqda...' : 'Parolni yangilash' }}
+          </button>
+        </form>
       </section>
 
       <!-- Account info -->

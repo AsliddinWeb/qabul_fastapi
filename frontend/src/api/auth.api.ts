@@ -47,6 +47,9 @@ export const authApi = {
     http.post('/auth/logout', { refresh_token }).then((r) => r.data),
 
   me: () => http.get<User>('/users/me').then((r) => r.data),
+
+  changePassword: (current_password: string, new_password: string) =>
+    http.put('/users/me/password', { current_password, new_password }).then((r) => r.data),
 }
 
 export function sessionToUser(session: AuthSession): User {

@@ -82,6 +82,15 @@ class UserPasswordChange(AppSchema):
     new_password: str = Field(min_length=8, max_length=100)
 
 
+class UserSelfPasswordChange(AppSchema):
+    """Self-service password change — any staff user changing their OWN
+    password. Requires the current password so a hijacked session can't
+    silently reset it."""
+
+    current_password: str = Field(min_length=1, max_length=100)
+    new_password: str = Field(min_length=8, max_length=100)
+
+
 class UserRead(IdSchema, TimestampedSchema):
     phone: str
     email: str | None = None
