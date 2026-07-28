@@ -16,10 +16,10 @@ export const PATTERNS = {
 
 // ---------- Placeholders ----------
 export const PLACEHOLDERS = {
-  phoneUz: '+998 94 202 55 11',
+  phoneUz: '+998 XX XXX XX XX',
   // Local-only placeholder used by inputs that render `+998` as a fixed
   // sticker on the left rather than baking it into the value.
-  phoneUzLocal: '94 202 55 11',
+  phoneUzLocal: 'XX XXX XX XX',
   passport: 'AA1234567',
   pinfl: '12345678901234 (14 raqam)',
   year: '2024',
