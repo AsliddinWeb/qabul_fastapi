@@ -283,10 +283,21 @@ class LeadBoardStage(AppSchema):
     color: str | None = None
     is_terminal: bool
     order_index: int
-    leads: list[LeadRead]
+    total: int = 0          # all open+won leads in this stage
+    leads: list[LeadRead]   # only the first page (newest first)
 
 
 class LeadBoardResponse(AppSchema):
     pipeline_id: UUID
     pipeline_name: str
+    page_size: int          # cards loaded per stage on first paint
     stages: list[LeadBoardStage]
+
+
+class LeadBoardStagePage(AppSchema):
+    """One 'load more' page of a single stage's cards."""
+    stage_id: UUID
+    total: int
+    offset: int
+    leads: list[LeadRead]
+    has_more: bool

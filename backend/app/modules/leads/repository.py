@@ -157,21 +157,40 @@ class LeadRepository(BaseRepository[Lead]):
         total = await self.session.scalar(count_stmt) or 0
         return rows, total
 
-    async def board_for_pipeline(self, pipeline_id: UUID) -> list[dict]:
-        """All non-lost leads of a pipeline, with embedded labels.
-
-        We include OPEN + WON so converted leads stay visible on the board
-        at the stage they reached before conversion — the user wanted to
-        be able to find and edit them after the fact. LOST is still hidden
-        because it would clutter the board with failures and the stage_id
-        on a lost lead is often noise (the user didn't progress it before
-        losing).
-        """
-        clauses = [
+    async def board_stage_counts(
+        self, pipeline_id: UUID, *, assigned_to_id: UUID | None = None
+    ) -> dict[UUID, int]:
+        """One grouped query: {stage_id: open+won lead count} for the pipeline.
+        Lets the board show a real per-stage total without loading the rows.
+        `assigned_to_id` scopes to one operator's funnel (the 'my' board)."""
+        conds = [
             Lead.pipeline_id == pipeline_id,
             Lead.status.in_([LeadStatus.OPEN, LeadStatus.WON]),
         ]
-        return await self._select_with_labels(clauses, limit=None, offset=0)
+        if assigned_to_id is not None:
+            conds.append(Lead.assigned_to_id == assigned_to_id)
+        stmt = (
+            select(Lead.stage_id, func.count(Lead.id))
+            .where(*conds)
+            .group_by(Lead.stage_id)
+        )
+        rows = (await self.session.execute(stmt)).all()
+        return {stage_id: count for stage_id, count in rows}
+
+    async def board_leads_for_stage(
+        self, pipeline_id: UUID, stage_id: UUID, *,
+        limit: int, offset: int, assigned_to_id: UUID | None = None,
+    ) -> list[dict]:
+        """A single page of a stage's cards, newest first. Backed by
+        ix_leads_stage_created so LIMIT stays cheap regardless of stage size."""
+        clauses = [
+            Lead.pipeline_id == pipeline_id,
+            Lead.stage_id == stage_id,
+            Lead.status.in_([LeadStatus.OPEN, LeadStatus.WON]),
+        ]
+        if assigned_to_id is not None:
+            clauses.append(Lead.assigned_to_id == assigned_to_id)
+        return await self._select_with_labels(clauses, limit=limit, offset=offset)
 
     async def _select_with_labels(self, clauses: list, *, limit: int | None, offset: int) -> list[dict]:
         stmt = (

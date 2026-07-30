@@ -99,13 +99,23 @@ export interface LeadBoardStage {
   color: string | null
   is_terminal: boolean
   order_index: number
-  leads: Lead[]
+  total: number      // all open+won leads in this stage
+  leads: Lead[]      // only the first page (newest first)
 }
 
 export interface LeadBoardResponse {
   pipeline_id: string
   pipeline_name: string
+  page_size: number
   stages: LeadBoardStage[]
+}
+
+export interface LeadBoardStagePage {
+  stage_id: string
+  total: number
+  offset: number
+  leads: Lead[]
+  has_more: boolean
 }
 
 export interface LeadStats {
@@ -215,8 +225,11 @@ export const leadsApi = {
         submitted_at: string | null
       }>
     }>(`/leads/${id}/related-applications`).then(r => r.data),
-  board: (pipeline_id?: string) =>
-    http.get<LeadBoardResponse>('/leads/board', { params: { pipeline_id } }).then(r => r.data),
+  board: (pipeline_id?: string, assigned_to_id?: string) =>
+    http.get<LeadBoardResponse>('/leads/board', { params: { pipeline_id, assigned_to_id } }).then(r => r.data),
+
+  boardStagePage: (stage_id: string, offset: number, limit?: number, assigned_to_id?: string) =>
+    http.get<LeadBoardStagePage>(`/leads/board/stage/${stage_id}`, { params: { offset, limit, assigned_to_id } }).then(r => r.data),
   stats: (pipeline_id?: string, assigned_to_id?: string) =>
     http.get<LeadStats>('/leads/stats', { params: { pipeline_id, assigned_to_id } }).then(r => r.data),
   slaAlerts: (within_hours = 24) =>

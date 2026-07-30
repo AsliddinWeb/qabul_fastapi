@@ -56,6 +56,7 @@ from app.modules.leads.schemas import (
     LeadAssign,
     LeadBoardResponse,
     LeadBoardStage,
+    LeadBoardStagePage,
     LeadCommentCreate,
     LeadConvert,
     LeadCreate,
@@ -356,6 +357,12 @@ async def create_lead(
     )
 
 
+# Cards loaded per stage on first paint and per "load more" click. Keeping
+# this small is what makes the board survive pipelines with tens of thousands
+# of leads — the rest are paged in on demand.
+BOARD_PAGE_SIZE = 30
+
+
 @router.get(
     "/board",
     response_model=LeadBoardResponse,
@@ -363,27 +370,66 @@ async def create_lead(
 )
 async def board(
     pipeline_id: UUID | None = Query(default=None),
+    assigned_to_id: UUID | None = Query(default=None),
     svc: LeadService = Depends(_service),
 ) -> LeadBoardResponse:
     pipeline = (await svc.pipelines.get(pipeline_id)) if pipeline_id else await svc.pipelines.get_default()
     if not pipeline:
         raise HTTPException(status_code=404, detail="No pipeline configured")
     stages = await svc.stages.list_for_pipeline(pipeline.id)
-    leads_by_stage: dict[UUID, list[dict]] = {s.id: [] for s in stages}
-    for lead in await svc.leads.board_for_pipeline(pipeline.id):
-        leads_by_stage.setdefault(lead["stage_id"], []).append(lead)
+    counts = await svc.leads.board_stage_counts(pipeline.id, assigned_to_id=assigned_to_id)
+
+    board_stages: list[LeadBoardStage] = []
+    for s in stages:
+        first_page = await svc.leads.board_leads_for_stage(
+            pipeline.id, s.id, limit=BOARD_PAGE_SIZE, offset=0,
+            assigned_to_id=assigned_to_id,
+        )
+        board_stages.append(LeadBoardStage(
+            id=s.id, name=s.name, color=s.color,
+            is_terminal=s.is_terminal, order_index=s.order_index,
+            total=counts.get(s.id, 0),
+            leads=[LeadRead.model_validate(x) for x in first_page],
+        ))
 
     return LeadBoardResponse(
         pipeline_id=pipeline.id,
         pipeline_name=pipeline.name,
-        stages=[
-            LeadBoardStage(
-                id=s.id, name=s.name, color=s.color,
-                is_terminal=s.is_terminal, order_index=s.order_index,
-                leads=[LeadRead.model_validate(x) for x in leads_by_stage.get(s.id, [])],
-            )
-            for s in stages
-        ],
+        page_size=BOARD_PAGE_SIZE,
+        stages=board_stages,
+    )
+
+
+@router.get(
+    "/board/stage/{stage_id}",
+    response_model=LeadBoardStagePage,
+    dependencies=[Depends(require_permission(Permission.LEADS_LIST))],
+)
+async def board_stage_page(
+    stage_id: UUID,
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=BOARD_PAGE_SIZE, ge=1, le=100),
+    assigned_to_id: UUID | None = Query(default=None),
+    svc: LeadService = Depends(_service),
+) -> LeadBoardStagePage:
+    """'Load more' for a single board column — the next page of a stage's
+    cards, newest first."""
+    stage = await svc.stages.get(stage_id)
+    if not stage:
+        raise HTTPException(status_code=404, detail="Stage not found")
+    total = (await svc.leads.board_stage_counts(
+        stage.pipeline_id, assigned_to_id=assigned_to_id
+    )).get(stage_id, 0)
+    rows = await svc.leads.board_leads_for_stage(
+        stage.pipeline_id, stage_id, limit=limit, offset=offset,
+        assigned_to_id=assigned_to_id,
+    )
+    return LeadBoardStagePage(
+        stage_id=stage_id,
+        total=total,
+        offset=offset,
+        leads=[LeadRead.model_validate(x) for x in rows],
+        has_more=(offset + len(rows)) < total,
     )
 
 

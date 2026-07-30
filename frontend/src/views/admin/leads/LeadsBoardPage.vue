@@ -29,24 +29,41 @@ const loading = ref(false)
 
 const pipelineOptions = computed(() => pipelines.value.map(p => ({ id: p.id, label: p.name })))
 
-const totalLeads = computed(() => board.value?.stages.reduce((s, st) => s + st.leads.length, 0) ?? 0)
+// Total across the board uses the server-provided per-stage totals, not the
+// number of cards currently rendered (only the first page is loaded).
+const totalLeads = computed(() => board.value?.stages.reduce((s, st) => s + st.total, 0) ?? 0)
+
+// On the operator's "my" board, scope every query to their own leads
+// server-side so pagination + counts stay correct.
+const assignedFilter = computed(() => (myOnly.value && auth.user?.id) ? auth.user.id : undefined)
+
+// Per-stage "load more" in-flight flags.
+const loadingMore = ref<Record<string, boolean>>({})
 
 async function load() {
   if (!pipelineId.value) return
   loading.value = true
   try {
-    const res = await leadsApi.board(pipelineId.value)
-    if (myOnly.value && auth.user?.id) {
-      // Filter to only leads assigned to current operator
-      const me = auth.user.id
-      res.stages = res.stages.map(s => ({
-        ...s,
-        leads: s.leads.filter(l => l.assigned_to_id === me),
-      }))
-    }
-    board.value = res
+    board.value = await leadsApi.board(pipelineId.value, assignedFilter.value)
   } finally {
     loading.value = false
+  }
+}
+
+async function loadMore(stage: LeadBoardResponse['stages'][number]) {
+  if (loadingMore.value[stage.id]) return
+  loadingMore.value = { ...loadingMore.value, [stage.id]: true }
+  try {
+    const page = await leadsApi.boardStagePage(stage.id, stage.leads.length, undefined, assignedFilter.value)
+    // Guard against duplicates if a drag happened mid-load.
+    const seen = new Set(stage.leads.map(l => l.id))
+    stage.leads.push(...page.leads.filter(l => !seen.has(l.id)))
+    stage.total = page.total
+  } catch (e) {
+    const ax = e as AxiosError<{ error?: { message?: string } }>
+    toast.error(ax.response?.data?.error?.message || "Yuklab bo'lmadi")
+  } finally {
+    loadingMore.value = { ...loadingMore.value, [stage.id]: false }
   }
 }
 
@@ -96,6 +113,8 @@ async function onDrop(e: DragEvent, toStageId: string) {
   if (!fromStage || !toStage) return
   fromStage.leads = fromStage.leads.filter(l => l.id !== leadId)
   toStage.leads.unshift({ ...lead, stage_id: toStageId, stage_name: toStage.name })
+  fromStage.total = Math.max(0, fromStage.total - 1)
+  toStage.total += 1
 
   try {
     await leadsApi.move(leadId, toStageId)
@@ -178,10 +197,10 @@ async function convertLead(lead: Lead) {
                 <CheckCircle2 v-if="stage.is_terminal" class="w-4 h-4 text-emerald-500 shrink-0" />
               </div>
               <span class="inline-flex items-center justify-center min-w-[26px] h-6 px-1.5 rounded-full text-[11px] font-bold tabular-nums"
-                    :class="stage.leads.length === 0
+                    :class="stage.total === 0
                       ? 'bg-slate-200 dark:bg-slate-800 text-slate-500'
                       : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 ring-1 ring-slate-200 dark:ring-slate-700'">
-                {{ stage.leads.length }}
+                {{ stage.total }}
               </span>
             </div>
             <!-- Stage colored progress strip -->
@@ -276,6 +295,17 @@ async function convertLead(lead: Lead) {
               <div class="text-xs text-slate-400">Bo'sh</div>
               <div class="text-[10px] text-slate-400 mt-0.5">Lead'ni shu yerga sudrang</div>
             </div>
+
+            <!-- Load more: only the first page is fetched up front; the rest
+                 stream in on demand so a 10k-lead column never freezes. -->
+            <button v-if="stage.leads.length < stage.total" type="button"
+                    :disabled="loadingMore[stage.id]"
+                    class="w-full mt-1 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 bg-white/70 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 transition disabled:opacity-60"
+                    @click="loadMore(stage)">
+              {{ loadingMore[stage.id]
+                ? 'Yuklanmoqda…'
+                : `Ko'proq yuklash (${stage.total - stage.leads.length})` }}
+            </button>
           </div>
         </section>
       </div>
