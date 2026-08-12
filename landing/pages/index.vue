@@ -154,6 +154,13 @@ const stats = [
           </svg>
         </button>
         <a href="#programs" class="btn-secondary btn-lg w-full xs:w-auto">Yo'nalishlar</a>
+        <a href="https://yotoqxona.xiuedu.uz/" target="_blank" rel="noopener"
+           class="btn-secondary btn-lg w-full xs:w-auto">
+          Yotoqxona tizimi
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M7 17 17 7M8 7h9v9" />
+          </svg>
+        </a>
       </div>
 
       <!-- Stats — centered card grid -->
