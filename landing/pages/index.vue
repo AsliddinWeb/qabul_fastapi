@@ -37,14 +37,16 @@ const visibleCount = ref(9)
 
 onMounted(async () => {
   try {
-    const [progRes, branchRes] = await Promise.all([
+    const [progRes, branchRes, contentRes] = await Promise.all([
       fetch(`${apiBase}/programs/programs?active_only=true`).then(r => r.ok ? r.json() : []),
       fetch(`${apiBase}/programs/branches?active_only=true`).then(r => r.ok ? r.json() : []),
+      fetch(`${apiBase}/landing/content`).then(r => r.ok ? r.json() : { data: {} }),
     ])
     programs.value = (progRes as Program[]).filter(
       (p) => !((p.education_form_name || '').toLowerCase().includes('sirtqi')),
     )
     branches.value = branchRes
+    raw.value = (contentRes && contentRes.data) || {}
   } catch { /* ignore */ }
   finally { loading.value = false }
 })
@@ -91,16 +93,77 @@ function hueOf(p: Program): string {
   return HUES[Math.abs(h) % HUES.length]
 }
 
-const stats = [
-  { value: '8000+', label: 'Iqtidorli talabalar' },
-  { value: '180+',  label: "Ilmiy darajali o'qituvchilar" },
-  { value: '20+',   label: "Bakalavr yo'nalishlari" },
-  { value: '4+',    label: "Magistratura yo'nalishlari" },
-]
-const statList = stats.map(s => {
+// ---- Admin paneldan boshqariladigan kontent (default + API birlashtiriladi) ----
+const raw = ref<Record<string, any>>({})
+const DEFAULTS = {
+  hero: {
+    badge: 'Qabul 2026 — 2027 ochiq',
+    subtitle: "Bakalavr va magistratura yo'nalishlari. Xalqaro almashinuv dasturlari. Qarshi shahridagi zamonaviy xususiy universitet.",
+    image_main: null as string | null,
+    image_inset: null as string | null,
+    stat_value: '8000+', stat_label: 'Iqtidorli talabalar',
+  },
+  stats: [
+    { value: '8000+', label: 'Iqtidorli talabalar' },
+    { value: '180+',  label: "Ilmiy darajali o'qituvchilar" },
+    { value: '20+',   label: "Bakalavr yo'nalishlari" },
+    { value: '4+',    label: "Magistratura yo'nalishlari" },
+  ],
+  about: {
+    eyebrow: 'Universitet haqida',
+    heading: 'Xalqaro innovatsion universiteti',
+    text: "Qarshi shahridagi nodavlat oliy ta'lim muassasasi. Bakalavr va magistratura yo'nalishlarida zamonaviy va innovatsion ta'lim beruvchi universitet.",
+    image: null as string | null,
+    cells: [
+      { icon: 'ph-graduation-cap', hue: 'a', title: 'Bakalavr va magistratura', text: "4 yillik bakalavr va 2 yillik magistratura dasturlari, kunduzgi ta'lim shaklida.", link: '' },
+      { icon: 'ph-globe-hemisphere-east', hue: 'b', title: 'Xalqaro hamkorlik', text: "Rossiya, Qozog'iston va boshqa davlatlar oliy ta'lim muassasalari bilan ikki tomonlama almashinuv dasturlari.", link: '' },
+      { icon: 'ph-lightbulb-filament', hue: 'c', title: 'Dual ta\'lim', text: "S Promax Plast Premium zavodi bilan hamkorlikda dual ta'lim yo'lga qo'yilgan — talaba o'qish bilan birga real ishlab chiqarishda tajriba oladi.", link: 'https://spromaxplast.uz/' },
+    ],
+  },
+  qabul: {
+    eyebrow: 'Qabul tartibi',
+    heading: "Qabul qanday o'tadi",
+    text: "Ariza qoldirganingizdan keyin qabul komissiyasi o'zi bog'lanadi va jarayonni oxirigacha kuzatib boradi.",
+    steps: [
+      { icon: 'ph-cursor-click', title: 'Ariza qoldiring', text: "Formani to'ldiring yoki qabul komissiyasiga telefon qiling." },
+      { icon: 'ph-files', title: 'Hujjatlarni topshiring', text: "Pasport, ma'lumotnoma va o'rta ta'lim hujjatingiz nusxasi." },
+      { icon: 'ph-chats-circle', title: "Suhbatdan o'ting", text: "Tanlagan yo'nalishingiz bo'yicha qisqa suhbat va yo'naltirish." },
+      { icon: 'ph-signature', title: 'Shartnoma imzolang', text: "To'lov shartlari kelishiladi va siz talabalikka qabul qilinasiz." },
+    ],
+  },
+  hamkorlik: {
+    heading: 'Diplomni bu yerda oling, tajribani chet elda va ishlab chiqarishda',
+    text: "Rossiya, Qozog'iston va boshqa davlatlar oliy ta'lim muassasalari bilan ikki tomonlama almashinuv dasturlari, hamda S Promax Plast Premium (PVC panel zavodi) bilan hamkorlikda dual ta'lim yo'lga qo'yilgan.",
+    image: null as string | null,
+    partners: [
+      { label: 'Rossiya', href: '' },
+      { label: "Qozog'iston", href: '' },
+      { label: 'Boshqa hamkor davlatlar', href: '' },
+      { label: 'S Promax Plast — PVC panel zavodi', href: 'https://spromaxplast.uz/' },
+    ],
+  },
+}
+// Default ustiga API kontentini birlashtirish (bo'lim topilmasa default qoladi).
+const c = computed(() => {
+  const r = raw.value || {}
+  return {
+    hero: { ...DEFAULTS.hero, ...(r.hero || {}) },
+    stats: (Array.isArray(r.stats) && r.stats.length) ? r.stats : DEFAULTS.stats,
+    about: { ...DEFAULTS.about, ...(r.about || {}), cells: (r.about?.cells?.length) ? r.about.cells : DEFAULTS.about.cells },
+    qabul: { ...DEFAULTS.qabul, ...(r.qabul || {}), steps: (r.qabul?.steps?.length) ? r.qabul.steps : DEFAULTS.qabul.steps },
+    hamkorlik: { ...DEFAULTS.hamkorlik, ...(r.hamkorlik || {}), partners: (r.hamkorlik?.partners?.length) ? r.hamkorlik.partners : DEFAULTS.hamkorlik.partners },
+  }
+})
+const statList = computed(() => c.value.stats.map((s: any) => {
   const m = String(s.value).match(/^(\d+)(.*)$/)
   return { n: m ? parseInt(m[1], 10) : 0, suffix: m ? m[2] : '', label: s.label }
-})
+}))
+
+// Rasm URL: admin yuklagan bo'lsa /files/{id}/public, aks holda placeholder.
+function imgUrl(id: string | null | undefined, seed: string, w: number, h: number): string {
+  return id ? `${apiBase}/files/${id}/public` : `https://picsum.photos/seed/${seed}/${w}/${h}`
+}
+const cellHue: Record<string, string> = { a: 'cell--a', b: 'cell--b', c: 'cell--c' }
 
 // ---- Motion: reveal + count-up + oqim chizig'i + karta yorug'ligi ----
 let observers: IntersectionObserver[] = []
@@ -178,16 +241,13 @@ onBeforeUnmount(() => { observers.forEach(o => o.disconnect()) })
 
       <div class="shell hero__grid">
         <div>
-          <span class="badge"><i class="ph-fill ph-star" aria-hidden="true"></i> Qabul 2026 — 2027 ochiq</span>
+          <span class="badge"><i class="ph-fill ph-star" aria-hidden="true"></i> {{ c.hero.badge }}</span>
           <h1>
             <span class="w"><i style="--d:.18s">Xalqaro</i></span>
             <span class="w"><i style="--d:.28s"><em>Innovatsion</em></i></span>
             <span class="w"><i style="--d:.38s">Universiteti</i></span>
           </h1>
-          <p class="hero__sub">
-            Bakalavr va magistratura yo'nalishlari. Xalqaro almashinuv dasturlari.
-            Qarshi shahridagi zamonaviy xususiy universitet.
-          </p>
+          <p class="hero__sub">{{ c.hero.subtitle }}</p>
           <div class="hero__cta">
             <button class="btn btn--primary btn--lg" type="button" @click="openLeadModal()">
               Ariza qoldirish <i class="ph ph-arrow-right" aria-hidden="true"></i>
@@ -200,17 +260,15 @@ onBeforeUnmount(() => { observers.forEach(o => o.disconnect()) })
         </div>
 
         <div class="hero__media">
-          <!-- TODO: universitetning haqiqiy fotosurati (1200x1250) -->
           <div class="hero__frame">
-            <img src="https://picsum.photos/seed/xiu-qarshi-campus/1200/1250" alt="Universitet talabalari kampusda" fetchpriority="high" width="1200" height="1250" />
+            <img :src="imgUrl(c.hero.image_main, 'xiu-qarshi-campus', 1200, 1250)" alt="Universitet talabalari kampusda" fetchpriority="high" width="1200" height="1250" />
           </div>
-          <!-- TODO: laboratoriya/auditoriya fotosurati (700x740) -->
           <div class="hero__inset">
-            <img src="https://picsum.photos/seed/xiu-lecture-hall/700/740" alt="Zamonaviy auditoriya" loading="lazy" width="700" height="740" />
+            <img :src="imgUrl(c.hero.image_inset, 'xiu-lecture-hall', 700, 740)" alt="Zamonaviy auditoriya" loading="lazy" width="700" height="740" />
           </div>
           <div class="hero__stat">
-            <b class="mono">8000+</b>
-            <span>Iqtidorli talabalar</span>
+            <b class="mono">{{ c.hero.stat_value }}</b>
+            <span>{{ c.hero.stat_label }}</span>
           </div>
         </div>
       </div>
@@ -308,30 +366,22 @@ onBeforeUnmount(() => { observers.forEach(o => o.disconnect()) })
     <section class="sec" id="about">
       <div class="shell">
         <div class="sec__head rv">
-          <span class="eyebrow">Universitet haqida</span>
-          <h2>Xalqaro innovatsion universiteti</h2>
-          <p>Qarshi shahridagi nodavlat oliy ta'lim muassasasi. Bakalavr va magistratura yo'nalishlarida zamonaviy va innovatsion ta'lim beruvchi universitet.</p>
+          <span class="eyebrow">{{ c.about.eyebrow }}</span>
+          <h2>{{ c.about.heading }}</h2>
+          <p>{{ c.about.text }}</p>
         </div>
 
         <div class="bento">
-          <!-- TODO: universitet binosi/kutubxona fotosurati (1000x700) -->
           <div class="cell cell--photo rv">
-            <img src="https://picsum.photos/seed/xiu-library-building/1000/700" alt="Universitet o'quv binosi" loading="lazy" width="1000" height="700" />
+            <img :src="imgUrl(c.about.image, 'xiu-library-building', 1000, 700)" alt="Universitet o'quv binosi" loading="lazy" width="1000" height="700" />
           </div>
-          <div class="cell cell--a rv" :style="{ '--i': 1 }">
-            <div class="cell__ico"><i class="ph ph-graduation-cap" aria-hidden="true"></i></div>
-            <h3>Bakalavr va magistratura</h3>
-            <p>4 yillik bakalavr va 2 yillik magistratura dasturlari, kunduzgi ta'lim shaklida.</p>
-          </div>
-          <div class="cell cell--b rv" :style="{ '--i': 2 }">
-            <div class="cell__ico"><i class="ph ph-globe-hemisphere-east" aria-hidden="true"></i></div>
-            <h3>Xalqaro hamkorlik</h3>
-            <p>Rossiya, Qozog'iston va boshqa davlatlar oliy ta'lim muassasalari bilan ikki tomonlama almashinuv dasturlari.</p>
-          </div>
-          <div class="cell cell--c rv" :style="{ '--i': 3 }">
-            <div class="cell__ico"><i class="ph ph-lightbulb-filament" aria-hidden="true"></i></div>
-            <h3>Dual ta'lim</h3>
-            <p><a href="https://spromaxplast.uz/" target="_blank" rel="noopener noreferrer" style="color:var(--t-magenta);font-weight:600;text-decoration:underline">S Promax Plast Premium zavodi bilan hamkorlikda dual ta'lim yo'lga qo'yilgan</a> — talaba o'qish bilan birga real ishlab chiqarishda tajriba oladi.</p>
+          <div v-for="(cell, i) in c.about.cells" :key="i" class="cell rv" :class="cellHue[cell.hue] || 'cell--a'" :style="{ '--i': i + 1 }">
+            <div class="cell__ico"><i class="ph" :class="cell.icon" aria-hidden="true"></i></div>
+            <h3>{{ cell.title }}</h3>
+            <p v-if="cell.link">
+              <a :href="cell.link" target="_blank" rel="noopener noreferrer" style="color:inherit;font-weight:600;text-decoration:underline">{{ cell.text }}</a>
+            </p>
+            <p v-else>{{ cell.text }}</p>
           </div>
         </div>
       </div>
@@ -341,32 +391,17 @@ onBeforeUnmount(() => { observers.forEach(o => o.disconnect()) })
     <section class="sec" id="qabul">
       <div class="shell">
         <div class="sec__head rv">
-          <span class="eyebrow">Qabul tartibi</span>
-          <h2>Qabul qanday o'tadi</h2>
-          <p>Ariza qoldirganingizdan keyin qabul komissiyasi o'zi bog'lanadi va jarayonni oxirigacha kuzatib boradi.</p>
+          <span class="eyebrow">{{ c.qabul.eyebrow }}</span>
+          <h2>{{ c.qabul.heading }}</h2>
+          <p>{{ c.qabul.text }}</p>
         </div>
 
         <div class="flow">
           <div class="flow__rail" aria-hidden="true"></div>
-          <div class="step rv">
-            <div class="step__dot"><i class="ph ph-cursor-click" aria-hidden="true"></i></div>
-            <h3>Ariza qoldiring</h3>
-            <p>Formani to'ldiring yoki qabul komissiyasiga telefon qiling.</p>
-          </div>
-          <div class="step rv" :style="{ '--i': 1 }">
-            <div class="step__dot"><i class="ph ph-files" aria-hidden="true"></i></div>
-            <h3>Hujjatlarni topshiring</h3>
-            <p>Pasport, ma'lumotnoma va o'rta ta'lim hujjatingiz nusxasi.</p>
-          </div>
-          <div class="step rv" :style="{ '--i': 2 }">
-            <div class="step__dot"><i class="ph ph-chats-circle" aria-hidden="true"></i></div>
-            <h3>Suhbatdan o'ting</h3>
-            <p>Tanlagan yo'nalishingiz bo'yicha qisqa suhbat va yo'naltirish.</p>
-          </div>
-          <div class="step rv" :style="{ '--i': 3 }">
-            <div class="step__dot"><i class="ph ph-signature" aria-hidden="true"></i></div>
-            <h3>Shartnoma imzolang</h3>
-            <p>To'lov shartlari kelishiladi va siz talabalikka qabul qilinasiz.</p>
+          <div v-for="(st, i) in c.qabul.steps" :key="i" class="step rv" :style="{ '--i': i }">
+            <div class="step__dot"><i class="ph" :class="st.icon" aria-hidden="true"></i></div>
+            <h3>{{ st.title }}</h3>
+            <p>{{ st.text }}</p>
           </div>
         </div>
       </div>
@@ -376,17 +411,16 @@ onBeforeUnmount(() => { observers.forEach(o => o.disconnect()) })
     <section class="sec" id="hamkorlik">
       <div class="shell">
         <div class="band rv">
-          <!-- TODO: xalqaro almashinuv fotosurati (1800x900) -->
-          <div class="band__img"><img src="https://picsum.photos/seed/xiu-international/1800/900" alt="Xalqaro almashinuv dasturi" loading="lazy" width="1800" height="900" /></div>
+          <div class="band__img"><img :src="imgUrl(c.hamkorlik.image, 'xiu-international', 1800, 900)" alt="Xalqaro almashinuv dasturi" loading="lazy" width="1800" height="900" /></div>
           <div class="band__scrim" aria-hidden="true"></div>
           <div class="band__in">
-            <h2>Diplomni bu yerda oling, tajribani chet elda va ishlab chiqarishda</h2>
-            <p>Rossiya, Qozog'iston va boshqa davlatlar oliy ta'lim muassasalari bilan ikki tomonlama almashinuv dasturlari, hamda <strong>S Promax Plast Premium (PVC panel zavodi)</strong> bilan hamkorlikda dual ta'lim yo'lga qo'yilgan.</p>
+            <h2>{{ c.hamkorlik.heading }}</h2>
+            <p>{{ c.hamkorlik.text }}</p>
             <div class="band__countries">
-              <span class="country"><i class="ph ph-map-pin" aria-hidden="true"></i>Rossiya</span>
-              <span class="country"><i class="ph ph-map-pin" aria-hidden="true"></i>Qozog'iston</span>
-              <span class="country"><i class="ph ph-globe-hemisphere-east" aria-hidden="true"></i>Boshqa hamkor davlatlar</span>
-              <a class="country" href="https://spromaxplast.uz/" target="_blank" rel="noopener noreferrer"><i class="ph ph-arrow-up-right" aria-hidden="true"></i>S Promax Plast — PVC panel zavodi</a>
+              <component :is="p.href ? 'a' : 'span'" v-for="(p, i) in c.hamkorlik.partners" :key="i" class="country"
+                         :href="p.href || undefined" :target="p.href ? '_blank' : undefined" :rel="p.href ? 'noopener noreferrer' : undefined">
+                <i class="ph" :class="p.href ? 'ph-arrow-up-right' : 'ph-map-pin'" aria-hidden="true"></i>{{ p.label }}
+              </component>
             </div>
             <div class="band__cta">
               <button class="btn btn--onphoto btn--lg" type="button" @click="openLeadModal()">

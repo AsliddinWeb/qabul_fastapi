@@ -146,6 +146,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'contract-templates/new', name: 'admin-template-new', component: () => import('@/views/admin/ContractTemplateEditor.vue'),  meta: { title: 'Yangi shablon' } },
       { path: 'contract-templates/:id', name: 'admin-template-edit',component: () => import('@/views/admin/ContractTemplateEditor.vue'),  meta: { title: 'Shablonni tahrirlash' } },
       { path: 'contract-settings',      name: 'admin-contract-settings', component: () => import('@/views/admin/ContractSettingsPage.vue'),  meta: { title: 'Shartnoma sozlamalari' } },
+      { path: 'landing',                name: 'admin-landing',      component: () => import('@/views/admin/LandingEditorPage.vue'),      meta: { title: 'Bosh sahifa (landing)' } },
       { path: 'consulting-agencies',    name: 'admin-consulting',   component: () => import('@/views/admin/ConsultingAgenciesPage.vue'),    meta: { title: 'Konsalting agentliklari' } },
     ],
   },

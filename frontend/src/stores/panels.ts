@@ -123,6 +123,7 @@ const ADMIN_NAV: NavEntry[] = [
     leaf('/admin/users',                'Foydalanuvchilar',       UsersIcon,      'rose',  { countKey: 'users' }),
     leaf('/admin/contract-templates',   'Shartnoma shabloni',     FilePlus2,      'violet'),
     leaf('/admin/contract-settings',    'Shartnoma sozlamalari',  Building2,      'indigo'),
+    leaf('/admin/landing',              'Bosh sahifa (landing)',  Globe,          'sky'),
     leaf('/admin/audit',                'Audit jurnali',          Shield,         'slate', { countKey: 'audit' }),
   ]),
 

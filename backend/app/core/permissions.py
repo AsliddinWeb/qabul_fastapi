@@ -91,6 +91,9 @@ class Permission(str, Enum):
     LEADS_DELETE = "leads.delete"
     LEADS_SETTINGS = "leads.settings"  # pipelines/stages/sources/lost-reasons CRUD
 
+    # Editable marketing landing content (hero, stats, texts, partners, images).
+    LANDING_MANAGE = "landing.manage"
+
     # International admissions — separate funnel for non-resident
     # applicants, managed via /admin/international-admissions.
     INTL_ADMISSIONS_LIST   = "intl_admissions.list"
@@ -130,7 +133,7 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
         _P.PAYMENTS_READ,
 
         _P.AUDIT_READ, _P.REPORTS_VIEW, _P.REPORTS_FINANCIAL,
-        _P.INTEGRATIONS_ADMIN,
+        _P.INTEGRATIONS_ADMIN, _P.LANDING_MANAGE,
 
         _P.LEADS_LIST, _P.LEADS_READ, _P.LEADS_CREATE, _P.LEADS_UPDATE,
         _P.LEADS_MOVE, _P.LEADS_ASSIGN, _P.LEADS_CONVERT, _P.LEADS_LOSE,
