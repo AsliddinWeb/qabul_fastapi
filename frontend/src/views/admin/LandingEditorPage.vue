@@ -48,13 +48,10 @@ function defaults() {
       ],
     },
     hamkorlik: {
-      heading: 'Diplomni bu yerda oling, tajribani chet elda va ishlab chiqarishda',
-      text: "Rossiya, Qozog'iston va boshqa davlatlar oliy ta'lim muassasalari bilan ikki tomonlama almashinuv dasturlari, hamda S Promax Plast Premium (PVC panel zavodi) bilan hamkorlikda dual ta'lim yo'lga qo'yilgan.",
+      heading: 'Diplomni bu yerda oling, tajribani ishlab chiqarishda',
+      text: "S Promax Plast Premium (PVC panel zavodi) bilan hamkorlikda dual ta'lim yo'lga qo'yilgan — talaba o'qish bilan birga real ishlab chiqarishda tajriba va ish o'rni imkoniyatiga ega bo'ladi.",
       image: null as string | null,
       partners: [
-        { label: 'Rossiya', href: '' },
-        { label: "Qozog'iston", href: '' },
-        { label: 'Boshqa hamkor davlatlar', href: '' },
         { label: 'S Promax Plast — PVC panel zavodi', href: 'https://spromaxplast.uz/' },
       ],
     },

@@ -132,13 +132,10 @@ const DEFAULTS = {
     ],
   },
   hamkorlik: {
-    heading: 'Diplomni bu yerda oling, tajribani chet elda va ishlab chiqarishda',
-    text: "Rossiya, Qozog'iston va boshqa davlatlar oliy ta'lim muassasalari bilan ikki tomonlama almashinuv dasturlari, hamda S Promax Plast Premium (PVC panel zavodi) bilan hamkorlikda dual ta'lim yo'lga qo'yilgan.",
+    heading: 'Diplomni bu yerda oling, tajribani ishlab chiqarishda',
+    text: "S Promax Plast Premium (PVC panel zavodi) bilan hamkorlikda dual ta'lim yo'lga qo'yilgan — talaba o'qish bilan birga real ishlab chiqarishda tajriba va ish o'rni imkoniyatiga ega bo'ladi.",
     image: null as string | null,
     partners: [
-      { label: 'Rossiya', href: '' },
-      { label: "Qozog'iston", href: '' },
-      { label: 'Boshqa hamkor davlatlar', href: '' },
       { label: 'S Promax Plast — PVC panel zavodi', href: 'https://spromaxplast.uz/' },
     ],
   },
@@ -411,7 +408,7 @@ onBeforeUnmount(() => { observers.forEach(o => o.disconnect()) })
     <section class="sec" id="hamkorlik">
       <div class="shell">
         <div class="band rv">
-          <div class="band__img"><img :src="imgUrl(c.hamkorlik.image, 'xiu-international', 1800, 900)" alt="Xalqaro almashinuv dasturi" loading="lazy" width="1800" height="900" /></div>
+          <div class="band__img"><img :src="imgUrl(c.hamkorlik.image, 'spromax-factory-plant', 1800, 900)" alt="S Promax Plast zavodida dual ta'lim" loading="lazy" width="1800" height="900" /></div>
           <div class="band__scrim" aria-hidden="true"></div>
           <div class="band__in">
             <h2>{{ c.hamkorlik.heading }}</h2>
