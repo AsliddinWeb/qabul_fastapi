@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import { onBeforeUnmount } from 'vue'
+
 const config = useRuntimeConfig()
 const apiBase = (config.public as any).apiBaseUrl || '/api/v1'
-const appUrl = (config.public as any).appUrl || '/app'
 const { open: openLeadModal } = useLeadModal()
 
 useSeoMeta({
@@ -40,8 +41,6 @@ onMounted(async () => {
       fetch(`${apiBase}/programs/programs?active_only=true`).then(r => r.ok ? r.json() : []),
       fetch(`${apiBase}/programs/branches?active_only=true`).then(r => r.ok ? r.json() : []),
     ])
-    // Public marketing list hides extramural ("sirtqi") forms — same
-    // filter we apply on the standalone /programs page.
     programs.value = (progRes as Program[]).filter(
       (p) => !((p.education_form_name || '').toLowerCase().includes('sirtqi')),
     )
@@ -78,565 +77,368 @@ function fmtPrice(v?: number | string): string {
 }
 function clearFilters() { search.value = ''; branchFilter.value = ''; levelFilter.value = '' }
 
-const TONES = [
-  { bg: 'rgb(238 242 255)', bgDark: 'rgb(67 56 202 / 0.18)',  fg: 'rgb(67 56 202)',  fgDark: 'rgb(165 180 252)' },
-  { bg: 'rgb(255 251 235)', bgDark: 'rgb(180 83 9 / 0.18)',   fg: 'rgb(180 83 9)',   fgDark: 'rgb(252 211 77)' },
-  { bg: 'rgb(236 253 245)', bgDark: 'rgb(4 120 87 / 0.18)',   fg: 'rgb(4 120 87)',   fgDark: 'rgb(110 231 183)' },
-  { bg: 'rgb(255 241 242)', bgDark: 'rgb(190 18 60 / 0.18)',  fg: 'rgb(190 18 60)',  fgDark: 'rgb(253 164 175)' },
-  { bg: 'rgb(240 249 255)', bgDark: 'rgb(7 89 133 / 0.18)',   fg: 'rgb(7 89 133)',   fgDark: 'rgb(125 211 252)' },
-  { bg: 'rgb(253 244 255)', bgDark: 'rgb(134 25 143 / 0.18)', fg: 'rgb(134 25 143)', fgDark: 'rgb(240 171 252)' },
-]
-function tone(id: string) {
+// Soha rangi (logotip spektri) — yo'nalish nomidan aniqlanadi, aks holda id hash.
+const HUES = ['blue', 'green', 'gold', 'magenta', 'crimson', 'indigo']
+function hueOf(p: Program): string {
+  const n = (p.name || '').toLowerCase()
+  if (n.includes('axborot') || n.includes('kompyuter') || n.includes('dasturiy') || n.includes('texnolog')) return 'blue'
+  if (n.includes('boshlang')) return 'green'
+  if (n.includes('buxgalter') || n.includes('audit') || n.includes('moliya')) return 'gold'
+  if (n.includes('filolog') || n.includes('til') || n.includes('tarjima')) return 'magenta'
+  if (n.includes('iqtisod') || n.includes('menejment') || n.includes('marketing')) return 'crimson'
   let h = 0
-  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0
-  return TONES[Math.abs(h) % TONES.length]
-}
-
-function iconUrl(image_id: string | null | undefined): string | null {
-  return image_id ? `${apiBase}/files/${image_id}/public` : null
+  for (let i = 0; i < (p.id || '').length; i++) h = (h * 31 + p.id.charCodeAt(i)) | 0
+  return HUES[Math.abs(h) % HUES.length]
 }
 
 const stats = [
   { value: '8000+', label: 'Iqtidorli talabalar' },
-  { value: '180+',  label: "Ilmiy daraja ega o'qituvchilar" },
+  { value: '180+',  label: "Ilmiy darajali o'qituvchilar" },
   { value: '20+',   label: "Bakalavr yo'nalishlari" },
   { value: '4+',    label: "Magistratura yo'nalishlari" },
 ]
+const statList = stats.map(s => {
+  const m = String(s.value).match(/^(\d+)(.*)$/)
+  return { n: m ? parseInt(m[1], 10) : 0, suffix: m ? m[2] : '', label: s.label }
+})
+
+// ---- Motion: reveal + count-up + oqim chizig'i + karta yorug'ligi ----
+let observers: IntersectionObserver[] = []
+function countUp(el: HTMLElement) {
+  const t = parseInt(el.dataset.count || '0', 10)
+  const sfx = el.dataset.suffix || ''
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
+  if (reduce || !t) { el.textContent = t + sfx; return }
+  let t0: number | null = null
+  const dur = 1400
+  function fr(ts: number) {
+    if (t0 === null) t0 = ts
+    const p = Math.min((ts - t0) / dur, 1)
+    const e = 1 - Math.pow(1 - p, 3)
+    el.textContent = Math.round(t * e) + sfx
+    if (p < 1) requestAnimationFrame(fr)
+  }
+  requestAnimationFrame(fr)
+}
+
+onMounted(() => {
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
+  const rvEls = document.querySelectorAll('.xrd .rv')
+  const counters = document.querySelectorAll<HTMLElement>('.xrd [data-count]')
+  const flow = document.querySelector('.xrd .flow')
+
+  if (!('IntersectionObserver' in window)) {
+    rvEls.forEach(e => e.classList.add('in'))
+    counters.forEach(countUp)
+    flow?.classList.add('in')
+  } else {
+    const io = new IntersectionObserver((ents, obs) => {
+      ents.forEach(en => { if (en.isIntersecting) { en.target.classList.add('in'); obs.unobserve(en.target) } })
+    }, { threshold: 0.16, rootMargin: '0px 0px -8% 0px' })
+    rvEls.forEach(e => io.observe(e)); observers.push(io)
+
+    const cio = new IntersectionObserver((ents, obs) => {
+      ents.forEach(en => { if (en.isIntersecting) { countUp(en.target as HTMLElement); obs.unobserve(en.target) } })
+    }, { threshold: 0.5 })
+    counters.forEach(e => cio.observe(e)); observers.push(cio)
+
+    if (flow) {
+      const fio = new IntersectionObserver((ents, obs) => {
+        ents.forEach(en => { if (en.isIntersecting) { en.target.classList.add('in'); obs.unobserve(en.target) } })
+      }, { threshold: 0.35 })
+      fio.observe(flow); observers.push(fio)
+    }
+  }
+
+  // Kartada kursor ortidan yuruvchi yorug'lik — delegatsiya (dinamik kartalar uchun ham)
+  if (matchMedia('(hover: hover)').matches && !reduce) {
+    const wrap = document.querySelector<HTMLElement>('.xrd .progs')
+    wrap?.addEventListener('pointermove', (e) => {
+      const card = (e.target as HTMLElement).closest<HTMLElement>('.prog')
+      if (!card) return
+      const r = card.getBoundingClientRect()
+      card.style.setProperty('--mx', ((e.clientX - r.left) / r.width) * 100 + '%')
+      card.style.setProperty('--my', ((e.clientY - r.top) / r.height) * 100 + '%')
+    })
+  }
+})
+onBeforeUnmount(() => { observers.forEach(o => o.disconnect()) })
 </script>
 
 <template>
-  <span id="home" class="block scroll-mt-header"></span>
+  <div class="xrd">
+    <span id="home"></span>
 
-  <!-- ============================ HERO ============================ -->
-  <section class="relative overflow-hidden">
-    <!-- Animated blurred blobs -->
-    <div class="hero-blob hero-blob-a"
-         :style="{ background: 'radial-gradient(closest-side, rgb(var(--brand) / 0.30), transparent 70%)' }"></div>
-    <div class="hero-blob hero-blob-b"
-         :style="{ background: 'radial-gradient(closest-side, rgb(var(--accent) / 0.22), transparent 70%)' }"></div>
-    <div class="hero-blob hero-blob-c"
-         style="background: radial-gradient(closest-side, rgb(217 70 239 / 0.18), transparent 70%);"></div>
-
-    <!-- Slowly rotating conic ring -->
-    <div class="hero-conic" aria-hidden="true"></div>
-
-    <!-- Subtle dot grid -->
-    <div class="absolute inset-0 -z-10 pointer-events-none opacity-50 dark:opacity-30"
-         style="background-image: radial-gradient(circle, rgb(var(--fg-muted) / 0.16) 1px, transparent 1.4px); background-size: 30px 30px; mask-image: radial-gradient(ellipse 70% 55% at 50% 30%, black, transparent 80%); -webkit-mask-image: radial-gradient(ellipse 70% 55% at 50% 30%, black, transparent 80%);"></div>
-
-    <!-- Top shimmer line -->
-    <div class="absolute top-0 inset-x-0 h-px overflow-hidden pointer-events-none">
-      <div class="hero-shimmer"
-           style="background: linear-gradient(90deg, transparent, rgb(var(--brand)) 30%, rgb(var(--accent)) 50%, rgb(var(--brand)) 70%, transparent);"></div>
-    </div>
-
-    <div class="container-x relative pt-12 pb-16 sm:pt-20 sm:pb-24 lg:pt-32 lg:pb-32 text-center">
-      <span class="eyebrow mb-5 sm:mb-7 hero-fade">
-        <span class="inline-block w-1.5 h-1.5 rounded-full hero-pulse" :style="{ background: 'rgb(var(--accent))' }"></span>
-        Qabul 2026 — 2027 ochiq
-      </span>
-
-      <h1 class="display-1 mt-3 max-w-4xl mx-auto hero-fade" style="animation-delay: 80ms;">
-        Xalqaro <span class="gradient-text-anim">Innovatsion</span><br />
-        Universiteti
-      </h1>
-
-      <p class="lead mx-auto mt-5 sm:mt-7 hero-fade" style="animation-delay: 160ms; max-width: 38rem;">
-        Bakalavr va magistratura yo'nalishlari. Xalqaro almashinuv dasturlari.
-        Qarshi shahridagi zamonaviy xususiy universitet.
-      </p>
-
-      <div class="mt-7 sm:mt-10 flex flex-col xs:flex-row items-center justify-center gap-3 hero-fade" style="animation-delay: 240ms;">
-        <button class="btn-primary btn-lg w-full xs:w-auto" @click="openLeadModal()">
-          Ariza qoldirish
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M5 12h14M12 5l7 7-7 7" />
-          </svg>
-        </button>
-        <a href="#programs" class="btn-secondary btn-lg w-full xs:w-auto">Yo'nalishlar</a>
-        <a href="https://yotoqxona.xiuedu.uz/" target="_blank" rel="noopener"
-           class="btn-secondary btn-lg w-full xs:w-auto">
-          Yotoqxona tizimi
-          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M7 17 17 7M8 7h9v9" />
-          </svg>
-        </a>
+    <!-- ===================== 1. HERO ===================== -->
+    <section class="sec hero">
+      <div class="aurora" aria-hidden="true">
+        <div class="blob blob--1"></div><div class="blob blob--2"></div>
+        <div class="blob blob--3"></div><div class="blob blob--4"></div>
       </div>
 
-      <!-- Stats — centered card grid -->
-      <div class="mt-12 sm:mt-16 lg:mt-24 grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 max-w-4xl mx-auto hero-fade"
-           style="animation-delay: 320ms;">
-        <div v-for="(s, i) in stats" :key="i"
-             class="card px-3 py-4 sm:px-5 sm:py-7 text-center transition-all duration-300 hover:-translate-y-1 hover:border-[rgb(var(--brand)/0.30)]"
-             :style="{ boxShadow: 'var(--shadow-sm)' }">
-          <div class="text-2xl sm:text-4xl lg:text-[42px] font-bold tabular-nums tracking-tight"
-               :style="{ color: 'rgb(var(--fg))', letterSpacing: '-0.035em' }">
-            {{ s.value }}
-          </div>
-          <div class="mt-1.5 sm:mt-2 text-[10px] sm:text-[11px] uppercase tracking-[0.10em] sm:tracking-[0.14em] font-bold leading-tight"
-               :style="{ color: 'rgb(var(--fg-muted))' }">
-            {{ s.label }}
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============================ PROGRAMS ============================ -->
-  <section id="programs" class="scroll-mt-header relative section-divider overflow-hidden"
-           :style="{ background: 'rgb(var(--bg-soft))' }">
-    <div class="container-x py-14 sm:py-20 lg:py-28">
-      <!-- Section heading -->
-      <div class="mb-7 sm:mb-10">
-        <span class="eyebrow mb-3 sm:mb-4">Yo'nalishlar</span>
-        <h2 class="display-3 mt-3">
-          {{ filtered.length || 0 }} ta faol yo'nalish
-        </h2>
-        <p class="lead mt-3 sm:mt-4">
-          Bakalavr va magistratura yo'nalishlari. Sizga mos yo'nalishni filtrlardan toping.
-        </p>
-      </div>
-
-      <!-- Filter bar -->
-      <div class="card p-2 mb-6 sm:mb-8 flex flex-col sm:flex-row gap-2"
-           :style="{ boxShadow: 'var(--shadow-sm)' }">
-        <div class="relative flex-1 min-w-0">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-               class="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
-               :style="{ color: 'rgb(var(--fg-muted))' }">
-            <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
-          </svg>
-          <input
-            v-model="search"
-            class="w-full h-11 pl-10 pr-4 rounded-xl text-sm bg-transparent border-0 focus:outline-none"
-            :style="{ color: 'rgb(var(--fg))' }"
-            placeholder="Yo'nalish nomini kiriting..."
-          />
-        </div>
-
-        <!-- Level chips (desktop only) -->
-        <div class="hidden sm:flex items-center gap-1 rounded-xl p-1"
-             :style="{ background: 'rgb(var(--bg-soft))' }">
-          <button
-            class="px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 whitespace-nowrap"
-            :style="!levelFilter
-              ? { background: 'rgb(var(--card))', color: 'rgb(var(--fg))', boxShadow: 'var(--shadow-sm)' }
-              : { color: 'rgb(var(--fg-muted))' }"
-            @click="levelFilter = ''"
-          >Hammasi</button>
-          <button
-            v-for="l in levels" :key="l.id"
-            class="px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 whitespace-nowrap"
-            :style="levelFilter === l.id
-              ? { background: 'rgb(var(--card))', color: 'rgb(var(--fg))', boxShadow: 'var(--shadow-sm)' }
-              : { color: 'rgb(var(--fg-muted))' }"
-            @click="levelFilter = l.id"
-          >{{ l.name }}</button>
-        </div>
-
-        <select
-          v-model="branchFilter"
-          class="h-11 px-3 rounded-xl text-sm border-0 focus:outline-none cursor-pointer min-w-0"
-          :style="{ color: 'rgb(var(--fg))', background: 'rgb(var(--bg-soft))' }"
-        >
-          <option value="">Hamma filiallar</option>
-          <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
-        </select>
-
-        <button v-if="search || branchFilter || levelFilter"
-                class="btn-ghost btn-sm shrink-0" @click="clearFilters">
-          Tozalash
-        </button>
-      </div>
-
-      <!-- Mobile level pills -->
-      <div class="sm:hidden mb-5 -mx-4 px-4 overflow-x-auto pb-1">
-        <div class="flex items-center gap-2 w-max">
-          <button
-            class="px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all"
-            :style="!levelFilter
-              ? { background: 'rgb(var(--brand))', color: 'white' }
-              : { background: 'rgb(var(--card))', color: 'rgb(var(--fg-soft))', border: '1px solid rgb(var(--border))' }"
-            @click="levelFilter = ''"
-          >Hammasi</button>
-          <button
-            v-for="l in levels" :key="l.id"
-            class="px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all"
-            :style="levelFilter === l.id
-              ? { background: 'rgb(var(--brand))', color: 'white' }
-              : { background: 'rgb(var(--card))', color: 'rgb(var(--fg-soft))', border: '1px solid rgb(var(--border))' }"
-            @click="levelFilter = l.id"
-          >{{ l.name }}</button>
-        </div>
-      </div>
-
-      <!-- Skeleton -->
-      <div v-if="loading" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div v-for="i in 6" :key="`sk-${i}`" class="card p-6 space-y-5">
-          <div class="flex items-start justify-between gap-3">
-            <div class="w-12 h-12 rounded-xl skel"></div>
-            <div class="space-y-1.5">
-              <div class="h-3 w-16 skel ml-auto"></div>
-              <div class="h-2 w-10 skel ml-auto"></div>
-            </div>
-          </div>
-          <div class="space-y-2">
-            <div class="h-5 w-full skel"></div>
-            <div class="h-5 w-2/3 skel"></div>
-          </div>
-          <div class="h-3 w-1/2 skel"></div>
-          <div class="flex items-center justify-between pt-4" :style="{ borderTop: '1px solid rgb(var(--border))' }">
-            <div class="h-5 w-28 skel"></div>
-            <div class="h-3 w-12 skel"></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Empty -->
-      <div v-else-if="!filtered.length" class="card p-16 text-center">
-        <p class="text-base mb-4" :style="{ color: 'rgb(var(--fg-soft))' }">Yo'nalish topilmadi</p>
-        <button class="btn-secondary btn-sm" @click="clearFilters">Filterlarni tozalash</button>
-      </div>
-
-      <!-- Programs grid -->
-      <div v-else class="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-        <article
-          v-for="(p, idx) in visiblePrograms" :key="p.id"
-          class="card-hover p-5 sm:p-6 cursor-pointer group reveal-card overflow-hidden min-w-0"
-          :style="{ animationDelay: `${idx * 50}ms` }"
-          @click="openLeadModal(p.id)"
-        >
-          <div class="flex items-start justify-between gap-3 mb-4 sm:mb-5">
-            <div class="grid place-items-center w-11 h-11 sm:w-12 sm:h-12 rounded-xl shrink-0 overflow-hidden transition-transform duration-300 group-hover:scale-105"
-                 :style="{ background: tone(p.id).bg, color: tone(p.id).fg }">
-              <img v-if="iconUrl(p.image_id)" :src="iconUrl(p.image_id)!" :alt="p.name"
-                   class="w-full h-full object-cover" loading="lazy"
-                   @error="(e) => ((e.target as HTMLImageElement).style.display='none')" />
-              <svg v-else xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
-                <path d="M6 12v5c3 3 9 3 12 0v-5" />
-              </svg>
-            </div>
-            <div class="text-right min-w-0 flex-1">
-              <div class="text-[10px] uppercase tracking-[0.10em] font-bold truncate"
-                   :style="{ color: 'rgb(var(--fg-muted))' }">
-                {{ p.education_level_name || 'Bakalavr' }}
-              </div>
-              <div class="text-[10px] font-mono mt-1 truncate" :style="{ color: 'rgb(var(--fg-muted))' }">{{ p.code }}</div>
-            </div>
-          </div>
-
-          <h3 class="text-[16px] sm:text-[17px] font-bold mb-2 leading-snug min-h-[2.6rem] sm:min-h-[3rem] line-clamp-2"
-              :style="{ color: 'rgb(var(--fg))' }">
-            {{ p.name }}
-          </h3>
-
-          <div class="text-[12px] sm:text-[13px] mb-4 sm:mb-5 truncate" :style="{ color: 'rgb(var(--fg-muted))' }">
-            <span v-if="p.branch_name">{{ p.branch_name }}</span>
-            <span v-if="p.education_form_name"> · {{ p.education_form_name }}</span>
-            <span v-if="p.study_duration_years"> · {{ p.study_duration_years }} yil</span>
-          </div>
-
-          <div class="flex items-center justify-between gap-2 pt-3.5 sm:pt-4"
-               :style="{ borderTop: '1px solid rgb(var(--border))' }">
-            <div class="text-[14px] sm:text-[15px] font-bold tabular-nums min-w-0 truncate" :style="{ color: 'rgb(var(--fg))' }">
-              {{ fmtPrice(p.tuition_fee) }}
-              <span class="text-[10px] sm:text-xs font-normal ml-0.5" :style="{ color: 'rgb(var(--fg-muted))' }">so'm/yil</span>
-            </div>
-            <span class="text-[12px] sm:text-[13px] font-semibold inline-flex items-center gap-1 transition-all duration-200 group-hover:gap-2 shrink-0"
-                  :style="{ color: tone(p.id).fg }">
-              Ariza
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M5 12h14M12 5l7 7-7 7" />
-              </svg>
-            </span>
-          </div>
-        </article>
-      </div>
-
-      <!-- The home section is a "preview" — every program lives on
-           /programs with its own filters and shareable URL. Send curious
-           visitors there instead of expanding inline. -->
-      <div v-if="!loading && filtered.length" class="mt-10 text-center">
-        <NuxtLink to="/programs" class="btn-secondary">
-          Barcha {{ programs.length }} ta yo'nalishni ko'rish
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="ml-1">
-            <path d="M5 12h14M12 5l7 7-7 7" />
-          </svg>
-        </NuxtLink>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============================ ABOUT ============================ -->
-  <section id="about" class="scroll-mt-header relative section-divider overflow-hidden">
-    <div class="container-x py-14 sm:py-20 lg:py-28">
-      <div class="grid lg:grid-cols-12 gap-8 lg:gap-16">
-        <div class="lg:col-span-5">
-          <span class="eyebrow mb-3 sm:mb-4">Universitet haqida</span>
-          <h2 class="display-3 mt-3">
-            Xalqaro innovatsion<br /><span class="gradient-text">universiteti</span>
-          </h2>
-          <p class="lead mt-4 sm:mt-6">
-            Qarshi shahridagi nodavlat oliy ta'lim muassasasi. Bakalavr va magistratura
-            yo'nalishlarida zamonaviy va innovatsion ta'lim beruvchi universitet.
+      <div class="shell hero__grid">
+        <div>
+          <span class="badge"><i class="ph-fill ph-star" aria-hidden="true"></i> Qabul 2026 — 2027 ochiq</span>
+          <h1>
+            <span class="w"><i style="--d:.18s">Xalqaro</i></span>
+            <span class="w"><i style="--d:.28s"><em>Innovatsion</em></i></span>
+            <span class="w"><i style="--d:.38s">Universiteti</i></span>
+          </h1>
+          <p class="hero__sub">
+            Bakalavr va magistratura yo'nalishlari. Xalqaro almashinuv dasturlari.
+            Qarshi shahridagi zamonaviy xususiy universitet.
           </p>
-          <div class="mt-6 sm:mt-8 flex flex-col xs:flex-row gap-3">
-            <a :href="`${appUrl}/auth/login`" class="btn-primary w-full xs:w-auto">Ariza topshirish</a>
-            <a href="#programs" class="btn-secondary w-full xs:w-auto">Yo'nalishlar</a>
-          </div>
-        </div>
-
-        <div class="lg:col-span-7 space-y-3">
-          <div v-for="(item, i) in [
-            { title: 'Bakalavr va magistratura', desc: '4 yillik bakalavr va 2 yillik magistratura dasturlari, kunduzgi ta\'lim shaklida.' },
-            { title: 'Xalqaro hamkorlik', desc: 'Janubiy Koreya, Yaponiya va boshqa davlatlar oliy ta\'lim muassasalari bilan ikki tomonlama almashinuv dasturlari.' },
-            { title: 'Innovatsion ta\'lim', desc: 'Loyiha asosida o\'qitish, real biznes keyslar, 4 til ichida o\'qish imkoniyati.' },
-          ]" :key="i" class="group card p-5 sm:p-6 flex items-start gap-4 sm:gap-5 transition-all duration-300 hover:border-[rgb(var(--brand)/0.3)]">
-            <div class="grid place-items-center w-11 h-11 rounded-xl shrink-0 transition-transform duration-300 group-hover:scale-105"
-                 :style="{ background: 'rgb(var(--brand) / 0.08)' }">
-              <span class="text-sm font-bold tabular-nums tracking-tight"
-                    :style="{ color: 'rgb(var(--brand))' }">
-                0{{ i + 1 }}
-              </span>
-            </div>
-            <div class="min-w-0 flex-1">
-              <h3 class="font-bold text-[17px] mb-1.5 tracking-tight" :style="{ color: 'rgb(var(--fg))' }">{{ item.title }}</h3>
-              <p class="text-sm leading-relaxed" :style="{ color: 'rgb(var(--fg-soft))' }">{{ item.desc }}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============================ CONTACT ============================ -->
-  <section id="contact" class="scroll-mt-header relative section-divider overflow-hidden"
-           :style="{ background: 'rgb(var(--bg-soft))' }">
-    <div class="container-x py-14 sm:py-20 lg:py-28">
-      <div class="grid lg:grid-cols-12 gap-8 lg:gap-16">
-        <div class="lg:col-span-5">
-          <span class="eyebrow mb-3 sm:mb-4">Bog'lanish</span>
-          <h2 class="display-3 mt-3">Aloqa</h2>
-          <p class="lead mt-4 sm:mt-6">
-            To'g'ridan-to'g'ri bog'laning yoki ariza qoldiring —
-            qaytib o'zimiz aloqaga chiqamiz.
-          </p>
-          <p class="mt-4 inline-flex items-center gap-2 text-sm font-medium"
-             :style="{ color: 'rgb(var(--fg-soft))' }">
-            <span class="inline-block w-1.5 h-1.5 rounded-full" :style="{ background: 'rgb(var(--accent))' }"></span>
-            Du–Sh, 9:00 — 18:00
-          </p>
-
-          <div class="mt-6 sm:mt-8">
-            <button class="btn-accent btn-lg w-full xs:w-auto" @click="openLeadModal()">
-              Ariza qoldirish
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M5 12h14M12 5l7 7-7 7" />
-              </svg>
+          <div class="hero__cta">
+            <button class="btn btn--primary btn--lg" type="button" @click="openLeadModal()">
+              Ariza qoldirish <i class="ph ph-arrow-right" aria-hidden="true"></i>
             </button>
+            <a class="btn btn--ghost btn--lg" href="#programs">Yo'nalishlar</a>
+            <a class="btn btn--ghost btn--lg" href="https://yotoqxona.xiuedu.uz/" target="_blank" rel="noopener noreferrer">
+              <i class="ph ph-bed" aria-hidden="true"></i> Yotoqxona tizimi <i class="ph ph-arrow-up-right" aria-hidden="true"></i>
+            </a>
           </div>
         </div>
 
-        <div class="lg:col-span-7 space-y-2.5">
-          <a v-for="c in [
-            { type: 'tel',  href: 'tel:+998554061515',                                          label: 'Telefon',   value: '+998 55 406 15 15',                                tone: 'indigo' },
-            { type: 'mail', href: 'mailto:info@xiuedu.uz',                                      label: 'Email',     value: 'info@xiuedu.uz',                                   tone: 'amber' },
-            { type: 'tg',   href: 'https://t.me/xalqaro_innovatsion_universiteti',              label: 'Telegram',  value: '@xalqaro_innovatsion',                             tone: 'sky' },
-            { type: 'map',  href: 'https://maps.google.com/?q=Qarshi+I.Karimov+ko%27chasi+405', label: 'Manzil',    value: 'Qarshi sh., I.Karimov ko‘chasi, 405-uy',           tone: 'rose' },
-          ]" :key="c.type"
-            :href="c.href" :target="c.type === 'tel' || c.type === 'mail' ? '_self' : '_blank'" rel="noopener"
-            class="card-hover px-4 sm:px-5 py-3.5 sm:py-4 flex items-center gap-3 sm:gap-4 group">
-            <span class="grid place-items-center w-10 h-10 sm:w-11 sm:h-11 rounded-xl shrink-0 transition-transform duration-300 group-hover:scale-105"
-                  :style="{
-                    background: c.tone === 'indigo' ? 'rgb(238 242 255)' :
-                                c.tone === 'amber'  ? 'rgb(255 251 235)' :
-                                c.tone === 'sky'    ? 'rgb(240 249 255)' :
-                                                      'rgb(255 241 242)',
-                    color:      c.tone === 'indigo' ? 'rgb(67 56 202)' :
-                                c.tone === 'amber'  ? 'rgb(180 83 9)' :
-                                c.tone === 'sky'    ? 'rgb(7 89 133)' :
-                                                      'rgb(190 18 60)',
-                  }">
-              <svg v-if="c.type === 'tel'" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.37 1.9.72 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.35 1.85.59 2.81.72A2 2 0 0 1 22 16.92z" />
-              </svg>
-              <svg v-else-if="c.type === 'mail'" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z M22 6 12 13 2 6" />
-              </svg>
-              <svg v-else-if="c.type === 'tg'" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M22.05 1.577c-.393-.016-.784.08-1.117.235-.484.186-21.79 8.413-22.62 8.711-.83.298-.83 1.27 0 1.568.32.115 4.286 1.659 5.95 2.301a1 1 0 0 0 .708-.005l9.66-3.836c.295-.117.566.158.404.42L9.05 18.92c-.123.158-.07.39.106.477l9.07 4.45c.38.186.838-.012.99-.42L23.86 2.96c.21-.563-.282-1.404-.81-1.382z" />
-              </svg>
-              <svg v-else xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
-              </svg>
-            </span>
-            <div class="min-w-0 flex-1 overflow-hidden">
-              <div class="text-[10px] uppercase tracking-[0.10em] font-bold mb-0.5"
-                   :style="{ color: 'rgb(var(--fg-muted))' }">
-                {{ c.label }}
-              </div>
-              <div class="font-semibold text-[14px] sm:text-[15px] truncate transition-colors group-hover:text-[rgb(var(--brand))]"
-                   :style="{ color: 'rgb(var(--fg))' }">
-                {{ c.value }}
-              </div>
-            </div>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                 class="shrink-0 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200"
-                 :style="{ color: 'rgb(var(--fg-muted))' }">
-              <path d="M5 12h14M12 5l7 7-7 7" />
-            </svg>
-          </a>
+        <div class="hero__media">
+          <!-- TODO: universitetning haqiqiy fotosurati (1200x1250) -->
+          <div class="hero__frame">
+            <img src="https://picsum.photos/seed/xiu-qarshi-campus/1200/1250" alt="Universitet talabalari kampusda" fetchpriority="high" width="1200" height="1250" />
+          </div>
+          <!-- TODO: laboratoriya/auditoriya fotosurati (700x740) -->
+          <div class="hero__inset">
+            <img src="https://picsum.photos/seed/xiu-lecture-hall/700/740" alt="Zamonaviy auditoriya" loading="lazy" width="700" height="740" />
+          </div>
+          <div class="hero__stat">
+            <b class="mono">8000+</b>
+            <span>Iqtidorli talabalar</span>
+          </div>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
+
+    <!-- ===================== 2. STATISTIKA ===================== -->
+    <section class="stats">
+      <div class="shell">
+        <div class="stats__row">
+          <div v-for="(s, i) in statList" :key="i" class="stat rv" :style="{ '--i': i }">
+            <b class="mono" :data-count="s.n" :data-suffix="s.suffix">{{ s.n }}{{ s.suffix }}</b>
+            <span>{{ s.label }}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 3. YO'NALISHLAR ===================== -->
+    <section class="sec" id="programs">
+      <div class="shell">
+        <div class="sec__head rv">
+          <span class="eyebrow">Yo'nalishlar</span>
+          <h2>{{ filtered.length || 0 }} ta faol yo'nalish</h2>
+          <p>Bakalavr va magistratura yo'nalishlari. Sizga mos yo'nalishni filtrlardan toping.</p>
+        </div>
+
+        <div class="filters rv" role="group" aria-label="Yo'nalishlarni filtrlash">
+          <div class="search">
+            <i class="ph ph-funnel-simple" aria-hidden="true"></i>
+            <input v-model="search" type="text" placeholder="Yo'nalish nomini kiriting..." aria-label="Qidiruv" />
+          </div>
+          <button class="chip" type="button" :aria-pressed="!levelFilter" @click="levelFilter = ''">Hammasi</button>
+          <button v-for="l in levels" :key="l.id" class="chip" type="button"
+                  :aria-pressed="levelFilter === l.id" @click="levelFilter = l.id">{{ l.name }}</button>
+          <select v-if="branches.length" class="select" v-model="branchFilter" aria-label="Filial">
+            <option value="">Hamma filiallar</option>
+            <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
+          </select>
+        </div>
+
+        <!-- Skeleton -->
+        <div v-if="loading" class="progs">
+          <div v-for="i in 6" :key="`sk-${i}`" class="prog" style="cursor:default">
+            <div class="prog__top"><span class="skel" style="width:70px;height:14px"></span><span class="skel" style="width:44px;height:12px"></span></div>
+            <span class="skel" style="width:100%;height:20px"></span>
+            <span class="skel" style="width:60%;height:14px"></span>
+            <div class="prog__foot"><span class="skel" style="width:110px;height:18px"></span><span class="skel" style="width:44px;height:14px"></span></div>
+          </div>
+        </div>
+
+        <!-- Empty -->
+        <div v-else-if="!filtered.length" class="empty">
+          <i class="ph ph-funnel-simple" aria-hidden="true"></i>
+          <b>Bu filtr bo'yicha yo'nalish topilmadi</b>
+          <p>Boshqa filtrni tanlang yoki filtrlarni tozalang.</p>
+          <div style="margin-top:1.25rem;display:flex;justify-content:center">
+            <button class="btn btn--ghost" type="button" @click="clearFilters">Filtrlarni tozalash</button>
+          </div>
+        </div>
+
+        <!-- Grid (filtr o'zgarganda FLIP bilan siljiydi) -->
+        <TransitionGroup v-else name="flip" tag="div" class="progs">
+          <article v-for="p in visiblePrograms" :key="p.id" class="prog" :data-hue="hueOf(p)"
+                   tabindex="0" role="button" :aria-label="`${p.name} — ariza qoldirish`"
+                   @click="openLeadModal(p.id)" @keydown.enter.prevent="openLeadModal(p.id)" @keydown.space.prevent="openLeadModal(p.id)">
+            <div class="prog__top">
+              <span class="prog__deg">{{ p.education_level_name || 'Bakalavr' }}</span>
+              <span class="prog__code mono">{{ p.code }}</span>
+            </div>
+            <h3>{{ p.name }}</h3>
+            <p class="prog__meta">
+              <span v-if="p.branch_name">{{ p.branch_name }}</span>
+              <span v-if="p.education_form_name"><i class="ph ph-sun-horizon" aria-hidden="true"></i>{{ p.education_form_name }}</span>
+              <span v-if="p.study_duration_years"><i class="ph ph-calendar-blank" aria-hidden="true"></i>{{ p.study_duration_years }} yil</span>
+            </p>
+            <div class="prog__foot">
+              <p class="prog__price"><b class="mono">{{ fmtPrice(p.tuition_fee) }}</b> <span>so'm/yil</span></p>
+              <span class="prog__link">Ariza <i class="ph ph-arrow-right" aria-hidden="true"></i></span>
+            </div>
+          </article>
+        </TransitionGroup>
+
+        <div v-if="!loading && filtered.length > visibleCount" class="progs__more rv">
+          <button class="btn btn--ghost btn--lg" type="button" @click="visibleCount += 9">
+            Yana yo'nalishlarni ko'rish <i class="ph ph-arrow-right" aria-hidden="true"></i>
+          </button>
+        </div>
+        <div v-else-if="!loading && filtered.length" class="progs__more rv">
+          <a class="btn btn--ghost btn--lg" href="/programs">Barcha yo'nalishlarni ko'rish <i class="ph ph-arrow-right" aria-hidden="true"></i></a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 4. UNIVERSITET (bento) ===================== -->
+    <section class="sec" id="about">
+      <div class="shell">
+        <div class="sec__head rv">
+          <span class="eyebrow">Universitet haqida</span>
+          <h2>Xalqaro innovatsion universiteti</h2>
+          <p>Qarshi shahridagi nodavlat oliy ta'lim muassasasi. Bakalavr va magistratura yo'nalishlarida zamonaviy va innovatsion ta'lim beruvchi universitet.</p>
+        </div>
+
+        <div class="bento">
+          <!-- TODO: universitet binosi/kutubxona fotosurati (1000x700) -->
+          <div class="cell cell--photo rv">
+            <img src="https://picsum.photos/seed/xiu-library-building/1000/700" alt="Universitet o'quv binosi" loading="lazy" width="1000" height="700" />
+          </div>
+          <div class="cell cell--a rv" :style="{ '--i': 1 }">
+            <div class="cell__ico"><i class="ph ph-graduation-cap" aria-hidden="true"></i></div>
+            <h3>Bakalavr va magistratura</h3>
+            <p>4 yillik bakalavr va 2 yillik magistratura dasturlari, kunduzgi ta'lim shaklida.</p>
+          </div>
+          <div class="cell cell--b rv" :style="{ '--i': 2 }">
+            <div class="cell__ico"><i class="ph ph-globe-hemisphere-east" aria-hidden="true"></i></div>
+            <h3>Xalqaro hamkorlik</h3>
+            <p>Rossiya, Qozog'iston va boshqa davlatlar oliy ta'lim muassasalari bilan ikki tomonlama almashinuv dasturlari.</p>
+          </div>
+          <div class="cell cell--c rv" :style="{ '--i': 3 }">
+            <div class="cell__ico"><i class="ph ph-lightbulb-filament" aria-hidden="true"></i></div>
+            <h3>Dual ta'lim</h3>
+            <p><a href="https://spromaxplast.uz/" target="_blank" rel="noopener noreferrer" style="color:var(--t-magenta);font-weight:600;text-decoration:underline">S Promax Plast Premium zavodi bilan hamkorlikda dual ta'lim yo'lga qo'yilgan</a> — talaba o'qish bilan birga real ishlab chiqarishda tajriba oladi.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 5. QABUL TARTIBI ===================== -->
+    <section class="sec" id="qabul">
+      <div class="shell">
+        <div class="sec__head rv">
+          <span class="eyebrow">Qabul tartibi</span>
+          <h2>Qabul qanday o'tadi</h2>
+          <p>Ariza qoldirganingizdan keyin qabul komissiyasi o'zi bog'lanadi va jarayonni oxirigacha kuzatib boradi.</p>
+        </div>
+
+        <div class="flow">
+          <div class="flow__rail" aria-hidden="true"></div>
+          <div class="step rv">
+            <div class="step__dot"><i class="ph ph-cursor-click" aria-hidden="true"></i></div>
+            <h3>Ariza qoldiring</h3>
+            <p>Formani to'ldiring yoki qabul komissiyasiga telefon qiling.</p>
+          </div>
+          <div class="step rv" :style="{ '--i': 1 }">
+            <div class="step__dot"><i class="ph ph-files" aria-hidden="true"></i></div>
+            <h3>Hujjatlarni topshiring</h3>
+            <p>Pasport, ma'lumotnoma va o'rta ta'lim hujjatingiz nusxasi.</p>
+          </div>
+          <div class="step rv" :style="{ '--i': 2 }">
+            <div class="step__dot"><i class="ph ph-chats-circle" aria-hidden="true"></i></div>
+            <h3>Suhbatdan o'ting</h3>
+            <p>Tanlagan yo'nalishingiz bo'yicha qisqa suhbat va yo'naltirish.</p>
+          </div>
+          <div class="step rv" :style="{ '--i': 3 }">
+            <div class="step__dot"><i class="ph ph-signature" aria-hidden="true"></i></div>
+            <h3>Shartnoma imzolang</h3>
+            <p>To'lov shartlari kelishiladi va siz talabalikka qabul qilinasiz.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 6. XALQARO HAMKORLIK ===================== -->
+    <section class="sec" id="hamkorlik">
+      <div class="shell">
+        <div class="band rv">
+          <!-- TODO: xalqaro almashinuv fotosurati (1800x900) -->
+          <div class="band__img"><img src="https://picsum.photos/seed/xiu-international/1800/900" alt="Xalqaro almashinuv dasturi" loading="lazy" width="1800" height="900" /></div>
+          <div class="band__scrim" aria-hidden="true"></div>
+          <div class="band__in">
+            <h2>Diplomni bu yerda oling, tajribani chet elda va ishlab chiqarishda</h2>
+            <p>Rossiya, Qozog'iston va boshqa davlatlar oliy ta'lim muassasalari bilan ikki tomonlama almashinuv dasturlari, hamda <strong>S Promax Plast Premium (PVC panel zavodi)</strong> bilan hamkorlikda dual ta'lim yo'lga qo'yilgan.</p>
+            <div class="band__countries">
+              <span class="country"><i class="ph ph-map-pin" aria-hidden="true"></i>Rossiya</span>
+              <span class="country"><i class="ph ph-map-pin" aria-hidden="true"></i>Qozog'iston</span>
+              <span class="country"><i class="ph ph-globe-hemisphere-east" aria-hidden="true"></i>Boshqa hamkor davlatlar</span>
+              <a class="country" href="https://spromaxplast.uz/" target="_blank" rel="noopener noreferrer"><i class="ph ph-arrow-up-right" aria-hidden="true"></i>S Promax Plast — PVC panel zavodi</a>
+            </div>
+            <div class="band__cta">
+              <button class="btn btn--onphoto btn--lg" type="button" @click="openLeadModal()">
+                Dastur haqida so'rash <i class="ph ph-arrow-right" aria-hidden="true"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 7. ALOQA ===================== -->
+    <section class="sec" id="contact">
+      <div class="shell">
+        <div class="sec__head rv">
+          <span class="eyebrow">Bog'lanish</span>
+          <h2>Aloqa</h2>
+          <p>Ariza qoldiring, qabul komissiyasi ish vaqti davomida o'zi aloqaga chiqadi.</p>
+        </div>
+
+        <div class="contact">
+          <div class="info rv">
+            <a class="info__item" href="tel:+998554061515">
+              <div class="info__ico"><i class="ph ph-phone-call" aria-hidden="true"></i></div>
+              <div><span>Telefon</span><b class="mono">+998 55 406 15 15</b></div>
+            </a>
+            <a class="info__item" href="https://www.instagram.com/xiu_edu.uz/" target="_blank" rel="noopener noreferrer">
+              <div class="info__ico"><i class="ph ph-instagram-logo" aria-hidden="true"></i></div>
+              <div><span>Instagram</span><b>@xiu_edu.uz</b></div>
+            </a>
+            <a class="info__item" href="https://t.me/xalqaro_innovatsion_universiteti" target="_blank" rel="noopener noreferrer">
+              <div class="info__ico"><i class="ph ph-telegram-logo" aria-hidden="true"></i></div>
+              <div><span>Telegram</span><b>@xalqaro_innovatsion_universiteti</b></div>
+            </a>
+            <div class="info__item">
+              <div class="info__ico"><i class="ph ph-map-pin-line" aria-hidden="true"></i></div>
+              <div><span>Manzil</span><p>Qarshi shahri, I. Karimov ko'chasi, 405-uy</p></div>
+            </div>
+          </div>
+
+          <div class="rv" :style="{ '--i': 1 }">
+            <div class="cta-card">
+              <h3>Ariza qoldirish</h3>
+              <p>Formani to'ldiring — qabul komissiyasi ish vaqti davomida siz bilan bog'lanadi.</p>
+              <button class="btn btn--primary btn--lg" type="button" @click="openLeadModal()">
+                Ariza qoldirish <i class="ph ph-arrow-right" aria-hidden="true"></i>
+              </button>
+            </div>
+            <p class="hours"><i class="ph ph-clock" aria-hidden="true"></i> Ish vaqti: dushanbadan shanbagacha, 9:00 dan 18:00 gacha</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
 </template>
-
-<style scoped>
-/* =================== Hero animated background =================== */
-.hero-blob {
-  position: absolute;
-  border-radius: 9999px;
-  filter: blur(72px);
-  pointer-events: none;
-  z-index: -10;
-  will-change: transform;
-}
-.hero-blob-a {
-  top: -120px; left: -120px;
-  width: 360px; height: 360px;
-  animation: hero-drift-a 22s ease-in-out infinite;
-}
-.hero-blob-b {
-  bottom: -120px; right: -120px;
-  width: 400px; height: 400px;
-  animation: hero-drift-b 26s ease-in-out infinite;
-}
-.hero-blob-c {
-  top: 30%; left: 50%;
-  width: 300px; height: 300px;
-  margin-left: -150px;
-  opacity: 0.7;
-  animation: hero-drift-c 28s ease-in-out infinite;
-}
-@media (min-width: 640px) {
-  .hero-blob-a { top: -160px; left: -160px; width: 640px; height: 640px; }
-  .hero-blob-b { bottom: -200px; right: -160px; width: 720px; height: 720px; }
-  .hero-blob-c { width: 480px; height: 480px; margin-left: -240px; }
-}
-@keyframes hero-drift-a {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50%      { transform: translate(120px, 80px) scale(1.1); }
-}
-@keyframes hero-drift-b {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50%      { transform: translate(-100px, -60px) scale(1.05); }
-}
-@keyframes hero-drift-c {
-  0%, 100% { transform: translate(-50%, 0) scale(1); }
-  50%      { transform: translate(-30%, -40px) scale(1.15); }
-}
-
-/* Slowly rotating conic ring */
-.hero-conic {
-  position: absolute;
-  top: 0; left: 50%;
-  width: 800px; height: 800px;
-  margin-left: -400px; margin-top: -400px;
-  border-radius: 9999px;
-  pointer-events: none;
-  z-index: -10;
-  background: conic-gradient(
-    from 0deg,
-    transparent 0deg,
-    rgb(var(--brand) / 0.15) 60deg,
-    transparent 120deg,
-    rgb(var(--accent) / 0.12) 200deg,
-    transparent 260deg,
-    rgb(var(--brand) / 0.15) 320deg,
-    transparent 360deg
-  );
-  filter: blur(48px);
-  animation: hero-spin 60s linear infinite;
-  opacity: 0.65;
-}
-@media (min-width: 640px) {
-  .hero-conic { width: 1200px; height: 1200px; margin-left: -600px; margin-top: -600px; }
-}
-@keyframes hero-spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
-}
-
-/* Top hairline shimmer */
-.hero-shimmer {
-  position: absolute;
-  top: 0; left: 0;
-  width: 200%;
-  height: 100%;
-  animation: hero-shimmer 6s ease-in-out infinite;
-}
-@keyframes hero-shimmer {
-  0%   { transform: translateX(-50%); }
-  100% { transform: translateX(0); }
-}
-
-/* Pulsing eyebrow dot */
-.hero-pulse {
-  animation: hero-pulse 2s ease-in-out infinite;
-}
-@keyframes hero-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgb(var(--accent) / 0.5); }
-  50%      { box-shadow: 0 0 0 6px rgb(var(--accent) / 0); }
-}
-
-/* Animated gradient text */
-.gradient-text-anim {
-  background: linear-gradient(
-    100deg,
-    rgb(var(--brand-deep)) 0%,
-    rgb(var(--brand)) 30%,
-    rgb(var(--accent)) 55%,
-    rgb(var(--brand)) 80%,
-    rgb(var(--brand-deep)) 100%
-  );
-  background-size: 200% auto;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: gradient-pan 8s linear infinite;
-}
-@keyframes gradient-pan {
-  0%   { background-position: 0% center; }
-  100% { background-position: 200% center; }
-}
-
-/* Hero entrance */
-.hero-fade {
-  opacity: 0;
-  transform: translateY(14px);
-  animation: hero-fade-in 700ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-@keyframes hero-fade-in {
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* Card reveal stagger */
-.reveal-card {
-  opacity: 0;
-  transform: translateY(12px);
-  animation: card-reveal 600ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
-}
-@keyframes card-reveal {
-  to { opacity: 1; transform: translateY(0); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .hero-blob, .hero-conic, .hero-shimmer, .hero-pulse,
-  .gradient-text-anim, .hero-fade, .reveal-card {
-    animation: none !important;
-  }
-  .hero-fade, .reveal-card { opacity: 1; transform: none; }
-}
-</style>
