@@ -224,6 +224,8 @@ async def export_applications_csv(
     source: str | None = Query(default=None),
     created_from: datetime | None = Query(default=None),
     created_to: datetime | None = Query(default=None),
+    request: Request = None,  # type: ignore[assignment]
+    current: CurrentUser = Depends(get_current_user),
     svc: ApplicationsService = Depends(_service),
 ) -> Response:
     """Export filtered applications to CSV."""
@@ -266,6 +268,27 @@ async def export_applications_csv(
             a["submitted_at"].strftime("%Y-%m-%d %H:%M") if a.get("submitted_at") else "",
         ])
     fn = f"applications-{datetime.now().strftime('%Y%m%d-%H%M')}.csv"
+
+    # Record WHO exported and HOW MANY rows — surfaced in the audit log
+    # (action "applications.export") so downloads are attributable per user.
+    try:
+        await AuditService(svc.session).log(
+            "applications.export",
+            user_id=UUID(current.user_id),
+            entity_type="applications",
+            changes={
+                "rows": len(items),
+                "status": status_filter.value if status_filter else None,
+                "program_id": str(program_id) if program_id else None,
+                "branch_id": str(branch_id) if branch_id else None,
+                "registered_by_id": str(registered_by_id) if registered_by_id else None,
+            },
+            request=request,
+        )
+        await svc.session.commit()
+    except Exception:
+        pass  # never fail the download over an audit write
+
     return Response(
         content=buf.getvalue().encode("utf-8"),
         media_type="text/csv; charset=utf-8",
