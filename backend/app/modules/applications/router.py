@@ -15,6 +15,7 @@ from app.core.dependencies import (
     get_current_user,
     get_db,
     require_permission,
+    require_root_superadmin,
 )
 from app.core.exceptions import ForbiddenError
 from app.core.permissions import Permission
@@ -210,7 +211,9 @@ async def list_applications(
 
 @router.get(
     "/export.csv",
-    dependencies=[Depends(require_permission(Permission.APPLICATIONS_LIST))],
+    # Security: CSV export is restricted to the single ROOT superadmin.
+    # Every other role (incl. other superadmins/admins) gets 403.
+    dependencies=[Depends(require_root_superadmin)],
 )
 async def export_applications_csv(
     status_filter: ApplicationStatus | None = Query(default=None, alias="status"),
@@ -430,7 +433,9 @@ def _xlsx_cell_value(key: str, value):
 
 @router.get(
     "/export.xlsx",
-    dependencies=[Depends(require_permission(Permission.APPLICATIONS_LIST))],
+    # Security: Excel export is restricted to the single ROOT superadmin.
+    # Every other role (incl. other superadmins/admins) gets 403.
+    dependencies=[Depends(require_root_superadmin)],
 )
 async def export_applications_xlsx(
     status_filter: ApplicationStatus | None = Query(default=None, alias="status"),
@@ -444,6 +449,8 @@ async def export_applications_xlsx(
     source: str | None = Query(default=None),
     created_from: datetime | None = Query(default=None),
     created_to: datetime | None = Query(default=None),
+    request: Request = None,  # type: ignore[assignment]
+    current: CurrentUser = Depends(get_current_user),
     svc: ApplicationsService = Depends(_service),
 ) -> Response:
     """Export filtered applications to a styled Excel (.xlsx) workbook.
@@ -531,6 +538,27 @@ async def export_applications_xlsx(
     # users can tell exports apart without opening each file. Underscores
     # because Windows hides hyphens and colons confuse the OS.
     fn = f"arizalar_{datetime.now().strftime('%Y-%m-%d_%H-%M')}.xlsx"
+
+    # Attribute the export in the audit log (action "applications.export").
+    try:
+        await AuditService(svc.session).log(
+            "applications.export",
+            user_id=UUID(current.user_id),
+            entity_type="applications",
+            changes={
+                "format": "xlsx",
+                "rows": len(rows),
+                "status": status_filter.value if status_filter else None,
+                "program_id": str(program_id) if program_id else None,
+                "branch_id": str(branch_id) if branch_id else None,
+                "registered_by_id": str(registered_by_id) if registered_by_id else None,
+            },
+            request=request,
+        )
+        await svc.session.commit()
+    except Exception:
+        pass  # never fail the download over an audit write
+
     return Response(
         content=buf.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

@@ -454,8 +454,8 @@ async function bulkDeleteSelected() {
         <span>Tahlil qilingan</span>
         <strong class="text-slate-900 dark:text-slate-100">{{ reviewedPercent }}%</strong>
       </div>
-      <button class="btn-outline" :disabled="exporting" @click="exportXlsx"
-              title="Filtr qoʻllangan barcha arizalarni Excel jadvali (.xlsx) sifatida yuklab olish — hamma ustun bilan, sarlavhasi rangli">
+      <button v-if="auth.isRootSuperadmin" class="btn-outline" :disabled="exporting" @click="exportXlsx"
+              title="Filtr qoʻllangan barcha arizalarni Excel jadvali (.xlsx) sifatida yuklab olish — faqat asosiy administrator uchun">
         <Download class="w-4 h-4" /> {{ exporting ? '...' : 'Excel' }}
       </button>
       <RouterLink v-if="!isAccountantPanel" :to="`${panelPrefix}/applications/new`" class="btn-primary">
