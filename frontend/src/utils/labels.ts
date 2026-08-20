@@ -119,6 +119,7 @@ export const AUDIT_ACTIONS: Record<string, string> = {
   'applications.create':   'Ariza yaratildi',
   'applications.update':   'Ariza tahrirlandi',
   'applications.delete':   "Ariza o'chirildi",
+  'applications.export':   'Arizalar eksport qilindi (Excel/CSV)',
   'applicants.create':     'Abituriyent yaratildi',
   'applicants.update':     'Abituriyent tahrirlandi',
   'applicants.delete':     "Abituriyent o'chirildi",
