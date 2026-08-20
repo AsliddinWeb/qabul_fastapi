@@ -13,6 +13,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import Dropdown from '@/components/ui/Dropdown.vue'
 import { ROLE } from '@/utils/labels'
 import { useToast } from '@/composables/useToast'
+import { useAuthStore } from '@/stores/auth'
 import { useConfirm } from '@/composables/useConfirm'
 import { useUrlFilters } from '@/composables/useUrlFilters'
 import { useBulkSelect } from '@/composables/useBulkSelect'
@@ -24,6 +25,7 @@ import { formatPhone } from '@/utils/validators'
 
 const router = useRouter()
 const toast = useToast()
+const auth = useAuthStore()
 const { ask } = useConfirm()
 
 const items = ref<UserRead[]>([])
@@ -240,7 +242,7 @@ async function bulkDeleteSelected() {
       :subtitle="`Tizimdagi xodim va abituriyentlar — jami ${total.toLocaleString('uz-UZ')} ta`"
       :crumbs="[{ label: 'Bosh sahifa', to: '/admin' }, { label: 'Sozlamalar' }]"
     >
-      <button class="btn-outline" :disabled="exporting" @click="exportCsv">
+      <button v-if="auth.isRootSuperadmin" class="btn-outline" :disabled="exporting" @click="exportCsv">
         <Download class="w-4 h-4" /> {{ exporting ? '...' : 'CSV' }}
       </button>
       <RouterLink to="/admin/users/new" class="btn-primary">

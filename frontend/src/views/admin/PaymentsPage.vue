@@ -171,7 +171,7 @@ async function bulkConfirmSelected() {
       :subtitle="`Shartnoma bo'yicha qabul qilingan to'lovlar · Jami ${total}`"
       :crumbs="[{ label: 'Bosh sahifa', to: panelPrefix }, { label: 'Qabul jarayoni' }]"
     >
-      <button class="btn-outline" :disabled="exporting" @click="exportCsv">
+      <button v-if="auth.isRootSuperadmin" class="btn-outline" :disabled="exporting" @click="exportCsv">
         <Download class="w-4 h-4" /> {{ exporting ? '...' : 'CSV' }}
       </button>
     </PageHeader>

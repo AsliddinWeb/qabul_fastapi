@@ -12,6 +12,7 @@ import {
 import { dictionariesApi, type DictionaryItem } from '@/api/dictionaries.api'
 import { downloadCsv } from '@/api/http'
 import { useToast } from '@/composables/useToast'
+import { useAuthStore } from '@/stores/auth'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
@@ -22,6 +23,7 @@ import { PAYMENT_STATUS, tr } from '@/utils/labels'
 const router = useRouter()
 const route = useRoute()
 const toast = useToast()
+const auth = useAuthStore()
 
 const items = ref<PaymentRead[]>([])
 const total = ref(0)
@@ -221,7 +223,7 @@ const crumbs = [
       :subtitle="periodSubtitle || `Jami ${total} ta yozuv`"
       :crumbs="crumbs"
     >
-      <button class="btn-outline" :disabled="exporting" @click="exportCsv">
+      <button v-if="auth.isRootSuperadmin" class="btn-outline" :disabled="exporting" @click="exportCsv">
         <Download class="w-4 h-4" /> {{ exporting ? '...' : 'CSV' }}
       </button>
     </PageHeader>

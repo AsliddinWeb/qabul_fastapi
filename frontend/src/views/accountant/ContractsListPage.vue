@@ -15,6 +15,7 @@ import {
 import { downloadCsv } from '@/api/http'
 import { adminApi } from '@/api/admin.api'
 import { useToast } from '@/composables/useToast'
+import { useAuthStore } from '@/stores/auth'
 import StatusBadge from '@/components/ui/StatusBadge.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
@@ -25,6 +26,7 @@ import { CONTRACT_STATUS, tr } from '@/utils/labels'
 const router = useRouter()
 const route = useRoute()
 const toast = useToast()
+const auth = useAuthStore()
 
 const items = ref<ContractListItem[]>([])
 const total = ref(0)
@@ -169,7 +171,7 @@ async function exportCsv() {
       :subtitle="`Jami ${total} ta · To'lov holati va qoldiqlarni boshqaring`"
       :crumbs="[{ label: 'Bosh sahifa', to: '/accountant' }, { label: 'Shartnomalar' }]"
     >
-      <button class="btn-outline" :disabled="exporting" @click="exportCsv">
+      <button v-if="auth.isRootSuperadmin" class="btn-outline" :disabled="exporting" @click="exportCsv">
         <Download class="w-4 h-4" /> {{ exporting ? '...' : 'CSV' }}
       </button>
     </PageHeader>

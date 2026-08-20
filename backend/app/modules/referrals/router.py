@@ -13,7 +13,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.core.dependencies import CurrentUser, get_current_user, get_db, require_permission
+from app.core.dependencies import CurrentUser, get_current_user, get_db, require_permission, require_root_superadmin
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError, ValidationError
 from app.core.permissions import Permission
 from app.modules.applicants.models import Applicant
@@ -540,7 +540,8 @@ async def referral_stats(
 
 @router.get(
     "/export.csv",
-    dependencies=[Depends(require_permission(Permission.REPORTS_VIEW))],
+    # Security: export restricted to the root superadmin only.
+    dependencies=[Depends(require_root_superadmin)],
 )
 async def export_referrals_csv(
     status_filter: str | None = Query(default=None),

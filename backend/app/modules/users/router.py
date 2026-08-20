@@ -8,7 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import CurrentUser, get_current_user, get_db, require_permission
+from app.core.dependencies import CurrentUser, get_current_user, get_db, require_permission, require_root_superadmin
 from app.core.permissions import Permission
 from app.core.schemas import MessageResponse, PageResponse
 from app.db.enums import UserRole
@@ -157,7 +157,8 @@ async def list_users(
 
 @router.get(
     "/export.csv",
-    dependencies=[Depends(require_permission(Permission.USERS_LIST))],
+    # Security: export restricted to the root superadmin only.
+    dependencies=[Depends(require_root_superadmin)],
 )
 async def export_users_csv(
     role: UserRole | None = Query(default=None),

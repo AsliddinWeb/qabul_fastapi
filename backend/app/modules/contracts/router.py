@@ -9,7 +9,7 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import CurrentUser, get_current_user, get_db, require_permission
+from app.core.dependencies import CurrentUser, get_current_user, get_db, require_permission, require_root_superadmin
 from app.core.permissions import Permission
 from app.core.schemas import PageResponse
 from app.db.enums import ContractStatus, ContractType
@@ -258,7 +258,8 @@ async def list_contracts_detailed(
 
 @router.get(
     "/export.csv",
-    dependencies=[Depends(require_permission(Permission.CONTRACTS_READ))],
+    # Security: export restricted to the root superadmin only.
+    dependencies=[Depends(require_root_superadmin)],
 )
 async def export_contracts_csv(
     status_filter: ContractStatus | None = Query(default=None, alias="status"),

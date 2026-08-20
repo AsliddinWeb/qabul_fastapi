@@ -219,7 +219,7 @@ function age(birth: string): number {
       :subtitle="`Tizimda ro'yxatga olingan abituriyentlar · Jami ${total}`"
       :crumbs="[{ label: 'Bosh sahifa', to: panelPrefix }, { label: 'Qabul jarayoni' }]"
     >
-      <button class="btn-outline" :disabled="exporting" @click="exportCsv">
+      <button v-if="auth.isRootSuperadmin" class="btn-outline" :disabled="exporting" @click="exportCsv">
         <Download class="w-4 h-4" /> {{ exporting ? '...' : 'CSV' }}
       </button>
       <RouterLink v-if="!isAccountantPanel" :to="`${panelPrefix}/applicants/new`" class="btn-primary">

@@ -354,7 +354,7 @@ function opAvatarTone(name: string | null): string {
       :subtitle="myOnly ? `Sizga biriktirilgan lead'lar — varonkangizni boshqaring` : 'Potensial abituriyentlar — varonkani boshqarish'"
       :crumbs="[{ label: 'Bosh sahifa', to: panelPrefix }, { label: 'CRM' }]"
     >
-      <button class="btn-outline" :disabled="exporting" @click="exportCsv">
+      <button v-if="auth.isRootSuperadmin" class="btn-outline" :disabled="exporting" @click="exportCsv">
         <Download class="w-4 h-4" /> {{ exporting ? '...' : 'CSV' }}
       </button>
       <RouterLink :to="`${panelPrefix}/leads/board`" class="btn-outline">

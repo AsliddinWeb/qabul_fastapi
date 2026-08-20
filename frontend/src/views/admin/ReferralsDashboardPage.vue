@@ -12,11 +12,13 @@ import {
 } from '@/api/referrals.api'
 import { downloadCsv } from '@/api/http'
 import { useToast } from '@/composables/useToast'
+import { useAuthStore } from '@/stores/auth'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 
 const toast = useToast()
+const auth = useAuthStore()
 
 const loading = ref(true)
 const stats = ref<ReferralStats | null>(null)
@@ -121,7 +123,7 @@ const crumbs = [
       :subtitle="stats ? `Jami ${stats.total_referrals} ta taklif · ${fmtMoney(stats.total_cash_paid)} so'm naqd to'langan` : 'Yuklanmoqda...'"
       :crumbs="crumbs"
     >
-      <button class="btn-outline" :disabled="exporting" @click="exportCsv">
+      <button v-if="auth.isRootSuperadmin" class="btn-outline" :disabled="exporting" @click="exportCsv">
         <Download class="w-4 h-4" /> {{ exporting ? '...' : 'CSV' }}
       </button>
     </PageHeader>
