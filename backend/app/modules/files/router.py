@@ -187,18 +187,27 @@ async def public_download_file(
     file_id: UUID,
     session: AsyncSession = Depends(get_db),
 ) -> Response:
-    """Public file streaming — only allows files referenced by an active Program as image_id.
-
-    Used by the public landing to display program icons.
+    """Public file streaming — only allows files publicly referenced by an
+    active Program (icon) or by the editable landing content (hero/about/
+    hamkorlik images). Used by the public landing.
     """
-    from sqlalchemy import select
+    from sqlalchemy import cast, select
+    from sqlalchemy.types import Text as SAText
+    from app.modules.landing.models import LandingContent
     from app.modules.programs.models import Program
 
-    # Security: file must be linked to an active Program as its icon
-    row = (await session.execute(
+    # Security: only serve files that are referenced somewhere public — either
+    # an active Program's icon, or an image used by the landing content.
+    allowed = (await session.execute(
         select(Program.id).where(Program.image_id == file_id, Program.is_active == True)  # noqa: E712
-    )).scalar_one_or_none()
-    if not row:
+    )).scalar_one_or_none() is not None
+    if not allowed:
+        allowed = (await session.execute(
+            select(LandingContent.id).where(
+                cast(LandingContent.data, SAText).like(f"%{file_id}%")
+            )
+        )).scalar_one_or_none() is not None
+    if not allowed:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="File not found")
 
     file = await FileRepository(session).get(file_id)
