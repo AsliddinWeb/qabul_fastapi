@@ -261,30 +261,98 @@ async def check_phone(
     phone: str = Query(..., min_length=4, max_length=20),
     svc: LeadService = Depends(_service),
 ) -> dict:
-    """Pre-submit dedup probe for the LeadNewPage form.
+    """Pre-submit dedup probe for the add-lead AND add-application forms.
 
-    Returns the existing OPEN lead's identity (id + assignee name) if a
-    match is found, or `{exists: false}` otherwise. Lets the UI warn the
-    operator before they submit instead of after, saving an unintended
-    silent merge into someone else's funnel.
+    Given a phone, surfaces everything already in the system for that number
+    so an operator can see — before they submit — that someone else is
+    already working this contact:
+
+      • `lead`  — the most relevant existing lead (open first, else the
+        latest), with the operator who owns it and its funnel stage.
+      • `applications` — every application tied to the phone (via the
+        applicant's login user), with the operator who registered it, the
+        program, and status.
+
+    `exists` stays keyed to an OPEN lead for backward compatibility with the
+    add-lead form's existing block.
     """
     cleaned = phone.strip()
+    empty = {"exists": False, "lead": None, "applications": []}
     if not cleaned:
-        return {"exists": False}
-    existing = await svc.leads.find_by_phone_open(cleaned)
-    if existing is None:
-        return {"exists": False}
-    # Resolve assignee name in a single hop — find_by_phone_open returns
-    # the bare ORM row, so we go through get_with_labels for the joined
-    # fields (assigned_to_name in particular).
-    full = await svc.leads.get_with_labels(existing.id)
+        return empty
+
+    # ---- Lead side: prefer an OPEN lead, else the latest of any status ----
+    open_lead = await svc.leads.find_by_phone_open(cleaned)
+    lead_row = open_lead or await svc.leads.find_latest_by_phone(cleaned)
+    lead_card = None
+    if lead_row is not None:
+        full = await svc.leads.get_with_labels(lead_row.id) or {}
+        lead_card = {
+            "id": str(lead_row.id),
+            "full_name": lead_row.full_name,
+            "phone": lead_row.phone,
+            "status": lead_row.status.value if hasattr(lead_row.status, "value") else lead_row.status,
+            "stage_name": full.get("stage_name"),
+            "pipeline_name": full.get("pipeline_name"),
+            "assigned_to_id": str(lead_row.assigned_to_id) if lead_row.assigned_to_id else None,
+            "assigned_to_name": full.get("assigned_to_name"),
+            "created_at": lead_row.created_at.isoformat() if lead_row.created_at else None,
+        }
+
+    # ---- Application side: phone → login user → applicant → applications ----
+    from sqlalchemy import select as _select
+    from sqlalchemy.orm import aliased
+    from app.modules.users.models import User
+    from app.modules.applicants.models import Applicant
+    from app.modules.applications.models import Application
+    from app.modules.programs.models import Program
+
+    Operator = aliased(User)
+    stmt = (
+        _select(
+            Application.id,
+            Application.application_number,
+            Application.status,
+            Application.created_at,
+            Program.name.label("program_name"),
+            Applicant.last_name,
+            Applicant.first_name,
+            Applicant.other_name,
+            Operator.full_name.label("operator_name"),
+            Operator.phone.label("operator_phone"),
+        )
+        .select_from(User)
+        .join(Applicant, Applicant.user_id == User.id)
+        .join(Application, Application.applicant_id == Applicant.id)
+        .outerjoin(Program, Program.id == Application.program_id)
+        .outerjoin(Operator, Operator.id == Applicant.registered_by_id)
+        .where(User.phone == cleaned)
+        .order_by(Application.created_at.desc())
+    )
+    apps = []
+    for r in (await svc.session.execute(stmt)).all():
+        full_name = " ".join(filter(None, [r.last_name, r.first_name, r.other_name])).strip()
+        apps.append({
+            "id": str(r.id),
+            "application_number": r.application_number,
+            "status": r.status.value if hasattr(r.status, "value") else r.status,
+            "program_name": r.program_name,
+            "applicant_full_name": full_name or None,
+            "operator_name": r.operator_name or (r.operator_phone if r.operator_phone else None),
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+        })
+
     return {
-        "exists": True,
-        "lead_id": str(existing.id),
-        "full_name": existing.full_name,
-        "assigned_to_id": str(existing.assigned_to_id) if existing.assigned_to_id else None,
-        "assigned_to_name": (full or {}).get("assigned_to_name"),
-        "stage_name": (full or {}).get("stage_name"),
+        # legacy fields (add-lead form) — keyed to an OPEN lead
+        "exists": open_lead is not None,
+        "lead_id": str(open_lead.id) if open_lead else None,
+        "full_name": open_lead.full_name if open_lead else None,
+        "assigned_to_id": (lead_card or {}).get("assigned_to_id") if open_lead else None,
+        "assigned_to_name": (lead_card or {}).get("assigned_to_name") if open_lead else None,
+        "stage_name": (lead_card or {}).get("stage_name") if open_lead else None,
+        # rich cards (both forms)
+        "lead": lead_card,
+        "applications": apps,
     }
 
 

@@ -14,10 +14,11 @@ from app.core.dependencies import (
     CurrentUser,
     get_current_user,
     get_db,
+    operator_scope,
     require_permission,
     require_root_superadmin,
 )
-from app.core.exceptions import ForbiddenError
+from app.core.exceptions import ForbiddenError, NotFoundError
 from app.core.permissions import Permission
 from app.core.schemas import PageResponse
 from app.db.enums import AdmissionType, ApplicationStatus, ContractStatus, Gender
@@ -185,8 +186,13 @@ async def list_applications(
     created_to: datetime | None = Query(default=None, description="created_at <= this UTC timestamp"),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=100),
+    current: CurrentUser = Depends(get_current_user),
     svc: ApplicationsService = Depends(_service),
 ) -> PageResponse[ApplicationDetailed]:
+    # Operators are confined to applicants they registered; other roles see all.
+    scope = operator_scope(current)
+    if scope is not None:
+        registered_by_id = scope
     items, total = await svc.list_detailed(
         status=status_filter,
         admission_type=admission_type,
@@ -623,9 +629,16 @@ async def staff_create_application(
 )
 async def get_application(
     application_id: UUID,
+    current: CurrentUser = Depends(get_current_user),
     svc: ApplicationsService = Depends(_service),
 ) -> ApplicationRead:
     obj = await svc.get(application_id)
+    # Operators may only open applications of applicants they registered.
+    scope = operator_scope(current)
+    if scope is not None:
+        applicant = await svc.applicants.get(obj.applicant_id)
+        if applicant is None or applicant.registered_by_id != scope:
+            raise NotFoundError("Application not found")
     return ApplicationRead.model_validate(obj)
 
 

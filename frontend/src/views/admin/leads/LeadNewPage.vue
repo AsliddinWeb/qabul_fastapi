@@ -6,10 +6,11 @@ import {
   Send, ChevronDown, ChevronUp, AlertCircle, CheckCircle2,
 } from 'lucide-vue-next'
 import { AxiosError } from 'axios'
-import { leadsApi, type LeadPipeline, type LeadStage, type LeadSource } from '@/api/leads.api'
+import { leadsApi, type LeadPipeline, type LeadStage, type LeadSource, type PhoneCheckResult } from '@/api/leads.api'
 import { adminApi } from '@/api/admin.api'
 import { usersApi, type UserLookup } from '@/api/users.api'
 import { useToast } from '@/composables/useToast'
+import PhoneMatchCards from '@/components/PhoneMatchCards.vue'
 import SearchSelect from '@/components/ui/SearchSelect.vue'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
@@ -106,35 +107,25 @@ function onPhoneInput(e: Event) {
   const el = e.target as HTMLInputElement
   form.phone = formatPhone(el.value)
   // User is mid-edit; clear any stale duplicate hint until they blur.
-  if (duplicateHint.value) duplicateHint.value = null
+  if (phoneMatch.value) phoneMatch.value = null
 }
 
-// Pre-submit duplicate check — fires on phone blur.
-interface DuplicateHint {
-  lead_id: string
-  full_name?: string | null
-  assigned_to_name?: string | null
-  stage_name?: string | null
-}
-const duplicateHint = ref<DuplicateHint | null>(null)
+// Pre-submit duplicate check — fires on phone blur. Surfaces the full
+// match (existing lead + applications) so the operator sees who's already
+// working this contact, and blocks submit when there is one.
+const phoneMatch = ref<PhoneCheckResult | null>(null)
+const phoneBlocked = computed(() =>
+  !!phoneMatch.value && (phoneMatch.value.exists || phoneMatch.value.applications.length > 0)
+)
 let dupeReqAbort: AbortController | null = null
 async function checkPhoneDuplicate() {
-  if (validatePhone(form.phone)) { duplicateHint.value = null; return }
+  if (validatePhone(form.phone)) { phoneMatch.value = null; return }
   const compact = compactPhone(form.phone)
   if (dupeReqAbort) dupeReqAbort.abort()
   dupeReqAbort = new AbortController()
   try {
     const res = await leadsApi.checkPhone(compact)
-    if (res.exists && res.lead_id) {
-      duplicateHint.value = {
-        lead_id: res.lead_id,
-        full_name: res.full_name,
-        assigned_to_name: res.assigned_to_name,
-        stage_name: res.stage_name,
-      }
-    } else {
-      duplicateHint.value = null
-    }
+    phoneMatch.value = (res.lead || res.applications.length > 0) ? res : null
   } catch { /* ignore — submit path will surface any real error */ }
 }
 
@@ -229,18 +220,14 @@ async function submit() {
     toast.success("Lead yaratildi")
     router.push(`${panelPrefix.value}/leads/${res.lead.id}`)
   } catch (e) {
-    const ax = e as AxiosError<{ error?: { code?: string; message?: string; details?: DuplicateHint }; detail?: string }>
+    const ax = e as AxiosError<{ error?: { code?: string; message?: string }; detail?: string }>
     const err = ax.response?.data?.error
-    // Duplicate phone: backend refuses to create/merge. Surface the existing
-    // lead as a link instead of silently pulling it into this operator's funnel.
-    if (ax.response?.status === 409 && err?.code === "lead_duplicate_phone" && err.details?.lead_id) {
-      duplicateHint.value = {
-        lead_id: err.details.lead_id,
-        full_name: err.details.full_name,
-        assigned_to_name: err.details.assigned_to_name,
-        stage_name: err.details.stage_name,
-      }
-      toast.error("Bu telefon allaqachon ro'yxatda — mavjud lead'ni oching")
+    // Duplicate phone: backend refuses to create/merge. Re-probe to surface
+    // the existing lead + applications as cards instead of silently pulling
+    // the contact into this operator's funnel.
+    if (ax.response?.status === 409 && err?.code === "lead_duplicate_phone") {
+      await checkPhoneDuplicate()
+      toast.error("Bu telefon allaqachon ro'yxatda — mavjud yozuvni oching")
     } else {
       toast.error(err?.message || ax.response?.data?.detail || "Xatolik")
     }
@@ -298,35 +285,13 @@ async function submit() {
           <p v-if="errors.phone" class="mt-1 text-xs text-rose-600 inline-flex items-center gap-1">
             <AlertCircle class="w-3 h-3" /> {{ errors.phone }}
           </p>
-          <p v-else-if="touched.phone && form.phone && !duplicateHint"
+          <p v-else-if="touched.phone && form.phone && !phoneMatch"
              class="mt-1 text-xs text-emerald-600 inline-flex items-center gap-1">
             <CheckCircle2 class="w-3 h-3" /> Yaxshi
           </p>
 
-          <!-- Duplicate hint — backend already merges silently, this just
-               warns the operator before submit so they know they're
-               touching an existing record (possibly someone else's). -->
-          <div v-if="duplicateHint"
-               class="mt-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-500/10 ring-1 ring-amber-200 dark:ring-amber-500/30 text-amber-900 dark:text-amber-200 text-xs">
-            <div class="flex items-start gap-2">
-              <AlertCircle class="w-4 h-4 mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
-              <div class="flex-1 min-w-0">
-                <div class="font-semibold mb-0.5">Bu telefon allaqachon ro'yxatda</div>
-                <div class="leading-relaxed text-amber-800 dark:text-amber-300">
-                  <span v-if="duplicateHint.full_name" class="font-medium">{{ duplicateHint.full_name }}</span>
-                  <template v-if="duplicateHint.assigned_to_name">
-                    · {{ duplicateHint.assigned_to_name }} operatorga biriktirilgan
-                  </template>
-                  <template v-else>· operator biriktirilmagan</template>
-                  <span v-if="duplicateHint.stage_name" class="text-amber-700 dark:text-amber-400/80"> · {{ duplicateHint.stage_name }}</span>
-                </div>
-                <RouterLink :to="`${panelPrefix}/leads/${duplicateHint.lead_id}`"
-                            class="inline-flex items-center gap-1 mt-1.5 font-semibold text-amber-900 dark:text-amber-200 hover:underline">
-                  Mavjud lead'ni ko'rish →
-                </RouterLink>
-              </div>
-            </div>
-          </div>
+          <!-- Existing lead + application cards for this phone. -->
+          <PhoneMatchCards v-if="phoneMatch" :result="phoneMatch" :panel-prefix="panelPrefix" class="mt-2" />
         </div>
 
         <!-- Telegram -->
@@ -410,7 +375,7 @@ async function submit() {
       <!-- Submit -->
       <div class="flex items-center justify-between gap-2 pt-3 border-t border-slate-200 dark:border-slate-800">
         <RouterLink :to="`${panelPrefix}/leads`" class="text-sm text-slate-500 hover:text-slate-900 dark:hover:text-slate-100">Bekor</RouterLink>
-        <button type="submit" class="btn-primary" :disabled="saving || !isValid || !!duplicateHint">
+        <button type="submit" class="btn-primary" :disabled="saving || !isValid || phoneBlocked">
           <Save class="w-4 h-4" /> {{ saving ? 'Saqlanmoqda...' : 'Lead yaratish' }}
         </button>
       </div>

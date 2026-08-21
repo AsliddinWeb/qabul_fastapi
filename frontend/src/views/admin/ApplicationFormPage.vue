@@ -12,11 +12,13 @@ import {
   type ProgramRead,
   type RegionRead,
 } from '@/api/admin.api'
+import { leadsApi, type PhoneCheckResult } from '@/api/leads.api'
 import { useToast } from '@/composables/useToast'
 import Skeleton from '@/components/ui/Skeleton.vue'
 import PageHeader from '@/components/ui/PageHeader.vue'
 import FileUpload from '@/components/ui/FileUpload.vue'
 import SearchSelect from '@/components/ui/SearchSelect.vue'
+import PhoneMatchCards from '@/components/PhoneMatchCards.vue'
 import {
   PLACEHOLDERS,
   formatNameUpper,
@@ -124,8 +126,34 @@ watch(applicantSearch, (q) => {
     } catch {
       applicantResults.value = []
     }
+    // If the query looks like a phone, probe cross-operator duplicates too —
+    // the applicant list above is scoped to this operator, so someone else's
+    // record won't show up in the results but still matters here.
+    if (/^\+?\d[\d\s]{6,}$/.test(q)) void probePhone(q)
   }, 300)
 })
+
+// Cross-operator dedup probe. Unlike the applicant search, this crosses the
+// per-operator isolation boundary so the operator can SEE (not silently
+// duplicate) a lead/application someone else already owns for this phone.
+const phoneMatch = ref<PhoneCheckResult | null>(null)
+// An existing active application is a hard block (one active application per
+// applicant); the operator must open the existing record instead.
+const applicationBlocked = computed(() =>
+  !isEdit.value && !!phoneMatch.value && phoneMatch.value.applications.length > 0
+)
+let probeAbort: ReturnType<typeof setTimeout> | null = null
+async function probePhone(raw: string) {
+  const compact = compactPhone(raw)
+  if (!/^\+998\d{9}$/.test(compact)) { phoneMatch.value = null; return }
+  if (probeAbort) clearTimeout(probeAbort)
+  probeAbort = setTimeout(async () => {
+    try {
+      const res = await leadsApi.checkPhone(compact)
+      phoneMatch.value = (res.lead || res.applications.length > 0) ? res : null
+    } catch { /* ignore — submit path surfaces real errors */ }
+  }, 250)
+}
 
 async function selectApplicant(a: any) {
   form.applicant_id = a.id
@@ -180,7 +208,7 @@ function validateInlineField(field: string) {
   inlineErrors.value = ne
 }
 
-function onInlinePhone(e: Event)    { inlineApplicant.phone = formatPhone((e.target as HTMLInputElement).value); validateInlineField('phone') }
+function onInlinePhone(e: Event)    { inlineApplicant.phone = formatPhone((e.target as HTMLInputElement).value); validateInlineField('phone'); void probePhone(inlineApplicant.phone) }
 function onInlineAddPhone(e: Event) { inlineApplicant.additional_phone = formatPhone((e.target as HTMLInputElement).value) }
 function onInlineLast(e: Event)     { inlineApplicant.last_name = formatNameUpper((e.target as HTMLInputElement).value); validateInlineField('last_name') }
 function onInlineFirst(e: Event)    { inlineApplicant.first_name = formatNameUpper((e.target as HTMLInputElement).value); validateInlineField('first_name') }
@@ -189,6 +217,10 @@ function onInlinePassport(e: Event) { inlineApplicant.passport_series = formatPa
 function onInlinePinfl(e: Event)    { inlineApplicant.pinfl = formatPinfl((e.target as HTMLInputElement).value); validateInlineField('pinfl') }
 
 async function createApplicantInline() {
+  if (applicationBlocked.value) {
+    toast.error("Bu raqamda ariza allaqachon mavjud — mavjud arizani oching")
+    return
+  }
   ;['phone', 'last_name', 'first_name', 'birth_date', 'passport_series', 'pinfl'].forEach(validateInlineField)
   if (Object.keys(inlineErrors.value).length) {
     toast.error("Maydonlarni to'g'ri to'ldiring")
@@ -784,6 +816,10 @@ function validate(): boolean {
 }
 
 async function submit() {
+  if (applicationBlocked.value) {
+    toast.error("Bu raqamda ariza allaqachon mavjud — mavjud arizani oching")
+    return
+  }
   if (!validate()) {
     toast.error("Maydonlarni to'ldiring")
     return
@@ -1042,6 +1078,9 @@ async function submit() {
             <button type="button" class="text-brand-600 hover:underline" @click="openInlineCreate">Yangi yaratish</button>
           </p>
 
+          <!-- Cross-operator dedup: existing lead / application for this phone. -->
+          <PhoneMatchCards v-if="!isEdit && phoneMatch" :result="phoneMatch" :panel-prefix="panelPrefix" class="mt-1" />
+
           <div v-if="showInlineCreate" class="border-t border-slate-200 dark:border-slate-800 pt-4 space-y-3">
             <div class="flex items-center justify-between">
               <h3 class="text-sm font-semibold text-slate-900 dark:text-slate-100">Yangi abituriyent</h3>
@@ -1154,7 +1193,7 @@ async function submit() {
               </div>
             </div>
             <div class="flex gap-2 pt-2">
-              <button type="button" class="btn-primary text-sm" :disabled="creatingApplicant" @click="createApplicantInline">
+              <button type="button" class="btn-primary text-sm" :disabled="creatingApplicant || applicationBlocked" @click="createApplicantInline">
                 <UserPlus class="w-4 h-4" />
                 {{ creatingApplicant ? "Yaratilmoqda..." : "Abituriyentni yaratish" }}
               </button>
@@ -1519,7 +1558,7 @@ async function submit() {
             <button type="button" class="btn-ghost"
                     @click="router.push(`${panelPrefix}/applications`)">Bekor qilish</button>
             <button type="submit" class="btn-primary"
-                    :disabled="saving || !form.applicant_id">
+                    :disabled="saving || !form.applicant_id || applicationBlocked">
               <Save class="w-4 h-4" />
               {{ saving ? 'Saqlanmoqda...' : (isEdit ? 'Yangilash' : 'Arizani yaratish') }}
             </button>

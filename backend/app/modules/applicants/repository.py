@@ -188,6 +188,7 @@ class DiplomRepository(BaseRepository[Diplom]):
         self,
         *,
         user_id: UUID | None = None,
+        registered_by_id: UUID | None = None,
         search: str | None = None,
         is_for_second_specialization: bool | None = None,
         limit: int = 50,
@@ -209,6 +210,10 @@ class DiplomRepository(BaseRepository[Diplom]):
         if user_id is not None:
             stmt = stmt.where(Diplom.user_id == user_id)
             count_stmt = count_stmt.where(Diplom.user_id == user_id)
+        if registered_by_id is not None:
+            # Operator scope: only diplomas of applicants this operator registered.
+            stmt = stmt.where(Applicant.registered_by_id == registered_by_id)
+            count_stmt = count_stmt.where(Applicant.registered_by_id == registered_by_id)
         if is_for_second_specialization is not None:
             stmt = stmt.where(Diplom.is_for_second_specialization == is_for_second_specialization)
             count_stmt = count_stmt.where(Diplom.is_for_second_specialization == is_for_second_specialization)
@@ -250,6 +255,7 @@ class TransferDiplomRepository(BaseRepository[TransferDiplom]):
         self,
         *,
         user_id: UUID | None = None,
+        registered_by_id: UUID | None = None,
         country_id: UUID | None = None,
         search: str | None = None,
         limit: int = 50,
@@ -271,6 +277,10 @@ class TransferDiplomRepository(BaseRepository[TransferDiplom]):
         if user_id is not None:
             stmt = stmt.where(TransferDiplom.user_id == user_id)
             count_stmt = count_stmt.where(TransferDiplom.user_id == user_id)
+        if registered_by_id is not None:
+            # Operator scope: only transfer diplomas of applicants this operator registered.
+            stmt = stmt.where(Applicant.registered_by_id == registered_by_id)
+            count_stmt = count_stmt.where(Applicant.registered_by_id == registered_by_id)
         if country_id is not None:
             stmt = stmt.where(TransferDiplom.country_id == country_id)
             count_stmt = count_stmt.where(TransferDiplom.country_id == country_id)

@@ -8,7 +8,8 @@ from uuid import UUID
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.dependencies import CurrentUser, get_current_user, get_db, require_permission, require_root_superadmin
+from app.core.dependencies import CurrentUser, get_current_user, get_db, operator_scope, require_permission, require_root_superadmin
+from app.core.exceptions import NotFoundError
 from app.core.permissions import Permission
 from app.core.schemas import PageResponse
 from app.integrations.crm.events import enqueue_applicant_lead
@@ -199,8 +200,13 @@ async def list_applicants(
     search: str | None = Query(default=None, min_length=1, max_length=100),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=20, ge=1, le=100),
+    current: CurrentUser = Depends(get_current_user),
     svc: ApplicantsService = Depends(_service),
 ) -> PageResponse[ApplicantRead]:
+    # Operators only see applicants they registered.
+    scope = operator_scope(current)
+    if scope is not None:
+        registered_by_id = scope
     items, total = await svc.list(
         region_id=region_id,
         registered_by_id=registered_by_id,
@@ -448,10 +454,13 @@ async def list_diploms(
     ),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=50, ge=1, le=200),
+    current: CurrentUser = Depends(get_current_user),
     svc: ApplicantsService = Depends(_service),
 ) -> PageResponse[DiplomWithApplicant]:
+    # Operators only see diplomas of applicants they registered.
+    scope = operator_scope(current)
     items, total = await svc.list_diploms(
-        user_id=user_id, search=search,
+        user_id=user_id, registered_by_id=scope, search=search,
         is_for_second_specialization=is_for_second_specialization,
         limit=size, offset=(page - 1) * size,
     )
@@ -466,8 +475,17 @@ async def list_diploms(
     response_model=DiplomRead,
     dependencies=[Depends(require_permission(Permission.APPLICANTS_READ))],
 )
-async def get_diplom(diplom_id: UUID, svc: ApplicantsService = Depends(_service)) -> DiplomRead:
+async def get_diplom(
+    diplom_id: UUID,
+    current: CurrentUser = Depends(get_current_user),
+    svc: ApplicantsService = Depends(_service),
+) -> DiplomRead:
     obj = await svc.get_diplom(diplom_id)
+    scope = operator_scope(current)
+    if scope is not None:
+        applicant = await svc.applicants.get_by_user_id(obj.user_id)
+        if applicant is None or applicant.registered_by_id != scope:
+            raise NotFoundError("Diplom not found")
     return DiplomRead.model_validate(obj)
 
 
@@ -537,10 +555,13 @@ async def list_transfer_diploms(
     search: str | None = Query(default=None, min_length=1, max_length=100),
     page: int = Query(default=1, ge=1),
     size: int = Query(default=50, ge=1, le=200),
+    current: CurrentUser = Depends(get_current_user),
     svc: ApplicantsService = Depends(_service),
 ) -> PageResponse[TransferDiplomWithApplicant]:
+    # Operators only see transfer diplomas of applicants they registered.
+    scope = operator_scope(current)
     items, total = await svc.list_transfer_diploms(
-        user_id=user_id, country_id=country_id, search=search,
+        user_id=user_id, registered_by_id=scope, country_id=country_id, search=search,
         limit=size, offset=(page - 1) * size,
     )
     return PageResponse[TransferDiplomWithApplicant].build(
@@ -555,9 +576,16 @@ async def list_transfer_diploms(
     dependencies=[Depends(require_permission(Permission.APPLICANTS_READ))],
 )
 async def get_transfer_diplom(
-    item_id: UUID, svc: ApplicantsService = Depends(_service)
+    item_id: UUID,
+    current: CurrentUser = Depends(get_current_user),
+    svc: ApplicantsService = Depends(_service),
 ) -> TransferDiplomRead:
     obj = await svc.get_transfer_diplom(item_id)
+    scope = operator_scope(current)
+    if scope is not None:
+        applicant = await svc.applicants.get_by_user_id(obj.user_id)
+        if applicant is None or applicant.registered_by_id != scope:
+            raise NotFoundError("Transfer diplom not found")
     return TransferDiplomRead.model_validate(obj)
 
 
@@ -631,9 +659,14 @@ async def delete_transfer_diplom(
 )
 async def get_applicant(
     applicant_id: UUID,
+    current: CurrentUser = Depends(get_current_user),
     svc: ApplicantsService = Depends(_service),
 ) -> ApplicantDetailed:
     obj = await svc.get(applicant_id)
+    # Operators may only open applicants they registered.
+    scope = operator_scope(current)
+    if scope is not None and obj.registered_by_id != scope:
+        raise NotFoundError("Applicant not found")
     diplom = await svc.diploms.get_by_user_id(obj.user_id)
     transfer = await svc.transfer_diploms.get_by_user_id(obj.user_id)
     detail = ApplicantDetailed.model_validate(obj)

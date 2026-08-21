@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator, Iterable
+from uuid import UUID
 
 from fastapi import Depends, Header
 from redis.asyncio import Redis
@@ -37,6 +38,17 @@ class CurrentUser:
         self.user_id = user_id
         self.role = role
         self.phone = phone
+
+
+def operator_scope(current: CurrentUser) -> UUID | None:
+    """The `registered_by_id` an operator is confined to.
+
+    Operators may only see the applicants they themselves registered (and the
+    applications / diplomas / transfer-diplomas hanging off them). Every other
+    staff role (admin, superadmin, director, accountant) sees everything, so
+    this returns None for them — meaning "no ownership filter".
+    """
+    return UUID(current.user_id) if current.role == Role.OPERATOR else None
 
 
 def _parse_bearer(authorization: str | None) -> str:

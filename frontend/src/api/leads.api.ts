@@ -129,6 +129,43 @@ export interface LeadStats {
   by_stage: Array<{ stage_id: string; name: string; order_index: number; open_leads: number }>
 }
 
+// Existing-lead card returned by check-phone.
+export interface PhoneCheckLead {
+  id: string
+  full_name: string | null
+  phone: string | null
+  status: LeadStatus
+  stage_name: string | null
+  pipeline_name: string | null
+  assigned_to_id: string | null
+  assigned_to_name: string | null
+  created_at: string | null
+}
+
+// Existing-application card returned by check-phone.
+export interface PhoneCheckApplication {
+  id: string
+  application_number: string
+  status: string
+  program_name: string | null
+  applicant_full_name: string | null
+  operator_name: string | null
+  created_at: string | null
+}
+
+export interface PhoneCheckResult {
+  // legacy — keyed to an OPEN lead (add-lead form block)
+  exists: boolean
+  lead_id?: string
+  full_name?: string
+  assigned_to_id?: string | null
+  assigned_to_name?: string | null
+  stage_name?: string | null
+  // rich cards (both forms)
+  lead: PhoneCheckLead | null
+  applications: PhoneCheckApplication[]
+}
+
 export interface LeadCreatePayload {
   full_name: string
   phone: string
@@ -175,16 +212,11 @@ export const leadsApi = {
   create: (payload: LeadCreatePayload) =>
     http.post<{ lead: Lead; merged: boolean }>('/leads', payload).then(r => r.data),
   // Pre-submit dedup probe. Returns existence + who owns the existing
-  // OPEN lead. Used by LeadNewPage to warn before submit.
+  // Dedup probe for the add-lead AND add-application forms: returns the
+  // existing lead (with its operator + funnel stage) and every application
+  // tied to the phone (with the operator who registered it).
   checkPhone: (phone: string) =>
-    http.get<{
-      exists: boolean
-      lead_id?: string
-      full_name?: string
-      assigned_to_id?: string | null
-      assigned_to_name?: string | null
-      stage_name?: string | null
-    }>('/leads/check-phone', { params: { phone } }).then(r => r.data),
+    http.get<PhoneCheckResult>('/leads/check-phone', { params: { phone } }).then(r => r.data),
   update: (id: string, payload: Partial<LeadCreatePayload>) => http.patch<Lead>(`/leads/${id}`, payload).then(r => r.data),
   delete: (id: string) => http.delete(`/leads/${id}`).then(r => r.data),
   bulkDelete: (ids: string[]) =>
