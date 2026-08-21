@@ -113,10 +113,17 @@ class Contract(UUIDPKMixin, TimestampMixin, Base):
         ForeignKey("applications.id", ondelete="RESTRICT"),
         nullable=False,
     )
-    template_id: Mapped[UUID] = mapped_column(
+    # Nullable: a "billing" (external state-issued) contract has no template —
+    # its PDF is uploaded, not rendered.
+    template_id: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("contract_templates.id", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
+    )
+
+    # 'system' = generated from a template · 'external' = uploaded billing PDF.
+    source: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="system", server_default="system"
     )
 
     type: Mapped[ContractType] = mapped_column(

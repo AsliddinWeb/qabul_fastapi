@@ -60,7 +60,8 @@ export interface ContractDetailed {
   id: string
   contract_number: string
   application_id: string
-  template_id: string
+  template_id: string | null   // null for external "billing" contracts
+  source?: string              // 'system' | 'external' (billing PDF)
   type: ContractType
   total_amount: string
   paid_amount: string
@@ -77,7 +78,8 @@ export interface ContractListItem {
   id: string
   contract_number: string
   application_id: string
-  template_id: string
+  template_id: string | null
+  source?: string
   type: ContractType
   total_amount: string
   paid_amount: string

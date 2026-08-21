@@ -118,7 +118,8 @@ class ContractSign(AppSchema):
 class ContractRead(IdSchema, TimestampedSchema):
     contract_number: str
     application_id: UUID
-    template_id: UUID
+    template_id: UUID | None = None   # null for external "billing" contracts
+    source: str = "system"            # 'system' | 'external' (billing PDF)
     type: ContractType
     total_amount: Decimal
     paid_amount: Decimal

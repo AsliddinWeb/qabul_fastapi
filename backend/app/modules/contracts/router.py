@@ -6,7 +6,10 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response, status
+from fastapi import (
+    APIRouter, BackgroundTasks, Depends, File, Form, HTTPException,
+    Query, Request, Response, UploadFile, status,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import CurrentUser, get_current_user, get_db, require_permission, require_root_superadmin
@@ -337,6 +340,48 @@ async def create_contract(
             "type": obj.type.value,
             "total_amount": str(obj.total_amount),
         },
+        request=request,
+    )
+    await svc.session.commit()
+
+    detail = ContractDetailed.model_validate(obj)
+    detail.parties = [ContractPartyRead.model_validate(p) for p in parties]
+    return detail
+
+
+@router.post(
+    "/billing",
+    response_model=ContractDetailed,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_permission(Permission.CONTRACTS_CREATE))],
+)
+async def create_billing_contract(
+    request: Request,
+    application_id: UUID = Form(...),
+    file: UploadFile = File(...),
+    current: CurrentUser = Depends(get_current_user),
+    svc: ContractsService = Depends(_service),
+) -> ContractDetailed:
+    """Upload an external (state-issued) billing PDF as the application's
+    contract. Takes the single active-contract slot, so a system contract
+    can't be issued until this one is cancelled."""
+    if file.content_type != "application/pdf":
+        raise HTTPException(status_code=415, detail="Faqat PDF fayl yuklash mumkin")
+    content = await file.read()
+    if len(content) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Fayl juda katta (maks 25 MB)")
+
+    obj = await svc.create_billing_contract(
+        application_id, pdf_bytes=content, actor_id=UUID(current.user_id),
+    )
+    parties = await svc.get_parties(obj.id)
+
+    await AuditService(svc.session).log(
+        "contract.create_billing",
+        user_id=UUID(current.user_id),
+        entity_type="contracts",
+        entity_id=obj.id,
+        changes={"application_id": str(obj.application_id), "source": "external"},
         request=request,
     )
     await svc.session.commit()

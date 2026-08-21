@@ -8,7 +8,7 @@ import {
   Clock, Send, Eye, Phone, MapPin, IdCard,
   Building2, Layers, BookOpen, Calendar, Globe, Hash, Wallet,
   AlertTriangle, Inbox, Paperclip, ExternalLink,
-  Shield, Users, Copy, Check,
+  Shield, Users, Copy, Check, Upload,
 } from 'lucide-vue-next'
 import { AxiosError } from 'axios'
 import { adminApi } from '@/api/admin.api'
@@ -440,6 +440,52 @@ async function createContract() {
     toast.error(e.message || "Saqlab bo'lmadi")
   } finally {
     contractCreating.value = false
+  }
+}
+
+// Billing PDF (external, state-issued) — an alternative to a system contract.
+// The uploaded PDF becomes the active contract (source='external'); the system
+// then refuses to generate one until this billing contract is cancelled.
+const billingUploading = ref(false)
+const billingInput = ref<HTMLInputElement | null>(null)
+
+function pickBillingPdf() {
+  billingInput.value?.click()
+}
+
+async function onBillingFile(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''  // let the same file be picked again after an error
+  if (!file) return
+  if (file.type !== 'application/pdf') {
+    toast.error('Faqat PDF fayl yuklang')
+    return
+  }
+  if (file.size > 25 * 1024 * 1024) {
+    toast.error('Fayl 25 MB dan katta bo\'lmasligi kerak')
+    return
+  }
+  billingUploading.value = true
+  try {
+    const fd = new FormData()
+    fd.append('application_id', id.value)
+    fd.append('file', file)
+    const res = await fetch('/api/v1/contracts/billing', {
+      method: 'POST',
+      headers: { ...authHeader() },
+      body: fd,
+    })
+    if (!res.ok) {
+      const j = await res.json().catch(() => null)
+      throw new Error(j?.error?.message || `${res.status}`)
+    }
+    toast.success('Billing PDF yuklandi')
+    await loadAll()
+  } catch (err: any) {
+    toast.error(err.message || "Yuklab bo'lmadi")
+  } finally {
+    billingUploading.value = false
   }
 }
 
@@ -1110,10 +1156,17 @@ function applicantInitials(): string {
               <AlertTriangle class="w-4 h-4 shrink-0 mt-0.5" />
               <span>Shartnoma yaratish uchun ruxsat yo'q. Administrator bilan bog'laning.</span>
             </div>
-            <div v-else-if="!showContractForm">
+            <div v-else-if="!showContractForm" class="space-y-2">
               <button class="btn-primary w-full" @click="openContractForm">
                 <Plus class="w-4 h-4" /> Shartnoma yaratish
               </button>
+              <button class="btn-outline w-full" :disabled="billingUploading" @click="pickBillingPdf">
+                <Upload class="w-4 h-4" /> {{ billingUploading ? 'Yuklanmoqda...' : 'Billing PDF yuklash' }}
+              </button>
+              <input ref="billingInput" type="file" accept="application/pdf" class="hidden" @change="onBillingFile" />
+              <p class="field-hint">
+                Davlat tizimidan chiqqan tayyor shartnoma PDF. Yuklangach tizim shartnoma yarata olmaydi — avval uni bekor qiling.
+              </p>
             </div>
             <div v-else class="space-y-3">
               <div>
@@ -1173,6 +1226,11 @@ function applicantInitials(): string {
                       {{ tr(CONTRACT_STATUS, contract.status) }}
                     </span>
                     <span class="pill">{{ tr(CONTRACT_TYPE, contract.type) }}</span>
+                    <span v-if="contract.source === 'external'"
+                          class="pill bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200
+                                 dark:bg-indigo-500/10 dark:text-indigo-300 dark:ring-indigo-500/30">
+                      <Upload class="w-3 h-3" /> Billing PDF
+                    </span>
                   </div>
                 </div>
               </div>

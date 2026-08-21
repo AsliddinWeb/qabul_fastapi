@@ -237,6 +237,94 @@ class ContractsService:
             )
         return contract
 
+    async def create_billing_contract(
+        self,
+        application_id: UUID,
+        *,
+        pdf_bytes: bytes,
+        actor_id: UUID,
+    ) -> Contract:
+        """Create a contract from an uploaded external (state-issued) billing PDF.
+
+        No template, no rendering — the uploaded PDF IS the contract. The amount
+        is taken from the program (same as a system contract). It occupies the
+        single active-contract slot per application, so the system cannot also
+        issue one until this billing contract is cancelled, and vice-versa.
+        """
+        application = await self.applications.get(application_id)
+        if not application:
+            raise NotFoundError("Application not found")
+        if application.status != ApplicationStatus.ACCEPTED:
+            raise ValidationError(
+                f"Application must be accepted (current: {application.status.value})"
+            )
+        existing = await self.contracts.get_active_by_application(application.id)
+        if existing:
+            raise ConflictError("Contract already exists for this application")
+
+        program = await self.programs.get(application.program_id)
+        if not program:
+            raise NotFoundError("Program not found")
+        applicant = await self.applicants.get(application.applicant_id)
+        if not applicant:
+            raise NotFoundError("Applicant not found")
+
+        try:
+            total_amount = Decimal(str(program.tuition_fee)) if program.tuition_fee else Decimal("0")
+        except Exception:
+            total_amount = Decimal("0")
+
+        number = _generate_contract_number()
+        file = await self.files.store_bytes(
+            pdf_bytes,
+            original_name=f"{number}-billing.pdf",
+            mime_type="application/pdf",
+            subdir="contracts",
+            uploaded_by_id=actor_id,
+        )
+
+        now = datetime.now(timezone.utc)
+        contract = await self.contracts.create(
+            contract_number=number,
+            application_id=application.id,
+            template_id=None,
+            source="external",
+            type=ContractType.TWO_PARTY,
+            total_amount=total_amount,
+            currency="UZS",
+            status=ContractStatus.SIGNED,
+            signed_at=now,
+            signed_by_id=actor_id,
+            pdf_file_id=file.id,
+            created_by_id=actor_id,
+        )
+
+        # Parties for display consistency (university + student).
+        cfg = await self.get_settings()
+        await self.parties.create(
+            contract_id=contract.id,
+            party_role=PartyRole.UNIVERSITY,
+            full_name=cfg.company_name,
+            address=cfg.company_address,
+        )
+        passport_series = applicant.passport_series or ""
+        ps = passport_series[:2] if len(passport_series) >= 2 else None
+        pn = passport_series[2:] if len(passport_series) > 2 else None
+        full_name = " ".join(
+            filter(None, [applicant.last_name, applicant.first_name, applicant.other_name])
+        ).strip()
+        await self.parties.create(
+            contract_id=contract.id,
+            party_role=PartyRole.STUDENT,
+            full_name=full_name,
+            pinfl=applicant.pinfl,
+            passport_series=ps,
+            passport_number=pn,
+            address=applicant.address,
+        )
+        await self.session.flush()
+        return contract
+
     async def _render_and_attach_pdf(
         self,
         *,
