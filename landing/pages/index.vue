@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount } from 'vue'
+import { onBeforeUnmount, reactive } from 'vue'
 
 const config = useRuntimeConfig()
 const apiBase = (config.public as any).apiBaseUrl || '/api/v1'
@@ -160,6 +160,9 @@ const statList = computed(() => c.value.stats.map((s: any) => {
 function imgUrl(id: string | null | undefined, seed: string, w: number, h: number): string {
   return id ? `${apiBase}/files/${id}/public` : `https://picsum.photos/seed/${seed}/${w}/${h}`
 }
+// Rasm yuklanish holati — kontent kelguncha va rasm to'liq yuklanguncha
+// skeleton (kulrang shimmer) ko'rsatiladi, keyin rasm silliq paydo bo'ladi.
+const imgLoaded = reactive({ heroMain: false, heroInset: false, about: false, band: false })
 const cellHue: Record<string, string> = { a: 'cell--a', b: 'cell--b', c: 'cell--c' }
 
 // ---- Motion: reveal + count-up + oqim chizig'i + karta yorug'ligi ----
@@ -258,10 +261,12 @@ onBeforeUnmount(() => { observers.forEach(o => o.disconnect()) })
 
         <div class="hero__media">
           <div class="hero__frame">
-            <img :src="imgUrl(c.hero.image_main, 'xiu-qarshi-campus', 1200, 1250)" alt="Universitet talabalari kampusda" fetchpriority="high" width="1200" height="1250" />
+            <div v-if="loading || !imgLoaded.heroMain" class="img-skel" aria-hidden="true"></div>
+            <img v-if="!loading" :src="imgUrl(c.hero.image_main, 'xiu-qarshi-campus', 1200, 1250)" alt="Universitet talabalari kampusda" class="img-fade" :class="{ 'is-loaded': imgLoaded.heroMain }" @load="imgLoaded.heroMain = true" @error="imgLoaded.heroMain = true" fetchpriority="high" width="1200" height="1250" />
           </div>
           <div class="hero__inset">
-            <img :src="imgUrl(c.hero.image_inset, 'xiu-lecture-hall', 700, 740)" alt="Zamonaviy auditoriya" loading="lazy" width="700" height="740" />
+            <div v-if="loading || !imgLoaded.heroInset" class="img-skel" aria-hidden="true"></div>
+            <img v-if="!loading" :src="imgUrl(c.hero.image_inset, 'xiu-lecture-hall', 700, 740)" alt="Zamonaviy auditoriya" class="img-fade" :class="{ 'is-loaded': imgLoaded.heroInset }" @load="imgLoaded.heroInset = true" @error="imgLoaded.heroInset = true" loading="lazy" width="700" height="740" />
           </div>
           <div class="hero__stat">
             <b class="mono">{{ c.hero.stat_value }}</b>
@@ -370,7 +375,8 @@ onBeforeUnmount(() => { observers.forEach(o => o.disconnect()) })
 
         <div class="bento">
           <div class="cell cell--photo rv">
-            <img :src="imgUrl(c.about.image, 'xiu-library-building', 1000, 700)" alt="Universitet o'quv binosi" loading="lazy" width="1000" height="700" />
+            <div v-if="loading || !imgLoaded.about" class="img-skel" aria-hidden="true"></div>
+            <img v-if="!loading" :src="imgUrl(c.about.image, 'xiu-library-building', 1000, 700)" alt="Universitet o'quv binosi" class="img-fade" :class="{ 'is-loaded': imgLoaded.about }" @load="imgLoaded.about = true" @error="imgLoaded.about = true" loading="lazy" width="1000" height="700" />
           </div>
           <div v-for="(cell, i) in c.about.cells" :key="i" class="cell rv" :class="cellHue[cell.hue] || 'cell--a'" :style="{ '--i': i + 1 }">
             <div class="cell__ico"><i class="ph" :class="cell.icon" aria-hidden="true"></i></div>
@@ -408,7 +414,10 @@ onBeforeUnmount(() => { observers.forEach(o => o.disconnect()) })
     <section class="sec" id="hamkorlik">
       <div class="shell">
         <div class="band rv">
-          <div class="band__img"><img :src="imgUrl(c.hamkorlik.image, 'spromax-factory-plant', 1800, 900)" alt="S Promax Plast zavodida dual ta'lim" loading="lazy" width="1800" height="900" /></div>
+          <div class="band__img">
+            <div v-if="loading || !imgLoaded.band" class="img-skel" aria-hidden="true"></div>
+            <img v-if="!loading" :src="imgUrl(c.hamkorlik.image, 'spromax-factory-plant', 1800, 900)" alt="S Promax Plast zavodida dual ta'lim" class="img-fade" :class="{ 'is-loaded': imgLoaded.band }" @load="imgLoaded.band = true" @error="imgLoaded.band = true" loading="lazy" width="1800" height="900" />
+          </div>
           <div class="band__scrim" aria-hidden="true"></div>
           <div class="band__in">
             <h2>{{ c.hamkorlik.heading }}</h2>
