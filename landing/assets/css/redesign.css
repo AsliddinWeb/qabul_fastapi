@@ -271,6 +271,7 @@ html.dark .xrd{
 /* Rasm skeleton — kontent/rasm yuklanguncha shu o'lchamda kulrang shimmer turadi */
 .xrd .img-skel{position:absolute;inset:0;z-index:1;background:linear-gradient(100deg,var(--surface-2) 25%,var(--line) 45%,var(--surface-2) 65%);background-size:200% 100%;animation:xrd-imgshimmer 1.3s linear infinite}
 @keyframes xrd-imgshimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.xrd .img-skel.is-empty{animation:none;background:var(--surface-2)}
 .xrd .img-fade{opacity:0;transition:opacity .5s var(--ease)}
 .xrd .img-fade.is-loaded{opacity:1}
 
