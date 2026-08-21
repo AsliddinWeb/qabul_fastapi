@@ -63,10 +63,27 @@ class UserService:
 
         return await self.repo.create(**data)
 
-    async def update(self, user_id: UUID, payload: UserUpdate) -> User:
+    async def _actor_is_root(self, actor_id: UUID | None) -> bool:
+        """The single root superadmin may act on other superadmins."""
+        if actor_id is None:
+            return False
+        actor = await self.repo.get(actor_id)
+        return bool(actor and actor.is_root_superadmin)
+
+    async def update(self, user_id: UUID, payload: UserUpdate, *, actor_id: UUID | None = None) -> User:
         user = await self.get(user_id)
-        if user.role == UserRole.SUPERADMIN and payload.role is not None and payload.role != UserRole.SUPERADMIN:
-            raise ValidationError("Cannot demote a superadmin")
+        demoting_superadmin = (
+            user.role == UserRole.SUPERADMIN
+            and payload.role is not None
+            and payload.role != UserRole.SUPERADMIN
+        )
+        if demoting_superadmin:
+            # The root superadmin account itself is never demotable.
+            if user.is_root_superadmin:
+                raise ValidationError("Root superadmin rolini o'zgartirib bo'lmaydi")
+            # Only the root superadmin may demote another superadmin.
+            if not await self._actor_is_root(actor_id):
+                raise ValidationError("Cannot demote a superadmin")
 
         data = payload.model_dump(exclude_unset=True)
 
@@ -100,13 +117,16 @@ class UserService:
             user, password_hash=hash_password(payload.new_password)
         )
 
-    async def deactivate(self, user_id: UUID) -> User:
+    async def deactivate(self, user_id: UUID, *, actor_id: UUID | None = None) -> User:
         user = await self.get(user_id)
         if user.role == UserRole.SUPERADMIN:
-            raise ValidationError("Cannot deactivate superadmin")
+            if user.is_root_superadmin:
+                raise ValidationError("Root superadmin faolsizlantirilmaydi")
+            if not await self._actor_is_root(actor_id):
+                raise ValidationError("Cannot deactivate superadmin")
         return await self.repo.update(user, is_active=False)
 
-    async def soft_delete(self, user_id: UUID) -> None:
+    async def soft_delete(self, user_id: UUID, *, actor_id: UUID | None = None) -> None:
         """Hard-delete the user with full cascade (Django-admin style).
 
         Migration 03_user_delete_cascade.sql changed FKs to ON DELETE CASCADE
@@ -122,7 +142,10 @@ class UserService:
         """
         user = await self.get(user_id)
         if user.role == UserRole.SUPERADMIN:
-            raise ValidationError("Cannot delete superadmin")
+            if user.is_root_superadmin:
+                raise ValidationError("Root superadmin o'chirilmaydi")
+            if not await self._actor_is_root(actor_id):
+                raise ValidationError("Cannot delete superadmin")
 
         await self.session.delete(user)
         await self.session.flush()

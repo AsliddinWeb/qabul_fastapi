@@ -241,7 +241,7 @@ async def update_user(
     current: CurrentUser = Depends(get_current_user),
     svc: UserService = Depends(_service),
 ) -> UserRead:
-    obj = await svc.update(user_id, payload)
+    obj = await svc.update(user_id, payload, actor_id=UUID(current.user_id))
     await AuditService(svc.session).log(
         "user.update",
         user_id=UUID(current.user_id),
@@ -290,7 +290,7 @@ async def delete_user(
     current: CurrentUser = Depends(get_current_user),
     svc: UserService = Depends(_service),
 ) -> Response:
-    await svc.soft_delete(user_id)
+    await svc.soft_delete(user_id, actor_id=UUID(current.user_id))
     await AuditService(svc.session).log(
         "user.delete",
         user_id=UUID(current.user_id),
