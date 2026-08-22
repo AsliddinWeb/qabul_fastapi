@@ -30,6 +30,8 @@ const auth = useAuthStore()
 const { ask } = useConfirm()
 const canSeeConsulting = computed(() => auth.isConsulting)
 const canCreateContract = computed(() => auth.hasPermission('contracts.create'))
+const canSetHemis = computed(() => auth.hasPermission('applications.review'))
+const hemisSaving = ref(false)
 
 const id = computed(() => route.params.id as string)
 const panelPrefix = computed(() => {
@@ -307,6 +309,42 @@ async function startReview() {
   } catch (e) {
     const ax = e as AxiosError<{ error?: { message?: string } }>
     toast.error(ax.response?.data?.error?.message || "Xatolik")
+  }
+}
+
+async function setHemis(status: 'qoshildi' | 'qoshilmadi') {
+  if (application.value?.hemis_status === status) return
+  const label = status === 'qoshildi' ? "HEMISga qo'shildi" : "HEMISga qo'shilmagan"
+  const ok = await ask({
+    title: "HEMIS holati",
+    message: `Ariza "${label}" deb belgilansinmi?`,
+    confirmLabel: "Ha, tasdiqlayman",
+    tone: status === 'qoshildi' ? 'primary' : 'danger',
+  })
+  if (!ok) return
+  hemisSaving.value = true
+  try {
+    const markedBy = (auth.user as any)?.full_name || (auth.user as any)?.phone || 'Panel'
+    const res = await fetch(`/api/v1/applications/${id.value}/hemis`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
+      body: JSON.stringify({ status, marked_by: markedBy }),
+    })
+    if (!res.ok) {
+      const j = await res.json().catch(() => null)
+      throw new Error(j?.error?.message || `${res.status}`)
+    }
+    const updated = await res.json()
+    if (application.value) {
+      application.value.hemis_status = updated.hemis_status
+      application.value.hemis_marked_by = updated.hemis_marked_by
+      application.value.hemis_marked_at = updated.hemis_marked_at
+    }
+    toast.success(status === 'qoshildi' ? "HEMISga qo'shildi deb belgilandi" : "HEMISga qo'shilmagan deb belgilandi")
+  } catch (e: any) {
+    toast.error(e.message || "Saqlab bo'lmadi")
+  } finally {
+    hemisSaving.value = false
   }
 }
 
@@ -1080,6 +1118,44 @@ function applicantInitials(): string {
 
       <!-- RIGHT COLUMN — Lead source + Contract + Payments -->
       <div class="space-y-5">
+        <!-- HEMIS holati -->
+        <section class="card p-5">
+          <h2 class="section-title inline-flex items-center gap-2 mb-3">
+            <span class="icon-bubble-sm bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
+              <GraduationCap class="w-4 h-4" />
+            </span>
+            HEMIS holati
+          </h2>
+
+          <div class="flex items-center gap-2 mb-3">
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold"
+                  :class="(application as any).hemis_status === 'qoshildi'
+                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+                    : 'bg-slate-100 text-slate-600 dark:bg-slate-700/40 dark:text-slate-300'">
+              <span>{{ (application as any).hemis_status === 'qoshildi' ? '✅' : '⬜' }}</span>
+              {{ (application as any).hemis_status === 'qoshildi' ? "HEMISga qo'shildi" : "HEMISga qo'shilmagan" }}
+            </span>
+          </div>
+
+          <div v-if="(application as any).hemis_marked_by" class="text-[11px] text-slate-500 dark:text-slate-400 mb-3">
+            <strong class="text-slate-700 dark:text-slate-300">{{ (application as any).hemis_marked_by }}</strong>
+            <template v-if="(application as any).hemis_marked_at"> · {{ fmtDate((application as any).hemis_marked_at) }}</template>
+          </div>
+
+          <div v-if="canSetHemis" class="flex gap-2">
+            <button class="btn-primary btn-sm flex-1 justify-center"
+                    :disabled="hemisSaving || (application as any).hemis_status === 'qoshildi'"
+                    @click="setHemis('qoshildi')">
+              ✅ Qo'shildi
+            </button>
+            <button class="btn-outline btn-sm flex-1 justify-center"
+                    :disabled="hemisSaving || (application as any).hemis_status === 'qoshilmadi'"
+                    @click="setHemis('qoshilmadi')">
+              ⬜ Qo'shilmagan
+            </button>
+          </div>
+        </section>
+
         <!-- Konsulting agentligi (only for is_consulting users) -->
         <section v-if="canSeeConsulting" class="card p-5">
           <h2 class="section-title inline-flex items-center gap-2 mb-3">
