@@ -111,3 +111,6 @@ DEPLOY.md
 
 # Legacy data dumps (CSV from old CRM — already baked into seed scripts)
 leadd/
+
+# notification bot lives in its own separate repo
+notification_bot/
