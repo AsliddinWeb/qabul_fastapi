@@ -70,7 +70,7 @@ const ROLE_PERMS: Record<Role, Permission[]> = {
     'intl_admissions.list', 'intl_admissions.read',
   ],
   accountant: [
-    'contracts.read',
+    'contracts.read', 'contracts.create', 'contracts.sign',
     'payments.read', 'payments.create', 'payments.confirm', 'payments.fail', 'payments.refund',
     'applications.list', 'applications.read',
     'applicants.list', 'applicants.read',
@@ -110,13 +110,13 @@ export const TOGGLABLE_PERMISSIONS: TogglablePerm[] = [
     code: 'contracts.create',
     label: 'Shartnoma yaratish',
     description: 'Ariza ostida yangi shartnoma yaratish huquqi.',
-    roles: ['superadmin', 'admin', 'operator'],
+    roles: ['superadmin', 'admin', 'operator', 'accountant'],
   },
   {
     code: 'contracts.sign',
     label: 'Shartnomalarni imzolash',
     description: 'Yaratilgan shartnomani "imzolangan" deb belgilash huquqi.',
-    roles: ['superadmin', 'admin', 'operator'],
+    roles: ['superadmin', 'admin', 'operator', 'accountant'],
   },
   {
     code: 'leads.convert',
