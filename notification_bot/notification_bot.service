@@ -1,0 +1,19 @@
+[Unit]
+Description=XIU Admission — Telegram notification bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/xiu/qabul_fastapi/notification_bot
+# venv created at notification_bot/.venv (see README)
+ExecStart=/home/ubuntu/xiu/qabul_fastapi/notification_bot/.venv/bin/python main.py
+EnvironmentFile=/home/ubuntu/xiu/qabul_fastapi/notification_bot/.env
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

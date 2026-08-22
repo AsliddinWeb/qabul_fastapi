@@ -46,6 +46,10 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
       REDIS_URL: redis://${REDIS_HOST}:${REDIS_PORT}/0
+    # Reach the host-run notification bot (systemd, outside docker) via
+    # host.docker.internal → NOTIFY_BOT_URL in .env.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - backend_media:/app/media
     depends_on:

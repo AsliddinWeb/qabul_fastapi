@@ -113,6 +113,16 @@ class Application(UUIDPKMixin, TimestampMixin, Base):
     )
     lead_source_code: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
+    # HEMIS enrolment state, toggled from the Telegram notification bot.
+    # New applications default to 'qoshilmadi' (not yet added to HEMIS).
+    hemis_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="qoshilmadi", server_default="qoshilmadi", index=True,
+    )
+    # Who/when last toggled it (the Telegram user's display name — the bot's
+    # buttons are open to anyone in the group, so this is a free-text label).
+    hemis_marked_by: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    hemis_marked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # Consulting agency (partner) that brought the applicant in. Optional.
     # Visible/filterable only by users with is_consulting=True (UI-side gate);
     # the column itself is part of the public model.

@@ -104,6 +104,16 @@ class ApplicationRead(IdSchema, TimestampedSchema):
     lead_id: UUID | None = None
     lead_source_code: str | None = None
     consulting_agency_id: UUID | None = None
+    hemis_status: str = "qoshilmadi"
+    hemis_marked_by: str | None = None
+    hemis_marked_at: datetime | None = None
+
+
+class HemisDecision(AppSchema):
+    """Bot-set HEMIS enrolment decision (from the group's ✅/❌ buttons)."""
+
+    status: str = Field(pattern="^(qoshildi|qoshilmadi)$")
+    marked_by: str | None = Field(default=None, max_length=150)
 
 
 class ApplicationDetailed(ApplicationRead):

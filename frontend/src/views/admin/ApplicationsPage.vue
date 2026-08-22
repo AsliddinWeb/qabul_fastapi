@@ -21,7 +21,7 @@ import { useAuthStore } from '@/stores/auth'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import Dropdown from '@/components/ui/Dropdown.vue'
 import SearchSelect from '@/components/ui/SearchSelect.vue'
-import { APPLICATION_STATUS, ADMISSION_TYPE, tr } from '@/utils/labels'
+import { APPLICATION_STATUS, ADMISSION_TYPE, HEMIS_STATUS, HEMIS_STATUS_TONE, tr } from '@/utils/labels'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useBulkSelect } from '@/composables/useBulkSelect'
@@ -764,11 +764,18 @@ async function bulkDeleteSelected() {
 
               <!-- Status -->
               <td class="px-4 py-3">
-                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold"
-                      :class="STATUS_PILL[a.status] || ''">
-                  <span class="w-1.5 h-1.5 rounded-full" :class="STATUS_DOT[a.status] || 'bg-slate-400'"></span>
-                  {{ tr(APPLICATION_STATUS, a.status) }}
-                </span>
+                <div class="flex flex-col items-start gap-1">
+                  <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold"
+                        :class="STATUS_PILL[a.status] || ''">
+                    <span class="w-1.5 h-1.5 rounded-full" :class="STATUS_DOT[a.status] || 'bg-slate-400'"></span>
+                    {{ tr(APPLICATION_STATUS, a.status) }}
+                  </span>
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                        :class="HEMIS_STATUS_TONE[(a as any).hemis_status] || HEMIS_STATUS_TONE.qoshilmadi">
+                    <span>{{ (a as any).hemis_status === 'qoshildi' ? '✅' : '⬜' }}</span>
+                    {{ tr(HEMIS_STATUS, (a as any).hemis_status || 'qoshilmadi') }}
+                  </span>
+                </div>
               </td>
 
               <!-- Sana -->

@@ -70,6 +70,84 @@ class ApplicationsService:
     async def status_counts(self) -> dict[str, int]:
         return await self.repo.status_counts()
 
+    # ---------- HEMIS (Telegram bot) ----------
+    async def set_hemis_status(
+        self, application_id: UUID, *, status: str, marked_by: str | None
+    ) -> Application:
+        """Toggle the application's HEMIS enrolment state (from the bot's ✅/❌)."""
+        if status not in ("qoshildi", "qoshilmadi"):
+            raise ValidationError("status must be 'qoshildi' or 'qoshilmadi'")
+        obj = await self.get(application_id)
+        obj.hemis_status = status
+        obj.hemis_marked_by = (marked_by or "").strip()[:150] or None
+        obj.hemis_marked_at = datetime.now(timezone.utc)
+        await self.session.flush()
+        return obj
+
+    async def notification_payload(self, application_id: UUID) -> dict | None:
+        """Assemble the display payload pushed to the Telegram notification bot.
+
+        One query joins the application to program/branch/level/form, the
+        applicant, their login user (phone), and the operator who registered
+        them — everything the group message needs.
+        """
+        from sqlalchemy import select
+        from sqlalchemy.orm import aliased
+        from app.modules.applicants.models import Applicant
+        from app.modules.programs.models import Branch, EducationForm, EducationLevel, Program
+        from app.modules.users.models import User
+
+        Operator = aliased(User)
+        stmt = (
+            select(
+                Application,
+                Program.name.label("program_name"),
+                Branch.name.label("branch_name"),
+                EducationLevel.name.label("level_name"),
+                EducationForm.name.label("form_name"),
+                Applicant.last_name,
+                Applicant.first_name,
+                Applicant.other_name,
+                Applicant.birth_date,
+                Applicant.passport_series,
+                Applicant.pinfl,
+                Applicant.additional_phone,
+                User.phone.label("phone"),
+                Operator.full_name.label("operator_name"),
+            )
+            .select_from(Application)
+            .join(Applicant, Applicant.id == Application.applicant_id)
+            .outerjoin(User, User.id == Applicant.user_id)
+            .outerjoin(Program, Program.id == Application.program_id)
+            .outerjoin(Branch, Branch.id == Application.branch_id)
+            .outerjoin(EducationLevel, EducationLevel.id == Application.education_level_id)
+            .outerjoin(EducationForm, EducationForm.id == Application.education_form_id)
+            .outerjoin(Operator, Operator.id == Applicant.registered_by_id)
+            .where(Application.id == application_id)
+        )
+        row = (await self.session.execute(stmt)).first()
+        if row is None:
+            return None
+        app = row[0]
+        full_name = " ".join(filter(None, [row.last_name, row.first_name, row.other_name])).strip()
+        return {
+            "application_id": str(app.id),
+            "application_number": app.application_number,
+            "admission_type": app.admission_type.value if app.admission_type else None,
+            "program_name": row.program_name,
+            "branch_name": row.branch_name,
+            "level_name": row.level_name,
+            "form_name": row.form_name,
+            "applicant_full_name": full_name or None,
+            "birth_date": row.birth_date.isoformat() if row.birth_date else None,
+            "passport_series": row.passport_series,
+            "pinfl": row.pinfl,
+            "phone": row.phone,
+            "additional_phone": row.additional_phone,
+            "operator_name": row.operator_name,
+            "hemis_status": app.hemis_status,
+        }
+
     async def monthly_trend(self, months: int = 12) -> list[dict]:
         return await self.repo.monthly_trend(months)
 

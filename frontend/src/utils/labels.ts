@@ -17,6 +17,17 @@ export const ADMISSION_TYPE: Record<string, string> = {
   magistratura:           'Magistratura',
 }
 
+// HEMIS enrolment state, toggled from the Telegram bot's ✅/❌ buttons.
+export const HEMIS_STATUS: Record<string, string> = {
+  qoshildi:   'HEMISga qo\'shildi',
+  qoshilmadi: 'HEMISga qo\'shilmagan',
+}
+
+export const HEMIS_STATUS_TONE: Record<string, string> = {
+  qoshildi:   'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
+  qoshilmadi: 'bg-slate-100 text-slate-600 dark:bg-slate-700/40 dark:text-slate-300',
+}
+
 /**
  * Abituriyent CRM funnel statusi — leadlardagidek, lekin sodda.
  * Default 'new'. Shartnoma imzolanganda backend avtomatik

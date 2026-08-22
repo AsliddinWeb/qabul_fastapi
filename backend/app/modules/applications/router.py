@@ -23,6 +23,7 @@ from app.core.permissions import Permission
 from app.core.schemas import PageResponse
 from app.db.enums import AdmissionType, ApplicationStatus, ContractStatus, Gender
 from app.integrations.crm.events import enqueue_application_status_event
+from app.integrations.telegram.notifier import enqueue_application_created
 from app.modules.applicants.repository import ApplicantRepository
 from app.modules.applications.schemas import (
     ApplicationCreateForApplicant,
@@ -31,6 +32,7 @@ from app.modules.applications.schemas import (
     ApplicationRead,
     ApplicationReview,
     ApplicationUpdate,
+    HemisDecision,
 )
 from app.modules.applications.service import ApplicationsService
 from app.modules.audit.service import AuditService
@@ -581,6 +583,7 @@ async def export_applications_xlsx(
 async def staff_create_application(
     payload: ApplicationCreateForApplicant,
     request: Request,
+    bg: BackgroundTasks,
     current: CurrentUser = Depends(get_current_user),
     svc: ApplicationsService = Depends(_service),
 ) -> ApplicationRead:
@@ -616,6 +619,42 @@ async def staff_create_application(
             "admission_type": payload.admission_type.value,
             "lead_id": str(payload.lead_id) if payload.lead_id else None,
         },
+        request=request,
+    )
+    await svc.session.commit()
+
+    # Push the new application to the Telegram notification bot (best-effort,
+    # runs after the response is sent).
+    payload_dict = await svc.notification_payload(obj.id)
+    if payload_dict:
+        enqueue_application_created(bg, payload=payload_dict)
+
+    return ApplicationRead.model_validate(obj)
+
+
+@router.post(
+    "/{application_id}/hemis",
+    response_model=ApplicationRead,
+    dependencies=[Depends(require_permission(Permission.APPLICATIONS_REVIEW))],
+)
+async def set_hemis_status(
+    application_id: UUID,
+    payload: HemisDecision,
+    request: Request,
+    current: CurrentUser = Depends(get_current_user),
+    svc: ApplicationsService = Depends(_service),
+) -> ApplicationRead:
+    """Toggle an application's HEMIS enrolment state — called by the Telegram
+    bot when an operator presses ✅ (qoshildi) / ❌ (qoshilmadi)."""
+    obj = await svc.set_hemis_status(
+        application_id, status=payload.status, marked_by=payload.marked_by,
+    )
+    await AuditService(svc.session).log(
+        f"application.hemis_{payload.status}",
+        user_id=UUID(current.user_id),
+        entity_type="applications",
+        entity_id=obj.id,
+        changes={"hemis_status": payload.status, "marked_by": payload.marked_by},
         request=request,
     )
     await svc.session.commit()

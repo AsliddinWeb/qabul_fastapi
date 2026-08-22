@@ -724,6 +724,11 @@ function applicantInitials(): string {
                              bg-white/20 ring-1 ring-white/20">
                   {{ tr(ADMISSION_TYPE, application.admission_type) }}
                 </span>
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ring-1 ring-white/20"
+                      :class="(application as any).hemis_status === 'qoshildi' ? 'bg-emerald-400/30' : 'bg-white/10'"
+                      :title="(application as any).hemis_marked_by ? `${(application as any).hemis_marked_by} · ${fmtDate((application as any).hemis_marked_at)}` : ''">
+                  {{ (application as any).hemis_status === 'qoshildi' ? '✅ HEMISga qo\'shildi' : '⬜ HEMISga qo\'shilmagan' }}
+                </span>
                 <span v-if="application.submitted_at"
                       class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium
                              bg-white/10 ring-1 ring-white/15">

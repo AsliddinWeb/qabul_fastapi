@@ -78,6 +78,13 @@ class Settings(BaseSettings):
     leads_sla_hours: int = 72
     leads_sla_poll_seconds: float = 3600
 
+    # --- Telegram notification bot (external, host systemd service) ---
+    # Backend PUSHes newly-created applications here so the bot can post them
+    # to the operators' group. Empty url = notifications disabled (dev).
+    notify_bot_url: str = ""            # e.g. http://host.docker.internal:8090/ingest
+    notify_bot_secret: str = ""         # shared secret, sent as X-Ingest-Secret
+    notify_bot_timeout_seconds: float = 5.0
+
 
 @lru_cache
 def get_settings() -> Settings:
