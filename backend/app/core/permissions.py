@@ -175,7 +175,9 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
         _P.APPLICANTS_LIST, _P.APPLICANTS_READ,
         _P.APPLICATIONS_LIST, _P.APPLICATIONS_READ,
         _P.PROGRAMS_READ, _P.REGIONS_READ, _P.DIPLOMS_READ, _P.DICTIONARIES_READ,
-        _P.CONTRACTS_READ, _P.CONTRACT_TEMPLATES_READ,
+        # Accountants may issue contracts on applications (system + billing PDF),
+        # same as operators/admins.
+        _P.CONTRACTS_READ, _P.CONTRACTS_CREATE, _P.CONTRACTS_SIGN, _P.CONTRACT_TEMPLATES_READ,
         _P.PAYMENTS_READ, _P.PAYMENTS_CREATE,
         _P.PAYMENTS_CONFIRM, _P.PAYMENTS_FAIL, _P.PAYMENTS_REFUND,
         _P.REPORTS_FINANCIAL,
