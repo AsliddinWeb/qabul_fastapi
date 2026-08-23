@@ -72,7 +72,7 @@ class ApplicationsService:
 
     # ---------- HEMIS (Telegram bot) ----------
     async def set_hemis_status(
-        self, application_id: UUID, *, status: str, marked_by: str | None
+        self, application_id: UUID, *, status: str, marked_by: str | None, comment: str | None = None
     ) -> Application:
         """Toggle the application's HEMIS enrolment state (from the bot's ✅/❌)."""
         if status not in ("qoshildi", "qoshilmadi"):
@@ -81,6 +81,27 @@ class ApplicationsService:
         obj.hemis_status = status
         obj.hemis_marked_by = (marked_by or "").strip()[:150] or None
         obj.hemis_marked_at = datetime.now(timezone.utc)
+        obj.hemis_comment = (comment or "").strip() or None
+        await self.session.flush()
+        return obj
+
+    async def reassign_operator(self, application_id: UUID, *, operator_id: UUID) -> Application:
+        """Root-only: change the operator credited with this application.
+
+        Attribution lives on the applicant (registered_by_id), so this
+        reassigns the applicant — and therefore every application of theirs —
+        to the new operator. That also moves the applicant under the new
+        operator's data-isolation scope.
+        """
+        obj = await self.get(application_id)
+        applicant = await self.applicants.get(obj.applicant_id)
+        if not applicant:
+            raise NotFoundError("Applicant not found")
+        from app.modules.users.repository import UserRepository
+        new_op = await UserRepository(self.session).get(operator_id)
+        if not new_op or new_op.deleted_at is not None or not new_op.is_active:
+            raise ValidationError("Operator topilmadi yoki faol emas")
+        applicant.registered_by_id = operator_id
         await self.session.flush()
         return obj
 

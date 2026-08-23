@@ -33,6 +33,7 @@ from app.modules.applications.schemas import (
     ApplicationReview,
     ApplicationUpdate,
     HemisDecision,
+    ReassignOperator,
 )
 from app.modules.applications.service import ApplicationsService
 from app.modules.audit.service import AuditService
@@ -647,14 +648,41 @@ async def set_hemis_status(
     """Toggle an application's HEMIS enrolment state — called by the Telegram
     bot when an operator presses ✅ (qoshildi) / ❌ (qoshilmadi)."""
     obj = await svc.set_hemis_status(
-        application_id, status=payload.status, marked_by=payload.marked_by,
+        application_id, status=payload.status, marked_by=payload.marked_by, comment=payload.comment,
     )
     await AuditService(svc.session).log(
         f"application.hemis_{payload.status}",
         user_id=UUID(current.user_id),
         entity_type="applications",
         entity_id=obj.id,
-        changes={"hemis_status": payload.status, "marked_by": payload.marked_by},
+        changes={"hemis_status": payload.status, "marked_by": payload.marked_by, "comment": payload.comment},
+        request=request,
+    )
+    await svc.session.commit()
+    return ApplicationRead.model_validate(obj)
+
+
+@router.post(
+    "/{application_id}/reassign-operator",
+    response_model=ApplicationRead,
+    dependencies=[Depends(require_root_superadmin)],
+)
+async def reassign_operator(
+    application_id: UUID,
+    payload: ReassignOperator,
+    request: Request,
+    current: CurrentUser = Depends(get_current_user),
+    svc: ApplicationsService = Depends(_service),
+) -> ApplicationRead:
+    """Root-superadmin only: change the operator credited with this application
+    (reassigns the applicant's registered_by_id)."""
+    obj = await svc.reassign_operator(application_id, operator_id=payload.operator_id)
+    await AuditService(svc.session).log(
+        "application.reassign_operator",
+        user_id=UUID(current.user_id),
+        entity_type="applications",
+        entity_id=obj.id,
+        changes={"operator_id": str(payload.operator_id), "applicant_id": str(obj.applicant_id)},
         request=request,
     )
     await svc.session.commit()

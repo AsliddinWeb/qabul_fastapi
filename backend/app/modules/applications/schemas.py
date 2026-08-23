@@ -107,6 +107,7 @@ class ApplicationRead(IdSchema, TimestampedSchema):
     hemis_status: str = "qoshilmadi"
     hemis_marked_by: str | None = None
     hemis_marked_at: datetime | None = None
+    hemis_comment: str | None = None
 
 
 class HemisDecision(AppSchema):
@@ -114,6 +115,13 @@ class HemisDecision(AppSchema):
 
     status: str = Field(pattern="^(qoshildi|qoshilmadi)$")
     marked_by: str | None = Field(default=None, max_length=150)
+    comment: str | None = Field(default=None, max_length=2000)
+
+
+class ReassignOperator(AppSchema):
+    """Root-superadmin reassigns the operator who registered the applicant."""
+
+    operator_id: UUID
 
 
 class ApplicationDetailed(ApplicationRead):

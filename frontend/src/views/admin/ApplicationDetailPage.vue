@@ -12,6 +12,7 @@ import {
 } from 'lucide-vue-next'
 import { AxiosError } from 'axios'
 import { adminApi } from '@/api/admin.api'
+import { usersApi } from '@/api/users.api'
 import { http } from '@/api/http'
 import { consultingApi, type ConsultingAgency } from '@/api/consulting.api'
 import { useAuthStore } from '@/stores/auth'
@@ -32,6 +33,13 @@ const canSeeConsulting = computed(() => auth.isConsulting)
 const canCreateContract = computed(() => auth.hasPermission('contracts.create'))
 const canSetHemis = computed(() => auth.hasPermission('applications.review'))
 const hemisSaving = ref(false)
+const hemisComment = ref('')
+
+// Reassign operator (root superadmin only)
+const canReassignOperator = computed(() => auth.isRootSuperadmin)
+const operatorOptions = ref<Array<{ id: string; label: string }>>([])
+const reassignSelected = ref('')
+const reassignSaving = ref(false)
 
 const id = computed(() => route.params.id as string)
 const panelPrefix = computed(() => {
@@ -247,7 +255,7 @@ async function loadAll() {
 }
 
 onMounted(async () => {
-  await Promise.all([loadAll(), loadPaymentMethods()])
+  await Promise.all([loadAll(), loadPaymentMethods(), loadOperators()])
 })
 
 // =============================================================================
@@ -328,7 +336,7 @@ async function setHemis(status: 'qoshildi' | 'qoshilmadi') {
     const res = await fetch(`/api/v1/applications/${id.value}/hemis`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeader() },
-      body: JSON.stringify({ status, marked_by: markedBy }),
+      body: JSON.stringify({ status, marked_by: markedBy, comment: hemisComment.value.trim() || null }),
     })
     if (!res.ok) {
       const j = await res.json().catch(() => null)
@@ -339,12 +347,52 @@ async function setHemis(status: 'qoshildi' | 'qoshilmadi') {
       application.value.hemis_status = updated.hemis_status
       application.value.hemis_marked_by = updated.hemis_marked_by
       application.value.hemis_marked_at = updated.hemis_marked_at
+      application.value.hemis_comment = updated.hemis_comment
     }
     toast.success(status === 'qoshildi' ? "HEMISga qo'shildi deb belgilandi" : "HEMISga qo'shilmagan deb belgilandi")
   } catch (e: any) {
     toast.error(e.message || "Saqlab bo'lmadi")
   } finally {
     hemisSaving.value = false
+  }
+}
+
+async function loadOperators() {
+  if (!canReassignOperator.value || operatorOptions.value.length) return
+  try {
+    const rows = await usersApi.byRole('operator')
+    operatorOptions.value = rows.map(u => ({ id: u.id, label: u.full_name || u.phone || u.id.slice(0, 8) }))
+  } catch { /* ignore */ }
+}
+
+async function reassignOperator() {
+  if (!reassignSelected.value) return
+  const opLabel = operatorOptions.value.find(o => o.id === reassignSelected.value)?.label || ''
+  const ok = await ask({
+    title: "Operatorni o'zgartirish",
+    message: `Bu abituriyent (va uning barcha arizalari) "${opLabel}" operatorga biriktirilsinmi?`,
+    confirmLabel: "Ha, o'zgartirish",
+    tone: 'primary',
+  })
+  if (!ok) return
+  reassignSaving.value = true
+  try {
+    const res = await fetch(`/api/v1/applications/${id.value}/reassign-operator`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeader() },
+      body: JSON.stringify({ operator_id: reassignSelected.value }),
+    })
+    if (!res.ok) {
+      const j = await res.json().catch(() => null)
+      throw new Error(j?.error?.message || `${res.status}`)
+    }
+    toast.success("Operator o'zgartirildi")
+    reassignSelected.value = ''
+    await loadAll()
+  } catch (e: any) {
+    toast.error(e.message || "Saqlab bo'lmadi")
+  } finally {
+    reassignSaving.value = false
   }
 }
 
@@ -1137,23 +1185,58 @@ function applicantInitials(): string {
             </span>
           </div>
 
-          <div v-if="(application as any).hemis_marked_by" class="text-[11px] text-slate-500 dark:text-slate-400 mb-3">
+          <div v-if="(application as any).hemis_marked_by" class="text-[11px] text-slate-500 dark:text-slate-400 mb-2">
             <strong class="text-slate-700 dark:text-slate-300">{{ (application as any).hemis_marked_by }}</strong>
             <template v-if="(application as any).hemis_marked_at"> · {{ fmtDate((application as any).hemis_marked_at) }}</template>
           </div>
 
-          <div v-if="canSetHemis" class="flex gap-2">
-            <button class="btn-primary btn-sm flex-1 justify-center"
-                    :disabled="hemisSaving || (application as any).hemis_status === 'qoshildi'"
-                    @click="setHemis('qoshildi')">
-              ✅ Qo'shildi
-            </button>
-            <button class="btn-outline btn-sm flex-1 justify-center"
-                    :disabled="hemisSaving || (application as any).hemis_status === 'qoshilmadi'"
-                    @click="setHemis('qoshilmadi')">
-              ⬜ Qo'shilmagan
-            </button>
+          <div v-if="(application as any).hemis_comment"
+               class="mb-3 p-2.5 rounded-lg text-xs bg-slate-50 text-slate-700 ring-1 ring-slate-200
+                      dark:bg-slate-800/40 dark:text-slate-300 dark:ring-slate-700/50">
+            <span class="text-slate-400">Izoh:</span> {{ (application as any).hemis_comment }}
           </div>
+
+          <div v-if="canSetHemis" class="space-y-2">
+            <input v-model="hemisComment" type="text" maxlength="2000"
+                   class="input text-sm" placeholder="Izoh (ixtiyoriy)" />
+            <div class="flex gap-2">
+              <button class="btn-primary btn-sm flex-1 justify-center"
+                      :disabled="hemisSaving || (application as any).hemis_status === 'qoshildi'"
+                      @click="setHemis('qoshildi')">
+                ✅ Qo'shildi
+              </button>
+              <button class="btn-outline btn-sm flex-1 justify-center"
+                      :disabled="hemisSaving || (application as any).hemis_status === 'qoshilmadi'"
+                      @click="setHemis('qoshilmadi')">
+                ⬜ Qo'shilmagan
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Operatorni o'zgartirish (root superadmin only) -->
+        <section v-if="canReassignOperator" class="card p-5">
+          <h2 class="section-title inline-flex items-center gap-2 mb-3">
+            <span class="icon-bubble-sm bg-violet-50 text-violet-600 dark:bg-violet-500/15 dark:text-violet-300">
+              <UserIcon class="w-4 h-4" />
+            </span>
+            Operatorni o'zgartirish
+          </h2>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mb-2">
+            Joriy: <strong class="text-slate-700 dark:text-slate-300">{{ (application as any).applicant_registered_by_name || '—' }}</strong>
+          </p>
+          <p class="text-[11px] text-amber-600 dark:text-amber-400 mb-3">
+            Diqqat: abituriyentning barcha arizalari yangi operatorga o'tadi.
+          </p>
+          <select v-model="reassignSelected" class="input mb-2 text-sm">
+            <option value="">— Operator tanlang —</option>
+            <option v-for="o in operatorOptions" :key="o.id" :value="o.id">{{ o.label }}</option>
+          </select>
+          <button class="btn-primary btn-sm w-full justify-center"
+                  :disabled="reassignSaving || !reassignSelected"
+                  @click="reassignOperator">
+            {{ reassignSaving ? 'Saqlanmoqda...' : "O'zgartirish" }}
+          </button>
         </section>
 
         <!-- Konsulting agentligi (only for is_consulting users) -->

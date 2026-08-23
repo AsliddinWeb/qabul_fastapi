@@ -122,6 +122,8 @@ class Application(UUIDPKMixin, TimestampMixin, Base):
     # buttons are open to anyone in the group, so this is a free-text label).
     hemis_marked_by: Mapped[str | None] = mapped_column(String(150), nullable=True)
     hemis_marked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Optional free-text note entered alongside the ✅/❌ decision.
+    hemis_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Consulting agency (partner) that brought the applicant in. Optional.
     # Visible/filterable only by users with is_consulting=True (UI-side gate);
