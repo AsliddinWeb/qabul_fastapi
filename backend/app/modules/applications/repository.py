@@ -3,10 +3,10 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, func, or_, select
 
 from app.core.repository import BaseRepository
-from app.db.enums import AdmissionType, ApplicationStatus
+from app.db.enums import AdmissionType, ApplicationStatus, ContractStatus
 from app.modules.applicants.models import Applicant
 from app.modules.applications.models import Application, ApplicationStatusHistory
 from app.modules.consulting.models import ConsultingAgency
@@ -360,9 +360,18 @@ class ApplicationRepository(BaseRepository[Application]):
             .outerjoin(District, Applicant.district_id == District.id)
             .outerjoin(ConsultingAgency, Application.consulting_agency_id == ConsultingAgency.id)
             .outerjoin(OperatorUser, Applicant.registered_by_id == OperatorUser.id)
-            # Contract is 0-or-1 per application; outerjoin keeps unsigned/no-
-            # contract applications visible in the export.
-            .outerjoin(Contract, Contract.application_id == Application.id)
+            # Contract: join ONLY the active (non-cancelled) one. An application
+            # can accumulate several cancelled contracts as history; without the
+            # status filter the outerjoin fans out to one export row PER contract,
+            # duplicating the application. The partial unique index guarantees at
+            # most one non-cancelled contract, so this keeps it 1 row per app.
+            .outerjoin(
+                Contract,
+                and_(
+                    Contract.application_id == Application.id,
+                    Contract.status != ContractStatus.CANCELLED,
+                ),
+            )
             # New joins — all LEFT so apps without a course / diplom / transfer
             # diplom still appear in the export with empty cells. FKs all
             # indexed so each join is O(log n) per row.

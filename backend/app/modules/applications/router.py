@@ -236,6 +236,7 @@ async def export_applications_csv(
     consulting_agency_id: UUID | None = Query(default=None),
     registered_by_id: UUID | None = Query(default=None),
     source: str | None = Query(default=None),
+    search: str | None = Query(default=None, max_length=100),
     created_from: datetime | None = Query(default=None),
     created_to: datetime | None = Query(default=None),
     request: Request = None,  # type: ignore[assignment]
@@ -253,6 +254,7 @@ async def export_applications_csv(
         consulting_agency_id=consulting_agency_id,
         registered_by_id=registered_by_id,
         source=source,
+        search=search,
         created_from=created_from,
         created_to=created_to,
         limit=10_000,
@@ -458,6 +460,7 @@ async def export_applications_xlsx(
     consulting_agency_id: UUID | None = Query(default=None),
     registered_by_id: UUID | None = Query(default=None),
     source: str | None = Query(default=None),
+    search: str | None = Query(default=None, max_length=100),
     created_from: datetime | None = Query(default=None),
     created_to: datetime | None = Query(default=None),
     request: Request = None,  # type: ignore[assignment]
@@ -490,6 +493,7 @@ async def export_applications_xlsx(
         consulting_agency_id=consulting_agency_id,
         registered_by_id=registered_by_id,
         source=source,
+        search=search,
         created_from=created_from,
         created_to=created_to,
     )
