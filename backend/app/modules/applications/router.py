@@ -15,6 +15,7 @@ from app.core.dependencies import (
     get_current_user,
     get_db,
     operator_scope,
+    require_export_access,
     require_permission,
     require_root_superadmin,
 )
@@ -220,9 +221,10 @@ async def list_applications(
 
 @router.get(
     "/export.csv",
-    # Security: CSV export is restricted to the single ROOT superadmin.
-    # Every other role (incl. other superadmins/admins) gets 403.
-    dependencies=[Depends(require_root_superadmin)],
+    # Security: export is limited to the ROOT superadmin OR a role explicitly
+    # granted applications.export (e.g. accountants — revocable per user).
+    # Every other role (incl. other superadmins/admins) gets 403. Audit-logged.
+    dependencies=[Depends(require_export_access(Permission.APPLICATIONS_EXPORT))],
 )
 async def export_applications_csv(
     status_filter: ApplicationStatus | None = Query(default=None, alias="status"),
@@ -442,9 +444,9 @@ def _xlsx_cell_value(key: str, value):
 
 @router.get(
     "/export.xlsx",
-    # Security: Excel export is restricted to the single ROOT superadmin.
-    # Every other role (incl. other superadmins/admins) gets 403.
-    dependencies=[Depends(require_root_superadmin)],
+    # Root superadmin OR a role granted applications.export (accountants —
+    # revocable per user). Every other role gets 403. Audit-logged.
+    dependencies=[Depends(require_export_access(Permission.APPLICATIONS_EXPORT))],
 )
 async def export_applications_xlsx(
     status_filter: ApplicationStatus | None = Query(default=None, alias="status"),

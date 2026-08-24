@@ -148,6 +148,40 @@ async def require_root_superadmin(
     return user
 
 
+def require_export_access(perm: Permission):
+    """Data export gate: allow the root superadmin always, or a NON-superadmin
+    whose role grants `perm` and hasn't had it revoked. Every other superadmin/
+    admin/operator gets 403 — export stays locked to root + specifically-granted
+    roles (e.g. accountants with applications.export)."""
+
+    async def _checker(
+        user: CurrentUser = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db),
+    ) -> CurrentUser:
+        from sqlalchemy import select
+        from app.modules.users.models import User as _UserModel
+
+        row = (
+            await db.execute(
+                select(_UserModel.is_root_superadmin, _UserModel.permissions_revoked)
+                .where(_UserModel.id == UUID(user.user_id))
+            )
+        ).first()
+        is_root = bool(row and row[0])
+        revoked = (row[1] if row else None) or []
+        if is_root:
+            return user
+        # Non-root superadmins are deliberately excluded from exports.
+        if user.role == Role.SUPERADMIN:
+            raise ForbiddenError("Export is restricted to the root superadmin")
+        if has_permission(user.role, perm) and perm.value not in revoked:
+            return user
+        raise ForbiddenError(f"Missing permission: {perm.value}")
+
+    _checker.__name__ = f"require_export_access_{perm.value.replace('.', '_')}"
+    return _checker
+
+
 async def require_consulting_or_root(
     user: CurrentUser = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

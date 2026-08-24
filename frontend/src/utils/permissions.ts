@@ -12,7 +12,7 @@ import type { Role, User } from '@/types'
 export type Permission =
   | 'contracts.read' | 'contracts.create' | 'contracts.sign'
   | 'payments.read' | 'payments.create' | 'payments.confirm' | 'payments.fail' | 'payments.refund'
-  | 'applications.list' | 'applications.read' | 'applications.review'
+  | 'applications.list' | 'applications.read' | 'applications.review' | 'applications.export'
   | 'applicants.list' | 'applicants.read' | 'applicants.write' | 'applicants.create_by_operator' | 'applicants.status'
   | 'leads.list' | 'leads.read' | 'leads.create' | 'leads.update' | 'leads.move'
   | 'leads.assign' | 'leads.convert' | 'leads.lose' | 'leads.delete' | 'leads.settings'
@@ -72,7 +72,7 @@ const ROLE_PERMS: Record<Role, Permission[]> = {
   accountant: [
     'contracts.read', 'contracts.create', 'contracts.sign',
     'payments.read', 'payments.create', 'payments.confirm', 'payments.fail', 'payments.refund',
-    'applications.list', 'applications.read',
+    'applications.list', 'applications.read', 'applications.export',
     'applicants.list', 'applicants.read',
     'reports.financial',
     'contract_templates.read',
@@ -129,6 +129,12 @@ export const TOGGLABLE_PERMISSIONS: TogglablePerm[] = [
     label: "Lead'larni o'chirish",
     description: "Lead'larni butunlay o'chirib tashlash.",
     roles: ['superadmin', 'admin'],
+  },
+  {
+    code: 'applications.export',
+    label: "Arizalarni yuklab olish",
+    description: "Arizalarni Excel/CSV sifatida eksport qilish (audit'ga yoziladi).",
+    roles: ['accountant'],
   },
   {
     code: 'payments.confirm',

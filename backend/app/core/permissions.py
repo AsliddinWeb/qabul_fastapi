@@ -38,6 +38,7 @@ class Permission(str, Enum):
     APPLICATIONS_LIST = "applications.list"
     APPLICATIONS_READ = "applications.read"
     APPLICATIONS_REVIEW = "applications.review"
+    APPLICATIONS_EXPORT = "applications.export"
 
     # Programs / branches / education levels / education forms
     PROGRAMS_READ = "programs.read"
@@ -178,6 +179,8 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
         # Accountants may issue contracts on applications (system + billing PDF),
         # same as operators/admins.
         _P.CONTRACTS_READ, _P.CONTRACTS_CREATE, _P.CONTRACTS_SIGN, _P.CONTRACT_TEMPLATES_READ,
+        # Applications export — revocable special permission (audit-logged).
+        _P.APPLICATIONS_EXPORT,
         _P.PAYMENTS_READ, _P.PAYMENTS_CREATE,
         _P.PAYMENTS_CONFIRM, _P.PAYMENTS_FAIL, _P.PAYMENTS_REFUND,
         _P.REPORTS_FINANCIAL,
