@@ -631,10 +631,12 @@ async def staff_create_application(
     await svc.session.commit()
 
     # Push the new application to the Telegram notification bot (best-effort,
-    # runs after the response is sent).
-    payload_dict = await svc.notification_payload(obj.id)
-    if payload_dict:
-        enqueue_application_created(bg, payload=payload_dict)
+    # runs after the response is sent). Transfer ("o'qishni ko'chirish")
+    # applications are excluded — they don't go to the group.
+    if obj.admission_type != AdmissionType.TRANSFER:
+        payload_dict = await svc.notification_payload(obj.id)
+        if payload_dict:
+            enqueue_application_created(bg, payload=payload_dict)
 
     return ApplicationRead.model_validate(obj)
 
