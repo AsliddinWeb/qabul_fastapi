@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlalchemy import and_, func, or_, select
 
 from app.core.repository import BaseRepository
+from app.core.search import token_search_clause
 from app.db.enums import AdmissionType, ApplicationStatus, ContractStatus
 from app.modules.applicants.models import Applicant
 from app.modules.applications.models import Application, ApplicationStatusHistory
@@ -182,15 +183,16 @@ class ApplicationRepository(BaseRepository[Application]):
         # page — typing "SHAROPOVA" on page 1 would silently miss her if
         # she lived on page 5.
         if search:
-            q = f"%{search.strip()}%"
-            clauses.append(or_(
-                Application.application_number.ilike(q),
-                Applicant.first_name.ilike(q),
-                Applicant.last_name.ilike(q),
-                Applicant.other_name.ilike(q),
-                Applicant.pinfl.ilike(q),
-                Applicant.passport_series.ilike(q),
-            ))
+            cond = token_search_clause(search, [
+                Application.application_number,
+                Applicant.first_name,
+                Applicant.last_name,
+                Applicant.other_name,
+                Applicant.pinfl,
+                Applicant.passport_series,
+            ])
+            if cond is not None:
+                clauses.append(cond)
 
         rows = await self._detailed_query(*clauses, limit=limit, offset=offset)
 
@@ -412,15 +414,16 @@ class ApplicationRepository(BaseRepository[Application]):
         if created_to is not None:
             clauses.append(Application.created_at <= created_to)
         if search:
-            q = f"%{search.strip()}%"
-            clauses.append(or_(
-                Application.application_number.ilike(q),
-                Applicant.first_name.ilike(q),
-                Applicant.last_name.ilike(q),
-                Applicant.other_name.ilike(q),
-                Applicant.pinfl.ilike(q),
-                Applicant.passport_series.ilike(q),
-            ))
+            cond = token_search_clause(search, [
+                Application.application_number,
+                Applicant.first_name,
+                Applicant.last_name,
+                Applicant.other_name,
+                Applicant.pinfl,
+                Applicant.passport_series,
+            ])
+            if cond is not None:
+                clauses.append(cond)
         for c in clauses:
             stmt = stmt.where(c)
 

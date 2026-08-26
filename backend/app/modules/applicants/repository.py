@@ -5,6 +5,7 @@ from uuid import UUID
 from sqlalchemy import func, or_, select
 
 from app.core.repository import BaseRepository
+from app.core.search import token_search_clause
 from app.modules.applicants.models import (
     Applicant,
     Course,
@@ -110,29 +111,24 @@ class ApplicantRepository(BaseRepository[Applicant]):
             stmt = stmt.where(cond)
             count_stmt = count_stmt.where(cond)
         if search:
-            like = f"%{search}%"
-            # If the search looks phone-like, also build a digits-only
-            # pattern so "94 202 55 11" matches "+998942025511" stored
-            # on User.phone — operators routinely paste formatted phones.
-            digits = "".join(c for c in search if c.isdigit())
-            phone_like = f"%{digits}%" if digits else None
-
-            or_terms = [
-                Applicant.first_name.ilike(like),
-                Applicant.last_name.ilike(like),
-                Applicant.other_name.ilike(like),
-                Applicant.passport_series.ilike(like),
-                Applicant.pinfl.ilike(like),
-                Applicant.additional_phone.ilike(like),
-            ]
-            if phone_like:
-                or_terms.extend([
-                    User.phone.ilike(phone_like),
-                    Applicant.additional_phone.ilike(phone_like),
-                ])
-            cond = or_(*or_terms)
-            stmt = stmt.where(cond)
-            count_stmt = count_stmt.where(cond)
+            # Per-word search: "Hasanova Yorqinoy" matches last_name + first_name
+            # in any order. Phone words also match a digits-only form so
+            # "94 202 55 11" hits "+998942025511".
+            cond = token_search_clause(
+                search,
+                [
+                    Applicant.first_name,
+                    Applicant.last_name,
+                    Applicant.other_name,
+                    Applicant.passport_series,
+                    Applicant.pinfl,
+                    Applicant.additional_phone,
+                ],
+                phone_columns=[User.phone, Applicant.additional_phone],
+            )
+            if cond is not None:
+                stmt = stmt.where(cond)
+                count_stmt = count_stmt.where(cond)
 
         stmt = stmt.order_by(Applicant.created_at.desc()).limit(limit).offset(offset)
 
@@ -218,16 +214,16 @@ class DiplomRepository(BaseRepository[Diplom]):
             stmt = stmt.where(Diplom.is_for_second_specialization == is_for_second_specialization)
             count_stmt = count_stmt.where(Diplom.is_for_second_specialization == is_for_second_specialization)
         if search:
-            like = f"%{search}%"
-            cond = or_(
-                Diplom.serial_number.ilike(like),
-                Diplom.university_name.ilike(like),
-                Applicant.last_name.ilike(like),
-                Applicant.first_name.ilike(like),
-                Applicant.pinfl.ilike(like),
-            )
-            stmt = stmt.where(cond)
-            count_stmt = count_stmt.where(cond)
+            cond = token_search_clause(search, [
+                Diplom.serial_number,
+                Diplom.university_name,
+                Applicant.last_name,
+                Applicant.first_name,
+                Applicant.pinfl,
+            ])
+            if cond is not None:
+                stmt = stmt.where(cond)
+                count_stmt = count_stmt.where(cond)
         stmt = stmt.order_by(Diplom.created_at.desc()).limit(limit).offset(offset)
 
         rows = (await self.session.execute(stmt)).all()
@@ -285,15 +281,15 @@ class TransferDiplomRepository(BaseRepository[TransferDiplom]):
             stmt = stmt.where(TransferDiplom.country_id == country_id)
             count_stmt = count_stmt.where(TransferDiplom.country_id == country_id)
         if search:
-            like = f"%{search}%"
-            cond = or_(
-                TransferDiplom.university_name.ilike(like),
-                Applicant.last_name.ilike(like),
-                Applicant.first_name.ilike(like),
-                Applicant.pinfl.ilike(like),
-            )
-            stmt = stmt.where(cond)
-            count_stmt = count_stmt.where(cond)
+            cond = token_search_clause(search, [
+                TransferDiplom.university_name,
+                Applicant.last_name,
+                Applicant.first_name,
+                Applicant.pinfl,
+            ])
+            if cond is not None:
+                stmt = stmt.where(cond)
+                count_stmt = count_stmt.where(cond)
         stmt = stmt.order_by(TransferDiplom.created_at.desc()).limit(limit).offset(offset)
 
         rows = (await self.session.execute(stmt)).all()
