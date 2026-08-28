@@ -41,15 +41,17 @@ import asyncio
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 
 import app.db.models_registry  # noqa: F401  (register all model tables)
 from app.db.enums import AdmissionType, ContractStatus
 from app.db.session import async_session_factory
+from app.modules.applicants.models import TransferDiplom
 from app.modules.applications.models import Application
 from app.modules.contracts.models import Contract
 from app.modules.contracts.service import ContractsService
 from app.modules.programs.models import EducationForm, Program
+from app.modules.regions.models import Country
 from app.modules.users.models import User
 
 DEFAULT_AMOUNT = Decimal("14000000")
@@ -67,10 +69,18 @@ async def _resolve_actor_id(session, explicit: UUID | None) -> UUID:
     return uid
 
 
-async def _perevod_candidates(session) -> list[Contract]:
-    stmt = (
+# Match "O'zbekiston" / "Ozbekiston" / "Uzbekistan" — apostrophe/case safe.
+_UZBEK_LIKE = "%zbek%"
+
+
+def _perevod_base_query():
+    """Perevod (draft/signed, system-rendered) contracts, joined to the
+    transfer diploma's country so callers can split by origin country."""
+    return (
         select(Contract)
         .join(Application, Application.id == Contract.application_id)
+        .outerjoin(TransferDiplom, TransferDiplom.id == Application.transfer_diplom_id)
+        .outerjoin(Country, Country.id == TransferDiplom.country_id)
         .where(
             Application.admission_type == AdmissionType.TRANSFER,
             Contract.status.in_([ContractStatus.DRAFT, ContractStatus.SIGNED]),
@@ -78,6 +88,21 @@ async def _perevod_candidates(session) -> list[Contract]:
         )
         .order_by(Contract.created_at)
     )
+
+
+async def _perevod_candidates(session) -> list[Contract]:
+    """Transfers to reprice: EXCLUDES those whose transfer diploma country is
+    Uzbekistan (local transfers stay unchanged) — only foreign transfers."""
+    stmt = _perevod_base_query().where(
+        or_(Country.id.is_(None), Country.name.notilike(_UZBEK_LIKE))
+    )
+    return list((await session.scalars(stmt)).all())
+
+
+async def _perevod_excluded_uzbek(session) -> list[Contract]:
+    """The Uzbekistan-origin transfers we deliberately leave alone (for the
+    dry-run report so the operator can see what's skipped)."""
+    stmt = _perevod_base_query().where(Country.name.ilike(_UZBEK_LIKE))
     return list((await session.scalars(stmt)).all())
 
 
@@ -181,8 +206,15 @@ async def main() -> None:
     async with async_session_factory() as session:
         actor_id = await _resolve_actor_id(session, args.actor_id)
         candidates = await _perevod_candidates(session)
+        excluded = await _perevod_excluded_uzbek(session)
 
-    print(f"Perevod contracts (draft/signed, system-rendered): {len(candidates)}")
+    if excluded:
+        print(f"SKIPPED — Uzbekistan-origin transfers ({len(excluded)}, left unchanged):")
+        for c in excluded:
+            print(f"  {c.contract_number:<24} {c.status.value:<8} {c.total_amount:>14}   {c.id}")
+        print("-" * 60)
+
+    print(f"Perevod contracts to reprice (foreign origin, draft/signed): {len(candidates)}")
     for c in candidates:
         print(f"  {c.contract_number:<24} {c.status.value:<8} {c.total_amount:>14} → {args.amount}   {c.id}")
 
