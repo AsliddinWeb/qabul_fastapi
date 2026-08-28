@@ -6,7 +6,7 @@ import {
   Search, Building2, Layers, BookOpen, LayoutGrid, List as ListIcon,
 } from 'lucide-vue-next'
 import { AxiosError } from 'axios'
-import { adminApi, type ProgramRead, type BranchRead } from '@/api/admin.api'
+import { adminApi, type ProgramRead, type BranchRead, type NamedRecord } from '@/api/admin.api'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
@@ -19,8 +19,12 @@ const { ask } = useConfirm()
 
 const items = ref<ProgramRead[]>([])
 const branches = ref<BranchRead[]>([])
+const eduLevels = ref<NamedRecord[]>([])
+const eduForms = ref<NamedRecord[]>([])
 const loading = ref(true)
 const filterBranch = ref<string>('')
+const filterLevel = ref<string>('')
+const filterForm = ref<string>('')
 const onlyActive = ref(false)
 const searchQuery = ref('')
 const view = ref<'grid' | 'list'>('grid')
@@ -35,8 +39,22 @@ const filtered = computed(() => {
       (p.branch_name || '').toLowerCase().includes(q),
     )
   }
+  if (filterLevel.value) list = list.filter((p) => p.education_level_id === filterLevel.value)
+  if (filterForm.value) list = list.filter((p) => p.education_form_id === filterForm.value)
   return list
 })
+
+const anyFilter = computed(() =>
+  !!(searchQuery.value.trim() || filterBranch.value || filterLevel.value || filterForm.value || onlyActive.value)
+)
+
+function resetFilters() {
+  searchQuery.value = ''
+  filterBranch.value = ''
+  filterLevel.value = ''
+  filterForm.value = ''
+  onlyActive.value = false
+}
 
 async function load() {
   loading.value = true
@@ -54,7 +72,14 @@ async function load() {
 }
 
 onMounted(async () => {
-  branches.value = await adminApi.branches.list(false)
+  const [b, lv, fm] = await Promise.all([
+    adminApi.branches.list(false),
+    adminApi.educationLevels.list().catch(() => []),
+    adminApi.educationForms.list().catch(() => []),
+  ])
+  branches.value = b
+  eduLevels.value = lv
+  eduForms.value = fm
   await load()
 })
 
@@ -130,17 +155,34 @@ function branchGradient(branch_id: string): string {
           <input v-model="searchQuery" class="input pl-10" placeholder="Yo'nalish nomi, kodi yoki filial..." />
         </div>
       </div>
-      <div class="min-w-[180px]">
+      <div class="min-w-[170px]">
         <label class="field-label">Filial</label>
         <select v-model="filterBranch" class="input">
           <option value="">Hammasi</option>
           <option v-for="b in branches" :key="b.id" :value="b.id">{{ b.name }}</option>
         </select>
       </div>
+      <div class="min-w-[150px]">
+        <label class="field-label">Daraja</label>
+        <select v-model="filterLevel" class="input">
+          <option value="">Hammasi</option>
+          <option v-for="l in eduLevels" :key="l.id" :value="l.id">{{ l.name }}</option>
+        </select>
+      </div>
+      <div class="min-w-[150px]">
+        <label class="field-label">Ta'lim shakli</label>
+        <select v-model="filterForm" class="input">
+          <option value="">Hammasi</option>
+          <option v-for="f in eduForms" :key="f.id" :value="f.id">{{ f.name }}</option>
+        </select>
+      </div>
       <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 pb-2">
         <input v-model="onlyActive" type="checkbox" class="rounded" />
         <span>Faqat faol</span>
       </label>
+      <button v-if="anyFilter" type="button" class="btn-ghost btn-sm pb-1" @click="resetFilters">
+        Tozalash
+      </button>
       <div class="flex items-center gap-1 ml-auto pb-1">
         <button class="icon-btn" :class="view === 'grid' ? 'bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300' : ''"
                 title="Karta ko'rinishi" @click="view = 'grid'">
@@ -159,7 +201,7 @@ function branchGradient(branch_id: string): string {
     <!-- Empty -->
     <div v-else-if="!filtered.length" class="card p-6">
       <EmptyState :icon="GraduationCap" title="Yo'nalishlar topilmadi"
-                  :subtitle="searchQuery || filterBranch ? 'Filterlarni o\'zgartirib ko\'ring' : 'Birinchi yo\'nalishni yarating'">
+                  :subtitle="anyFilter ? 'Filterlarni o\'zgartirib ko\'ring' : 'Birinchi yo\'nalishni yarating'">
         <RouterLink to="/admin/programs/new" class="btn-primary mt-4 inline-flex">
           <Plus class="w-4 h-4" /> Yangi yo'nalish
         </RouterLink>
