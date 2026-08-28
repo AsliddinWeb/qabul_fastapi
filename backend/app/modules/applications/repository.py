@@ -191,8 +191,15 @@ class ApplicationRepository(BaseRepository[Application]):
                 Applicant.pinfl,
                 Applicant.passport_series,
             ])
-            if cond is not None:
-                clauses.append(cond)
+            # Also match by contract number (e.g. "C-2026-CBBE6C2A") via the
+            # application's contract(s) — contract numbers are single tokens.
+            contract_match = Application.id.in_(
+                select(Contract.application_id).where(
+                    Contract.contract_number.ilike(f"%{search.strip()}%")
+                )
+            )
+            combined = or_(cond, contract_match) if cond is not None else contract_match
+            clauses.append(combined)
 
         rows = await self._detailed_query(*clauses, limit=limit, offset=offset)
 
@@ -422,8 +429,13 @@ class ApplicationRepository(BaseRepository[Application]):
                 Applicant.pinfl,
                 Applicant.passport_series,
             ])
-            if cond is not None:
-                clauses.append(cond)
+            contract_match = Application.id.in_(
+                select(Contract.application_id).where(
+                    Contract.contract_number.ilike(f"%{search.strip()}%")
+                )
+            )
+            combined = or_(cond, contract_match) if cond is not None else contract_match
+            clauses.append(combined)
         for c in clauses:
             stmt = stmt.where(c)
 
