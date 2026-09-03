@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { Eye, EyeOff } from 'lucide-vue-next'
 import { AxiosError } from 'axios'
 import { authApi } from '@/api/auth.api'
 import { useAuthStore } from '@/stores/auth'
@@ -74,6 +75,7 @@ onMounted(load)
 
 // ---- Password change (self-service) ----
 const pw = reactive({ current: '', next: '', confirm: '' })
+const pwShow = reactive({ current: false, next: false, confirm: false })
 const pwSaving = ref(false)
 const pwMessage = ref<{ type: 'ok' | 'err'; text: string } | null>(null)
 
@@ -197,16 +199,46 @@ const initials = computed(() => {
         <form class="space-y-4" @submit.prevent="changePassword">
           <div>
             <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Joriy parol</label>
-            <input v-model="pw.current" type="password" autocomplete="current-password" class="input" placeholder="••••••••" />
+            <div class="relative">
+              <input v-model="pw.current" :type="pwShow.current ? 'text' : 'password'"
+                     autocomplete="current-password" class="input pr-10" placeholder="••••••••" />
+              <button type="button" tabindex="-1"
+                      class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                      :title="pwShow.current ? 'Yashirish' : 'Ko\'rsatish'"
+                      @click="pwShow.current = !pwShow.current">
+                <EyeOff v-if="pwShow.current" class="w-4 h-4" />
+                <Eye v-else class="w-4 h-4" />
+              </button>
+            </div>
           </div>
           <div class="grid sm:grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Yangi parol</label>
-              <input v-model="pw.next" type="password" autocomplete="new-password" class="input" placeholder="Kamida 8 belgi" />
+              <div class="relative">
+                <input v-model="pw.next" :type="pwShow.next ? 'text' : 'password'"
+                       autocomplete="new-password" class="input pr-10" placeholder="Kamida 8 belgi" />
+                <button type="button" tabindex="-1"
+                        class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                        :title="pwShow.next ? 'Yashirish' : 'Ko\'rsatish'"
+                        @click="pwShow.next = !pwShow.next">
+                  <EyeOff v-if="pwShow.next" class="w-4 h-4" />
+                  <Eye v-else class="w-4 h-4" />
+                </button>
+              </div>
             </div>
             <div>
               <label class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Yangi parolni takrorlang</label>
-              <input v-model="pw.confirm" type="password" autocomplete="new-password" class="input" placeholder="••••••••" />
+              <div class="relative">
+                <input v-model="pw.confirm" :type="pwShow.confirm ? 'text' : 'password'"
+                       autocomplete="new-password" class="input pr-10" placeholder="••••••••" />
+                <button type="button" tabindex="-1"
+                        class="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                        :title="pwShow.confirm ? 'Yashirish' : 'Ko\'rsatish'"
+                        @click="pwShow.confirm = !pwShow.confirm">
+                  <EyeOff v-if="pwShow.confirm" class="w-4 h-4" />
+                  <Eye v-else class="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
           <button type="submit" class="btn-primary" :disabled="pwSaving">
