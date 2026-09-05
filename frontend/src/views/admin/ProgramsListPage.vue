@@ -3,10 +3,11 @@ import { onMounted, ref, watch, computed } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import {
   Plus, GraduationCap, Pencil, Trash2, Power, PowerOff,
-  Search, Building2, Layers, BookOpen, LayoutGrid, List as ListIcon,
+  Search, Building2, Layers, BookOpen, LayoutGrid, List as ListIcon, Download,
 } from 'lucide-vue-next'
 import { AxiosError } from 'axios'
 import { adminApi, type ProgramRead, type BranchRead, type NamedRecord } from '@/api/admin.api'
+import { downloadFile } from '@/api/http'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
@@ -54,6 +55,28 @@ function resetFilters() {
   filterLevel.value = ''
   filterForm.value = ''
   onlyActive.value = false
+}
+
+const exporting = ref(false)
+async function exportXlsx() {
+  exporting.value = true
+  try {
+    await downloadFile('/programs/programs/export.xlsx', {
+      active_only: onlyActive.value || undefined,
+      branch_id: filterBranch.value || undefined,
+      education_level_id: filterLevel.value || undefined,
+      education_form_id: filterForm.value || undefined,
+      search: searchQuery.value.trim() || undefined,
+    }, {
+      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      fallbackName: `yonalishlar_${new Date().toISOString().slice(0, 16).replace('T', '_').replace(/:/g, '-')}.xlsx`,
+    })
+    toast.success('Excel yuklab olindi')
+  } catch {
+    toast.error("Eksport qilib bo'lmadi")
+  } finally {
+    exporting.value = false
+  }
 }
 
 async function load() {
@@ -141,6 +164,10 @@ function branchGradient(branch_id: string): string {
       :subtitle="`Universitet o'qitadigan yo'nalishlar · ${filtered.length} / ${items.length}`"
       :crumbs="[{ label: 'Bosh sahifa', to: '/admin' }, { label: 'Ta\'lim' }]"
     >
+      <button class="btn-outline" :disabled="exporting" @click="exportXlsx"
+              title="Filtr qo'llangan yo'nalishlarni Excel (.xlsx) sifatida yuklab olish">
+        <Download class="w-4 h-4" /> {{ exporting ? '...' : 'Excel' }}
+      </button>
       <RouterLink to="/admin/programs/new" class="btn-primary">
         <Plus class="w-4 h-4" /> Yangi yo'nalish
       </RouterLink>
