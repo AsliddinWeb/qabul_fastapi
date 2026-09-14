@@ -152,7 +152,16 @@ http.interceptors.response.use(
         await new Promise(r => setTimeout(r, 100))
       }
 
+      // Session truly expired (refresh failed). Clear and bounce to the
+      // right login with an ?expired flag so the user sees why they were
+      // signed out — instead of being stranded on a half-broken page with
+      // an empty sidebar. Full reload wipes any stale in-memory state.
+      const wasApplicant = auth.user?.role === 'applicant'
       auth.logout()
+      const loginPath = wasApplicant ? '/app/login' : '/app/staff'
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith(loginPath)) {
+        window.location.assign(`${loginPath}?expired=1`)
+      }
     }
 
     return Promise.reject(error)

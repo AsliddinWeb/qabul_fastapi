@@ -10,7 +10,9 @@ const router = useRouter()
 const route = useRoute()
 const phone = ref('')
 const loading = ref(false)
-const error = ref<string | null>(null)
+const error = ref<string | null>(
+  route.query.expired ? "Sessiya muddati tugadi. Iltimos, qaytadan kiring." : null,
+)
 const errorCode = ref<string | null>(null)
 const refCode = ref<string | null>(null)
 

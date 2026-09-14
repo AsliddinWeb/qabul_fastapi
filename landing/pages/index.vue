@@ -186,22 +186,38 @@ function countUp(el: HTMLElement) {
   requestAnimationFrame(fr)
 }
 
+// Reveal-on-scroll. Called on mount AND after async data renders new .rv
+// nodes (program cards / "Barcha yo'nalishlar" button) — otherwise those
+// late nodes are never observed and stay stuck at opacity:0 (invisible but
+// still clickable).
+let revealIO: IntersectionObserver | null = null
+function revealObserve() {
+  const els = document.querySelectorAll('.xrd .rv:not(.in)')
+  if (!('IntersectionObserver' in window)) { els.forEach(e => e.classList.add('in')); return }
+  if (!revealIO) {
+    revealIO = new IntersectionObserver((ents, obs) => {
+      ents.forEach(en => { if (en.isIntersecting) { en.target.classList.add('in'); obs.unobserve(en.target) } })
+    }, { threshold: 0.16, rootMargin: '0px 0px -8% 0px' })
+    observers.push(revealIO)
+  }
+  els.forEach(e => revealIO!.observe(e))
+}
+
+// Re-scan whenever the program list finishes loading or its rendered count
+// changes (paging / filtering swaps which .rv nodes exist).
+watch([loading, visibleCount, () => filtered.value.length], () => nextTick(revealObserve))
+
 onMounted(() => {
   const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
-  const rvEls = document.querySelectorAll('.xrd .rv')
   const counters = document.querySelectorAll<HTMLElement>('.xrd [data-count]')
   const flow = document.querySelector('.xrd .flow')
 
+  revealObserve()
+
   if (!('IntersectionObserver' in window)) {
-    rvEls.forEach(e => e.classList.add('in'))
     counters.forEach(countUp)
     flow?.classList.add('in')
   } else {
-    const io = new IntersectionObserver((ents, obs) => {
-      ents.forEach(en => { if (en.isIntersecting) { en.target.classList.add('in'); obs.unobserve(en.target) } })
-    }, { threshold: 0.16, rootMargin: '0px 0px -8% 0px' })
-    rvEls.forEach(e => io.observe(e)); observers.push(io)
-
     const cio = new IntersectionObserver((ents, obs) => {
       ents.forEach(en => { if (en.isIntersecting) { countUp(en.target as HTMLElement); obs.unobserve(en.target) } })
     }, { threshold: 0.5 })

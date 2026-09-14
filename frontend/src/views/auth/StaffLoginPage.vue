@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useRouter, RouterLink } from 'vue-router'
+import { useRouter, useRoute, RouterLink } from 'vue-router'
 import { AxiosError } from 'axios'
 import {
   Phone, Eye, EyeOff, KeyRound, AlertCircle, ShieldCheck, ArrowRight,
@@ -10,13 +10,16 @@ import { useAuthStore } from '@/stores/auth'
 import { formatPhoneLocal, localToCompact, PLACEHOLDERS } from '@/utils/validators'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 
 const phone = ref('')
 const password = ref('')
 const showPassword = ref(false)
 const loading = ref(false)
-const error = ref<string | null>(null)
+const error = ref<string | null>(
+  route.query.expired ? "Sessiya muddati tugadi. Iltimos, qaytadan kiring." : null,
+)
 
 function onPhoneInput(e: Event) {
   phone.value = formatPhoneLocal((e.target as HTMLInputElement).value)
