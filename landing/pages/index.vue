@@ -371,13 +371,10 @@ onBeforeUnmount(() => { observers.forEach(o => o.disconnect()) })
           </article>
         </TransitionGroup>
 
-        <div v-if="!loading && filtered.length > visibleCount" class="progs__more rv">
-          <button class="btn btn--ghost btn--lg" type="button" @click="visibleCount += 9">
-            Yana yo'nalishlarni ko'rish <i class="ph ph-arrow-right" aria-hidden="true"></i>
-          </button>
-        </div>
-        <div v-else-if="!loading && filtered.length" class="progs__more rv">
-          <a class="btn btn--ghost btn--lg" href="/programs">Barcha yo'nalishlarni ko'rish <i class="ph ph-arrow-right" aria-hidden="true"></i></a>
+        <div v-if="!loading && filtered.length" class="progs__more rv">
+          <NuxtLink class="btn btn--ghost btn--lg" to="/programs">
+            Barcha yo'nalishlar <i class="ph ph-arrow-right" aria-hidden="true"></i>
+          </NuxtLink>
         </div>
       </div>
     </section>

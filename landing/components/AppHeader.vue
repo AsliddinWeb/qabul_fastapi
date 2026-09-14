@@ -11,8 +11,8 @@ const stuck = ref(false)
 let io: IntersectionObserver | null = null
 let sentinel: HTMLElement | null = null
 
-const links = [
-  { id: 'programs',  label: "Yo'nalishlar" },
+const links: { id: string; label: string; to?: string }[] = [
+  { id: 'programs',  label: "Yo'nalishlar", to: '/programs' },
   { id: 'about',     label: 'Universitet' },
   { id: 'qabul',     label: 'Qabul tartibi' },
   { id: 'hamkorlik', label: 'Hamkorlik' },
@@ -21,6 +21,13 @@ const links = [
 
 const route = useRoute()
 const router = useRouter()
+
+// Link with a `to` goes to a real page; the rest scroll to a section on home.
+function nav(l: { id: string; to?: string }) {
+  mobileOpen.value = false
+  if (l.to) { router.push(l.to); return }
+  go(l.id)
+}
 
 function go(id: string) {
   mobileOpen.value = false
@@ -52,7 +59,7 @@ onBeforeUnmount(() => { io?.disconnect(); sentinel?.remove() })
       </a>
 
       <nav class="nav__links" aria-label="Asosiy menyu">
-        <a v-for="l in links" :key="l.id" :href="`#${l.id}`" @click.prevent="go(l.id)">{{ l.label }}</a>
+        <a v-for="l in links" :key="l.id" :href="l.to || `#${l.id}`" @click.prevent="nav(l)">{{ l.label }}</a>
       </nav>
 
       <div class="nav__act">
@@ -68,7 +75,7 @@ onBeforeUnmount(() => { io?.disconnect(); sentinel?.remove() })
     </div>
 
     <div class="mobile-menu" :class="{ 'is-open': mobileOpen }">
-      <a v-for="l in links" :key="l.id" :href="`#${l.id}`" @click.prevent="go(l.id)">{{ l.label }}</a>
+      <a v-for="l in links" :key="l.id" :href="l.to || `#${l.id}`" @click.prevent="nav(l)">{{ l.label }}</a>
       <a class="btn btn--primary" :href="loginUrl">Ariza topshirish</a>
     </div>
   </header>
