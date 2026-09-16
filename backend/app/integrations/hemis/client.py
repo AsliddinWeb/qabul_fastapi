@@ -19,12 +19,14 @@ from app.config import settings
 
 
 def extract_passport_number(passport_series: str | None) -> str | None:
-    """Applicants store passport as "AA1234567" (2-letter series + 7 digits).
-    HEMIS wants just the numeric part. Falls back to all digits found."""
+    """HEMIS's `passport_number` filter expects the FULL passport — series
+    letters + number together, e.g. "AE1099577" (NOT just the 7 digits;
+    verified against the live student-list). Normalize: strip spaces/dashes,
+    uppercase."""
     if not passport_series:
         return None
-    digits = re.sub(r"\D", "", passport_series)
-    return digits or None
+    v = re.sub(r"[\s\-]", "", passport_series).upper()
+    return v or None
 
 
 class HemisClient:
