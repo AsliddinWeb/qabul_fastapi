@@ -534,6 +534,9 @@ class ApplicationRepository(BaseRepository[Application]):
                 # column lines up; can be filled by hand or via a future
                 # import once the university assigns groups.
                 "guruhi": None,
+                # HEMIS: manual enrolment mark + automated existence check
+                "hemis_status": app.hemis_status,
+                "auto_hemis_check": app.auto_hemis_check,
             })
         return out
 

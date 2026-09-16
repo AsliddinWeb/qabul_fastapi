@@ -28,6 +28,16 @@ export const HEMIS_STATUS_TONE: Record<string, string> = {
   qoshilmadi: 'bg-slate-100 text-slate-600 dark:bg-slate-700/40 dark:text-slate-300',
 }
 
+// Automated HEMIS existence check (auto_hemis_check).
+export const HEMIS_CHECK: Record<string, string> = {
+  topildi:   'HEMISda bor',
+  topilmadi: 'HEMISda yo\'q',
+}
+export const HEMIS_CHECK_TONE: Record<string, string> = {
+  topildi:   'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300',
+  topilmadi: 'bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-300',
+}
+
 /**
  * Abituriyent CRM funnel statusi — leadlardagidek, lekin sodda.
  * Default 'new'. Shartnoma imzolanganda backend avtomatik

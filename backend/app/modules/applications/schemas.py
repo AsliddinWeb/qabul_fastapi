@@ -108,6 +108,8 @@ class ApplicationRead(IdSchema, TimestampedSchema):
     hemis_marked_by: str | None = None
     hemis_marked_at: datetime | None = None
     hemis_comment: str | None = None
+    auto_hemis_check: str | None = None
+    hemis_checked_at: datetime | None = None
 
 
 class HemisDecision(AppSchema):

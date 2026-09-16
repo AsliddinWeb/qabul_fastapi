@@ -24,6 +24,7 @@ from app.core.permissions import Permission
 from app.core.schemas import PageResponse
 from app.db.enums import AdmissionType, ApplicationStatus, ContractStatus, Gender
 from app.integrations.crm.events import enqueue_application_status_event
+from app.integrations.hemis.sync import get_state as hemis_sync_state, start_sync as start_hemis_sync
 from app.integrations.telegram.notifier import enqueue_application_created
 from app.modules.applicants.repository import ApplicantRepository
 from app.modules.applications.schemas import (
@@ -410,6 +411,8 @@ _XLSX_COLUMNS: list[tuple[str, str]] = [
     ("operator_full_name",      "Operator"),
     ("consulting_agency_name",  "Konsalting agentligi"),
     ("contract_status",         "Shartnoma holati"),
+    ("hemis_status",            "HEMIS (qo'lda)"),
+    ("auto_hemis_check",        "HEMIS tekshiruvi"),
 
     # -- Block 6: Timeline + free-text + UUIDs --
     ("created_at",              "Yaratilgan"),
@@ -437,6 +440,10 @@ def _xlsx_cell_value(key: str, value):
         return _ENUM_LABELS.get(value, value.value)
     if key == "source" and isinstance(value, str):
         return _SOURCE_LABELS.get(value, value)
+    if key == "auto_hemis_check" and isinstance(value, str):
+        return {"topildi": "Topildi", "topilmadi": "Topilmadi"}.get(value, value)
+    if key == "hemis_status" and isinstance(value, str):
+        return {"qoshildi": "Qo'shildi", "qoshilmadi": "Qo'shilmagan"}.get(value, value)
     if isinstance(value, UUID):
         return str(value)
     if isinstance(value, datetime) and value.tzinfo is not None:
@@ -695,6 +702,26 @@ async def reassign_operator(
     )
     await svc.session.commit()
     return ApplicationRead.model_validate(obj)
+
+
+@router.post(
+    "/hemis-sync",
+    dependencies=[Depends(require_root_superadmin)],
+)
+async def trigger_hemis_sync(current: CurrentUser = Depends(get_current_user)) -> dict:
+    """Start the HEMIS existence check across all applications (background).
+    No-op (started=False) if a sync is already running."""
+    started = await start_hemis_sync()
+    state = await hemis_sync_state()
+    return {"started": started, "state": state}
+
+
+@router.get(
+    "/hemis-sync/status",
+    dependencies=[Depends(require_permission(Permission.APPLICATIONS_LIST))],
+)
+async def hemis_sync_status() -> dict:
+    return await hemis_sync_state()
 
 
 @router.get(

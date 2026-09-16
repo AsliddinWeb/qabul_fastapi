@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { useUrlFilters } from '@/composables/useUrlFilters'
 import { useRoute, useRouter, RouterLink } from 'vue-router'
 import {
   CheckCircle2, XCircle, ClipboardList, Trash2, PlayCircle, Plus, Pencil,
   Search, Clock, Inbox, FileCheck, FileX, Eye, Filter as FilterIcon,
   ArrowUpRight, MoreVertical, X as XIcon, ChevronDown, Check, Download,
-  AlertTriangle,
+  AlertTriangle, RefreshCw,
 } from 'lucide-vue-next'
-import { downloadFile } from '@/api/http'
+import { http, downloadFile } from '@/api/http'
 import DateRangeFilter from '@/components/ui/DateRangeFilter.vue'
 import { toApiFrom, toApiTo } from '@/utils/dateRange'
 import Skeleton from '@/components/ui/Skeleton.vue'
@@ -21,7 +21,7 @@ import { useAuthStore } from '@/stores/auth'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import Dropdown from '@/components/ui/Dropdown.vue'
 import SearchSelect from '@/components/ui/SearchSelect.vue'
-import { APPLICATION_STATUS, ADMISSION_TYPE, HEMIS_STATUS, HEMIS_STATUS_TONE, tr } from '@/utils/labels'
+import { APPLICATION_STATUS, ADMISSION_TYPE, HEMIS_STATUS, HEMIS_STATUS_TONE, HEMIS_CHECK, HEMIS_CHECK_TONE, tr } from '@/utils/labels'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 import { useBulkSelect } from '@/composables/useBulkSelect'
@@ -204,6 +204,44 @@ async function exportXlsx() {
   }
 }
 
+// ---- HEMIS existence sync (root only) ----
+interface HemisSyncState {
+  running: boolean; total: number; checked: number
+  found: number; not_found: number; skipped: number; errors: number
+  finished_at?: string | null; error?: string | null
+}
+const hemisSync = ref<HemisSyncState | null>(null)
+const hemisStarting = ref(false)
+let hemisPoll: ReturnType<typeof setInterval> | null = null
+
+function stopHemisPoll() { if (hemisPoll) { clearInterval(hemisPoll); hemisPoll = null } }
+
+function pollHemis() {
+  stopHemisPoll()
+  hemisPoll = setInterval(async () => {
+    try {
+      const { data } = await http.get<HemisSyncState>('/applications/hemis-sync/status')
+      hemisSync.value = data
+      if (!data.running) { stopHemisPoll(); await load() }
+    } catch { /* ignore transient errors */ }
+  }, 3000)
+}
+
+async function startHemisSync() {
+  hemisStarting.value = true
+  try {
+    const { data } = await http.post<{ started: boolean; state: HemisSyncState }>('/applications/hemis-sync')
+    hemisSync.value = data.state
+    toast.success(data.started ? 'HEMIS sinxron boshlandi' : 'Sinxron allaqachon ishlayapti')
+    pollHemis()
+  } catch (e) {
+    const ax = e as AxiosError<{ error?: { message?: string } }>
+    toast.error(ax.response?.data?.error?.message || "Sinxronni boshlab bo'lmadi")
+  } finally {
+    hemisStarting.value = false
+  }
+}
+
 async function load() {
   loading.value = true
   try {
@@ -293,7 +331,19 @@ onMounted(async () => {
   }
 
   await Promise.all([load(), loadStats(), loadOperators()])
+
+  // Resume the progress indicator if a sync is already running (e.g. after
+  // navigating away and back).
+  if (auth.isRootSuperadmin) {
+    try {
+      const { data } = await http.get<HemisSyncState>('/applications/hemis-sync/status')
+      hemisSync.value = data
+      if (data.running) pollHemis()
+    } catch { /* ignore */ }
+  }
 })
+
+onBeforeUnmount(stopHemisPoll)
 
 async function startReview(a: Application) {
   try {
@@ -454,6 +504,13 @@ async function bulkDeleteSelected() {
         <span>Tahlil qilingan</span>
         <strong class="text-slate-900 dark:text-slate-100">{{ reviewedPercent }}%</strong>
       </div>
+      <button v-if="auth.isRootSuperadmin" class="btn-outline"
+              :disabled="hemisStarting || hemisSync?.running" @click="startHemisSync"
+              title="Barcha abituriyentlarni HEMIS bazasidan tekshiradi (bor / yo'q). Fon rejimda, biroz vaqt oladi.">
+        <RefreshCw class="w-4 h-4" :class="hemisSync?.running ? 'animate-spin' : ''" />
+        <template v-if="hemisSync?.running">HEMIS: {{ hemisSync.checked }}/{{ hemisSync.total }}</template>
+        <template v-else>HEMIS sinxron</template>
+      </button>
       <button v-if="auth.isRootSuperadmin || auth.hasPermission('applications.export')" class="btn-outline" :disabled="exporting" @click="exportXlsx"
               title="Filtr qoʻllangan barcha arizalarni Excel jadvali (.xlsx) sifatida yuklab olish — audit'ga yoziladi">
         <Download class="w-4 h-4" /> {{ exporting ? '...' : 'Excel' }}
@@ -774,6 +831,13 @@ async function bulkDeleteSelected() {
                         :class="HEMIS_STATUS_TONE[(a as any).hemis_status] || HEMIS_STATUS_TONE.qoshilmadi">
                     <span>{{ (a as any).hemis_status === 'qoshildi' ? '✅' : '⬜' }}</span>
                     {{ tr(HEMIS_STATUS, (a as any).hemis_status || 'qoshilmadi') }}
+                  </span>
+                  <span v-if="(a as any).auto_hemis_check"
+                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                        :class="HEMIS_CHECK_TONE[(a as any).auto_hemis_check] || ''"
+                        :title="(a as any).hemis_checked_at ? 'Tekshirildi: ' + relativeTime((a as any).hemis_checked_at) : ''">
+                    <span>{{ (a as any).auto_hemis_check === 'topildi' ? '✓' : '✗' }}</span>
+                    {{ tr(HEMIS_CHECK, (a as any).auto_hemis_check) }}
                   </span>
                 </div>
               </td>

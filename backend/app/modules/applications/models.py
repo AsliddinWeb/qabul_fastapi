@@ -125,6 +125,12 @@ class Application(UUIDPKMixin, TimestampMixin, Base):
     # Optional free-text note entered alongside the ✅/❌ decision.
     hemis_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Automated HEMIS existence check (separate from the manual hemis_status):
+    # 'topildi' = found in HEMIS student list, 'topilmadi' = not found, NULL =
+    # not yet checked / no passport data. Filled by the HEMIS sync job.
+    auto_hemis_check: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    hemis_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # Consulting agency (partner) that brought the applicant in. Optional.
     # Visible/filterable only by users with is_consulting=True (UI-side gate);
     # the column itself is part of the public model.

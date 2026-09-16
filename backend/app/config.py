@@ -85,6 +85,13 @@ class Settings(BaseSettings):
     notify_bot_secret: str = ""         # shared secret, sent as X-Ingest-Secret
     notify_bot_timeout_seconds: float = 5.0
 
+    # --- HEMIS (student.xiuedu.uz) — checks whether an applicant already
+    # exists as an enrolled student. Backend-only (CORS-blocked for browsers).
+    hemis_api_token: str = ""           # Bearer token from the HEMIS admin dashboard
+    hemis_base_url: str = "https://student.xiuedu.uz/rest"
+    hemis_rate_per_sec: float = 8.0     # stay under HEMIS's 10 req/sec/IP cap
+    hemis_timeout_seconds: float = 15.0
+
 
 @lru_cache
 def get_settings() -> Settings:
