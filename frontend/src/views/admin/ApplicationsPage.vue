@@ -228,6 +228,14 @@ function pollHemis() {
 }
 
 async function startHemisSync() {
+  const ok = await ask({
+    title: 'HEMIS sinxron',
+    message: 'Barcha abituriyentlar HEMIS bazasidan tekshiriladi (bor / yo\'q). '
+      + 'Bu bir necha daqiqa vaqt oladi. Boshlansinmi?',
+    confirmLabel: 'Ha, boshlash',
+    tone: 'primary',
+  })
+  if (!ok) return
   hemisStarting.value = true
   try {
     const { data } = await http.post<{ started: boolean; state: HemisSyncState }>('/applications/hemis-sync')
