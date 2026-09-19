@@ -44,14 +44,20 @@ class HemisClient:
     async def student_found(
         self, http: httpx.AsyncClient, *, pinfl: str, passport_number: str
     ) -> bool:
-        """True if HEMIS returns at least one student for this passport
-        PIN + number. Raises on HTTP/network error so the caller can retry
-        or mark the row as errored."""
+        """True only if HEMIS has an ACTUAL (synced) student for this passport.
+
+        HEMIS also returns unverified records ("Sinxronizatsiya statusi:
+        Tekshirilmagan") when queried by passport, but those carry no
+        student_id_number — only verified ("Aktual") students get one. So we
+        require at least one matched record WITH a student_id_number.
+
+        Raises on HTTP/network error so the caller can retry or mark errored.
+        """
         params = {
             "passport_pin": pinfl,
             "passport_number": passport_number,
-            "_student_status": -1,   # any status (graduated/expelled/active)
-            "limit": 1,
+            "_student_status": -1,   # any student status (aktual filter is below)
+            "limit": 5,              # a person may have >1 record; check them all
         }
         resp = await http.get(
             f"{self._base}/v1/data/student-list",
@@ -60,6 +66,5 @@ class HemisClient:
         )
         resp.raise_for_status()
         body = resp.json()
-        data = body.get("data") or {}
-        items = data.get("items") or []
-        return len(items) > 0
+        items = (body.get("data") or {}).get("items") or []
+        return any(it.get("student_id_number") for it in items)
