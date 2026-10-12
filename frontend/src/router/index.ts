@@ -139,6 +139,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'operator-analytics',     name: 'admin-operator-analytics', component: () => import('@/views/admin/OperatorAnalyticsPage.vue'), meta: { title: 'Operatorlar analitikasi' } },
       { path: 'operator-analytics/:id', name: 'admin-operator-analytics-detail', component: () => import('@/views/admin/OperatorAnalyticsDetailPage.vue'), meta: { title: 'Operator tafsiloti' } },
 
+      { path: 'journal',                name: 'admin-journal',      component: () => import('@/views/admin/SystemJournalPage.vue'),      meta: { title: 'Tizim daftari' } },
       { path: 'audit',                  name: 'admin-audit',        component: () => import('@/views/admin/AuditLogPage.vue'),           meta: { title: 'Audit jurnali' } },
       { path: 'audit/:id',              name: 'admin-audit-detail', component: () => import('@/views/admin/AuditDetailPage.vue'),        meta: { title: 'Audit yozuvi' } },
 

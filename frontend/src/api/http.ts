@@ -67,9 +67,9 @@ http.interceptors.request.use((config) => {
 export async function downloadFile(
   path: string,
   params: Record<string, any> = {},
-  opts: { fallbackName?: string; mimeType?: string } = {},
+  opts: { fallbackName?: string; mimeType?: string; timeout?: number } = {},
 ): Promise<void> {
-  const res = await http.get(path, { params, responseType: 'blob' })
+  const res = await http.get(path, { params, responseType: 'blob', timeout: opts.timeout })
   const blob = new Blob([res.data], { type: opts.mimeType || 'application/octet-stream' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')

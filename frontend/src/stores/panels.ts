@@ -91,6 +91,7 @@ const ADMIN_NAV: NavEntry[] = [
     leaf('/admin/diploms',              'Diplomlar (1-kurs)',     Award,          'emerald'),
     leaf('/admin/transfer-diploms',     "O'qishni ko'ch. diplomlari", Award,     'cyan'),
     leaf('/admin/payments',             "To'lovlar",              CreditCard,     'teal',    { countKey: 'payments' }),
+    leaf('/admin/journal',              'Tizim daftari',          ScrollText,     'indigo'),
     leaf('/admin/referrals',            'Referal dasturi',        Gift,           'rose',    { countKey: 'referrals' }),
   ]),
 
