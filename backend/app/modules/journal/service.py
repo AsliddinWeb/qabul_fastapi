@@ -58,16 +58,32 @@ ROLE_LABELS = {
 # One row per event. NULLs are typed explicitly so the UNION lines up.
 _EVENTS_CTE = f"""
 WITH excl AS (
-    SELECT ap.id FROM applicants ap
-    WHERE EXISTS (SELECT 1 FROM applications x
-                  WHERE x.applicant_id = ap.id AND x.admission_type = 'perevod')
-      AND NOT EXISTS (SELECT 1 FROM applications x
-                      WHERE x.applicant_id = ap.id AND x.admission_type <> 'perevod')
+    -- applicants whose applications are ALL perevod
+    SELECT applicant_id AS id FROM applications
+    GROUP BY applicant_id
+    HAVING bool_and(admission_type = 'perevod')
 ),
 apps AS (
     SELECT a.id, a.applicant_id, a.created_at, a.submitted_at
     FROM applications a
     WHERE a.admission_type <> 'perevod'
+),
+first_hist AS (
+    -- who created each application (the from_status IS NULL row)
+    SELECT DISTINCT ON (application_id) application_id, changed_by_id
+    FROM application_status_history
+    WHERE from_status IS NULL
+    ORDER BY application_id, created_at
+),
+cn AS (
+    -- contracts of non-perevod applications, numbered per application:
+    -- rn > 1 means the contract was re-issued (yangilandi)
+    SELECT c.id, c.application_id, a.applicant_id, c.created_at, c.created_by_id,
+           c.signed_at, c.signed_by_id, c.cancelled_at, c.cancelled_by_id,
+           c.cancelled_reason,
+           row_number() OVER (PARTITION BY c.application_id
+                              ORDER BY c.created_at, c.id) AS rn
+    FROM contracts c JOIN apps a ON a.id = c.application_id
 ),
 ev AS (
     SELECT ap.created_at AS event_at, ap.id AS applicant_id, NULL::uuid AS application_id,
@@ -76,15 +92,13 @@ ev AS (
            NULL::text AS from_status, NULL::text AS to_status, NULL::text AS note,
            NULL::uuid AS contract_id, ap.registered_by_id AS actor_id
     FROM applicants ap
-    WHERE ap.id NOT IN (SELECT id FROM excl)
+    WHERE NOT EXISTS (SELECT 1 FROM excl WHERE excl.id = ap.id)
 
     UNION ALL
     SELECT COALESCE(a.submitted_at, a.created_at), a.applicant_id, a.id,
-           'application_submitted', NULL, NULL, NULL, NULL::uuid,
-           (SELECT h.changed_by_id FROM application_status_history h
-             WHERE h.application_id = a.id AND h.from_status IS NULL
-             ORDER BY h.created_at LIMIT 1)
+           'application_submitted', NULL, NULL, NULL, NULL::uuid, fh.changed_by_id
     FROM apps a
+    LEFT JOIN first_hist fh ON fh.application_id = a.id
 
     UNION ALL
     SELECT h.created_at, a.applicant_id, a.id, 'status_changed',
@@ -94,24 +108,21 @@ ev AS (
     WHERE h.from_status IS NOT NULL
 
     UNION ALL
-    SELECT c.created_at, a.applicant_id, a.id,
-           CASE WHEN EXISTS (SELECT 1 FROM contracts c2
-                             WHERE c2.application_id = c.application_id
-                               AND c2.created_at < c.created_at)
-                THEN 'contract_renewed' ELSE 'contract_created' END,
+    SELECT c.created_at, c.applicant_id, c.application_id,
+           CASE WHEN c.rn > 1 THEN 'contract_renewed' ELSE 'contract_created' END,
            NULL, NULL, NULL, c.id, c.created_by_id
-    FROM contracts c JOIN apps a ON a.id = c.application_id
+    FROM cn c
 
     UNION ALL
-    SELECT c.signed_at, a.applicant_id, a.id, 'contract_signed',
+    SELECT c.signed_at, c.applicant_id, c.application_id, 'contract_signed',
            NULL, NULL, NULL, c.id, c.signed_by_id
-    FROM contracts c JOIN apps a ON a.id = c.application_id
+    FROM cn c
     WHERE c.signed_at IS NOT NULL
 
     UNION ALL
-    SELECT c.cancelled_at, a.applicant_id, a.id, 'contract_cancelled',
+    SELECT c.cancelled_at, c.applicant_id, c.application_id, 'contract_cancelled',
            NULL, NULL, c.cancelled_reason, c.id, c.cancelled_by_id
-    FROM contracts c JOIN apps a ON a.id = c.application_id
+    FROM cn c
     WHERE c.cancelled_at IS NOT NULL
 ),
 full_ev AS (
@@ -243,15 +254,12 @@ class JournalService:
         params, codes_sql = self._params(date_from=date_from, date_to=date_to,
                                          search=search, codes=codes)
         where = "WHERE TRUE" + _RANGE_SQL + _SEARCH_SQL + codes_sql
-        total = (await self.session.execute(
-            text(_EVENTS_CTE + f"SELECT count(*) FROM full_ev {where}"), params
-        )).scalar_one()
         rows = (await self.session.execute(
             text(_EVENTS_CTE + f"SELECT * FROM full_ev {where} "
                  "ORDER BY event_at DESC LIMIT :limit OFFSET :offset"),
             {**params, "limit": limit, "offset": offset},
         )).mappings().all()
-        return [_to_item(r) for r in rows], int(total)
+        return [_to_item(r) for r in rows]
 
     async def stats(self, *, date_from: date | None, date_to: date | None,
                     search: str | None) -> dict[str, int]:

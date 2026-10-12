@@ -5,6 +5,7 @@ from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.dependencies import CurrentUser, get_current_user, get_db, require_permission
@@ -34,11 +35,16 @@ async def list_journal(
     size: int = Query(default=50, ge=1, le=200),
     svc: JournalService = Depends(_service),
 ) -> dict:
-    items, total = await svc.list_page(
-        date_from=date_from, date_to=date_to, search=search, codes=_codes(codes),
+    code_list = _codes(codes)
+    items = await svc.list_page(
+        date_from=date_from, date_to=date_to, search=search, codes=code_list,
         limit=size, offset=(page - 1) * size,
     )
     stats = await svc.stats(date_from=date_from, date_to=date_to, search=search)
+    # Total for the current filter = sum of the per-type counts we already
+    # have — saves a third full pass over the events CTE.
+    selected = [c for c in (code_list or []) if c in stats] or list(stats)
+    total = sum(stats[c] for c in selected)
     return {
         "items": items,
         "total": total,
@@ -63,12 +69,14 @@ async def export_journal(
     period = excel.period_text(date_from, date_to)
     if view == "applicants":
         events = await svc.events_by_applicant(date_from=date_from, date_to=date_to, search=search)
-        data = excel.build_by_applicants(events, period)
+        # openpyxl is CPU-bound — keep it off the event loop so the
+        # gunicorn worker heartbeat keeps ticking (else WORKER TIMEOUT).
+        data = await run_in_threadpool(excel.build_by_applicants, events, period)
         slug = "abituriyentlar"
     else:
         events = await svc.events_by_date(date_from=date_from, date_to=date_to,
                                           search=search, codes=_codes(codes))
-        data = excel.build_by_dates(events, period)
+        data = await run_in_threadpool(excel.build_by_dates, events, period)
         slug = "sanalar"
 
     try:
