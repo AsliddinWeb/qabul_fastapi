@@ -66,17 +66,16 @@ async def export_journal(
     current: CurrentUser = Depends(get_current_user),
     svc: JournalService = Depends(_service),
 ) -> Response:
-    period = excel.period_text(date_from, date_to)
     if view == "applicants":
         events = await svc.events_by_applicant(date_from=date_from, date_to=date_to, search=search)
         # openpyxl is CPU-bound — keep it off the event loop so the
         # gunicorn worker heartbeat keeps ticking (else WORKER TIMEOUT).
-        data = await run_in_threadpool(excel.build_by_applicants, events, period)
+        data = await run_in_threadpool(excel.build_by_applicants, events)
         slug = "abituriyentlar"
     else:
         events = await svc.events_by_date(date_from=date_from, date_to=date_to,
                                           search=search, codes=_codes(codes))
-        data = await run_in_threadpool(excel.build_by_dates, events, period)
+        data = await run_in_threadpool(excel.build_by_dates, events)
         slug = "sanalar"
 
     try:

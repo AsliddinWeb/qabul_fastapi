@@ -34,7 +34,6 @@ _HEAD_ALIGN = Alignment(horizontal="left", vertical="center", wrap_text=True)
 _GROUP_FILL = PatternFill("solid", fgColor="E0E7FF")
 _GROUP_FONT = Font(bold=True, color="1E1B4B", size=11)
 _TITLE_FONT = Font(bold=True, size=14)
-_PERIOD_FONT = Font(italic=True, color="64748B")
 _BOLD = Font(bold=True)
 _TOP_WRAP = Alignment(vertical="top", wrap_text=True)
 
@@ -73,18 +72,16 @@ def _c(ws, value, *, font=None, fill=None, align=None) -> WriteOnlyCell:
     return cell
 
 
-def _new_sheet(wb: Workbook, name: str, widths: list[int], freeze: str = "A5"):
+def _new_sheet(wb: Workbook, name: str, widths: list[int], freeze: str = "A3"):
     ws = wb.create_sheet(name)
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
-    ws.freeze_panes = freeze  # rows 1-4 = title, period, blank, header
+    ws.freeze_panes = freeze  # rows 1-2 = title, header
     return ws
 
 
-def _title_rows(ws, title: str, period: str, headers: list[str]) -> None:
+def _title_rows(ws, title: str, headers: list[str]) -> None:
     ws.append([_c(ws, title, font=_TITLE_FONT)])
-    ws.append([_c(ws, period, font=_PERIOD_FONT)])
-    ws.append([])
     ws.append([_c(ws, h, font=_HEAD_FONT, fill=_HEAD_FILL, align=_HEAD_ALIGN) for h in headers])
 
 
@@ -107,15 +104,8 @@ def _save(wb: Workbook) -> bytes:
     return buf.getvalue()
 
 
-def period_text(date_from: date | None, date_to: date | None) -> str:
-    if not date_from and not date_to:
-        return "Davr: barcha vaqt · O'qishni ko'chirish (perevod) kiritilmagan"
-    return (f"Davr: {_fmt_d(date_from) or '…'} — {_fmt_d(date_to) or '…'}"
-            " · O'qishni ko'chirish (perevod) kiritilmagan")
-
-
 # ---------------------------------------------------------------- by dates
-def build_by_dates(events: list[dict], period: str) -> bytes:
+def build_by_dates(events: list[dict]) -> bytes:
     wb = Workbook(write_only=True)
 
     by_day: OrderedDict[date, list[dict]] = OrderedDict()
@@ -125,7 +115,7 @@ def build_by_dates(events: list[dict], period: str) -> bytes:
     headers = ["№", "Vaqt", "F.I.O", "JSHSHIR", "Telefon", "Hodisa", "Tafsilot",
                "Yo'nalish", "Kim tomonidan"]
     ws = _new_sheet(wb, "Sanalar kesimida", [6, 8, 34, 17, 15, 24, 48, 36, 28])
-    _title_rows(ws, "Tizim daftari — sanalar kesimida", period, headers)
+    _title_rows(ws, "Tizim daftari — sanalar kesimida", headers)
     n = 0
     for day, items in by_day.items():
         _group_row(ws, f"{day.strftime('%d.%m.%Y')} · {_WEEKDAYS[day.weekday()]} — {len(items)} ta hodisa",
@@ -139,7 +129,7 @@ def build_by_dates(events: list[dict], period: str) -> bytes:
     # ---- daily summary
     sum_headers = ["Sana", "Hafta kuni"] + [EVENT_LABELS[c] for c in EVENT_CODES] + ["Jami"]
     ss = _new_sheet(wb, "Kunlik xulosa", [12, 12] + [16] * len(EVENT_CODES) + [10])
-    _title_rows(ss, "Kunlik xulosa", period, sum_headers)
+    _title_rows(ss, "Kunlik xulosa", sum_headers)
     totals = {c: 0 for c in EVENT_CODES}
     for day, items in by_day.items():
         counts = {c: 0 for c in EVENT_CODES}
@@ -155,7 +145,7 @@ def build_by_dates(events: list[dict], period: str) -> bytes:
 
 
 # ----------------------------------------------------------- by applicants
-def build_by_applicants(events: list[dict], period: str) -> bytes:
+def build_by_applicants(events: list[dict]) -> bytes:
     wb = Workbook(write_only=True)
 
     # Group, preserving the service's (name, applicant, time) ordering.
@@ -169,7 +159,7 @@ def build_by_applicants(events: list[dict], period: str) -> bytes:
                "Shartnoma raqami", "Imzolangan", "Oxirgi yangilanish", "Bekor qilingan",
                "Hodisalar soni"]
     ws = _new_sheet(wb, "Yo'l xulosasi", [6, 34, 17, 15, 14, 26, 14, 36, 18, 14, 18, 14, 16, 14, 10])
-    _title_rows(ws, "Tizim daftari — abituriyentlar kesimida (xulosa)", period, headers)
+    _title_rows(ws, "Tizim daftari — abituriyentlar kesimida (xulosa)", headers)
 
     for i, items in enumerate(people.values(), start=1):
         first = items[0]
@@ -204,7 +194,7 @@ def build_by_applicants(events: list[dict], period: str) -> bytes:
     # ---- sheet 2: detailed path per applicant
     d_headers = ["№", "Sana va vaqt", "Hodisa", "Tafsilot", "Yo'nalish", "Kim tomonidan"]
     ds = _new_sheet(wb, "Batafsil yo'l", [6, 17, 24, 52, 36, 30])
-    _title_rows(ds, "Tizim daftari — abituriyentlar kesimida (batafsil)", period, d_headers)
+    _title_rows(ds, "Tizim daftari — abituriyentlar kesimida (batafsil)", d_headers)
     for i, items in enumerate(people.values(), start=1):
         p = items[0]
         _group_row(ds, f"{i}. {p['full_name']} · JSHSHIR {p['pinfl'] or '—'} · "

@@ -114,7 +114,7 @@ function fmtDate(iso: string) {
   <div>
     <PageHeader
       title="Tizim daftari"
-      subtitle="Abituriyentning ro'yxatdan o'tishidan shartnoma olish va yangilashigacha bo'lgan yo'li. O'qishni ko'chirish kiritilmaydi."
+      subtitle="Abituriyentning ro'yxatdan o'tishidan shartnoma olish va yangilashigacha bo'lgan yo'li."
       :crumbs="[{ label: 'Bosh sahifa', to: '/admin' }, { label: 'Qabul jarayoni' }]"
     >
       <Dropdown align="right" :width="300">
