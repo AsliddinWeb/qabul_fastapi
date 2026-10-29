@@ -224,6 +224,17 @@ class ContractsService:
                 **payload.additional_party.model_dump(),
             )
 
+        if payload.with_voucher:
+            from app.modules.vouchers.service import VoucherService
+            # Any still-active voucher is superseded by the new one.
+            await VoucherService(self.session).issue(
+                application.id,
+                contract_id=contract.id,
+                valid_until=payload.voucher_valid_until,
+                actor_id=actor_id,
+                replace_active=True,
+            )
+
         # Render PDF (best-effort)
         if cfg.auto_generate_pdf:
             await self._render_and_attach_pdf(
@@ -528,6 +539,12 @@ class ContractsService:
         if reason:
             obj.cancelled_reason = reason[:1000]
         await self.session.flush()
+        # A voucher issued with this contract goes with it.
+        from app.modules.vouchers.service import VoucherService
+        await VoucherService(self.session).cancel_for_contract(
+            obj.id, actor_id=actor_id,
+            reason=f"Shartnoma bekor qilindi: {obj.contract_number}",
+        )
         # Referral side-effect: if this contract was driving an inviter's
         # bonus, the bonus no longer qualifies. Cancel pending/active
         # rows so they fall off the referrer's dashboard. Spent/paid

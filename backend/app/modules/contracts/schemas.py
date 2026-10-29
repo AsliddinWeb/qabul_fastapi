@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -107,6 +107,10 @@ class ContractCreate(AppSchema):
     total_amount: Decimal | None = None  # default: offering.tuition_fee
     currency: str = Field(default="UZS", max_length=3)
     additional_party: AdditionalParty | None = None
+    # O'qishni ko'chirish only: also issue a 50% chegirma vaucher with this
+    # contract (the UI asks when a contract is re-created after cancel).
+    with_voucher: bool = False
+    voucher_valid_until: date | None = None
 
 
 class ContractSign(AppSchema):

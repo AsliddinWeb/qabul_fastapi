@@ -21,6 +21,7 @@ from app.modules.programs.router import router as programs_router
 from app.modules.referrals.router import router as referrals_router
 from app.modules.regions.router import router as regions_router
 from app.modules.users.router import router as users_router
+from app.modules.vouchers.router import router as vouchers_router
 
 api_router = APIRouter()
 
@@ -38,6 +39,7 @@ api_router.include_router(programs_router,     prefix="/programs",     tags=["pr
 api_router.include_router(regions_router,      prefix="/regions",      tags=["regions"])
 api_router.include_router(contracts_router,    prefix="/contracts",    tags=["contracts"])
 api_router.include_router(payments_router,     prefix="/payments",     tags=["payments"])
+api_router.include_router(vouchers_router,     prefix="/vouchers",     tags=["vouchers"])
 api_router.include_router(dictionaries_router, prefix="/dictionaries", tags=["dictionaries"])
 api_router.include_router(audit_router,        prefix="/audit",        tags=["audit"])
 api_router.include_router(journal_router,      prefix="/journal",      tags=["journal"])

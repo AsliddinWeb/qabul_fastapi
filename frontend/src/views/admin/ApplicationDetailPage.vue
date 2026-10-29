@@ -8,13 +8,14 @@ import {
   Clock, Send, Eye, Phone, MapPin, IdCard,
   Building2, Layers, BookOpen, Calendar, Globe, Hash, Wallet,
   AlertTriangle, Inbox, Paperclip, ExternalLink,
-  Shield, Users, Copy, Check, Upload,
+  Shield, Users, Copy, Check, Upload, Ticket,
 } from 'lucide-vue-next'
 import { AxiosError } from 'axios'
 import { adminApi } from '@/api/admin.api'
 import { usersApi } from '@/api/users.api'
 import { http } from '@/api/http'
 import { consultingApi, type ConsultingAgency } from '@/api/consulting.api'
+import { vouchersApi, type Voucher } from '@/api/vouchers.api'
 import { useAuthStore } from '@/stores/auth'
 import { fileUrl } from '@/utils/files'
 import { useToast } from '@/composables/useToast'
@@ -31,6 +32,7 @@ const auth = useAuthStore()
 const { ask } = useConfirm()
 const canSeeConsulting = computed(() => auth.isConsulting)
 const canCreateContract = computed(() => auth.hasPermission('contracts.create'))
+const canSignContract = computed(() => auth.hasPermission('contracts.sign'))
 const canSetHemis = computed(() => auth.hasPermission('applications.review'))
 const hemisSaving = ref(false)
 const hemisComment = ref('')
@@ -177,6 +179,11 @@ async function loadAll() {
     cancelledContracts.value = allForApp
       .filter((c: any) => c.status === 'cancelled')
       .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+    // Vouchers exist only on o'qishni ko'chirish applications.
+    vouchers.value = application.value.admission_type === 'perevod'
+      ? await vouchersApi.list(id.value).catch(() => [])
+      : []
 
     // Payments for this contract
     if (contract.value) {
@@ -501,6 +508,16 @@ async function createContract() {
     toast.error("Shablonni tanlang")
     return
   }
+  // O'qishni ko'chirish: re-creating a contract after a cancel → ask
+  // whether to attach a 50% chegirma vaucher (default: yes).
+  if (isTransfer.value && cancelledContracts.value.length > 0) {
+    openVoucherModal('contract')
+    return
+  }
+  await doCreateContract(false)
+}
+
+async function doCreateContract(withVoucher: boolean, voucherValidUntil?: string): Promise<boolean> {
   contractCreating.value = true
   try {
     const payload: any = {
@@ -509,6 +526,8 @@ async function createContract() {
       type: contractForm.type,
       currency: contractForm.currency,
       total_amount: contractForm.total_amount,
+      with_voucher: withVoucher,
+      voucher_valid_until: withVoucher ? (voucherValidUntil || null) : null,
     }
     const res = await fetch('/api/v1/contracts', {
       method: 'POST',
@@ -519,11 +538,13 @@ async function createContract() {
       const j = await res.json().catch(() => null)
       throw new Error(j?.error?.message || `${res.status}`)
     }
-    toast.success("Shartnoma yaratildi")
+    toast.success(withVoucher ? "Shartnoma va vaucher yaratildi" : "Shartnoma yaratildi")
     showContractForm.value = false
     await loadAll()
+    return true
   } catch (e: any) {
     toast.error(e.message || "Saqlab bo'lmadi")
+    return false
   } finally {
     contractCreating.value = false
   }
@@ -572,6 +593,91 @@ async function onBillingFile(e: Event) {
     toast.error(err.message || "Yuklab bo'lmadi")
   } finally {
     billingUploading.value = false
+  }
+}
+
+// =============================================================================
+// Vouchers (o'qishni ko'chirish only)
+// =============================================================================
+const vouchers = ref<Voucher[]>([])
+const isTransfer = computed(() => application.value?.admission_type === 'perevod')
+const activeVoucher = computed(() => vouchers.value.find((v) => v.status === 'active') || null)
+const pastVouchers = computed(() => vouchers.value.filter((v) => v.status !== 'active'))
+
+// End of the current academic year (30 June) — same rule as the backend.
+function defaultVoucherValidUntil(): string {
+  const d = new Date()
+  const y = d.getMonth() + 1 >= 7 ? d.getFullYear() + 1 : d.getFullYear()
+  return `${y}-06-30`
+}
+function fmtIsoDate(s: string | null | undefined) {
+  if (!s) return '—'
+  const [y, m, d] = s.slice(0, 10).split('-')
+  return `${d}.${m}.${y}`
+}
+
+const voucherModal = reactive({
+  open: false,
+  mode: 'contract' as 'contract' | 'standalone',
+  withVoucher: true,
+  validUntil: '',
+  saving: false,
+})
+
+function openVoucherModal(mode: 'contract' | 'standalone') {
+  voucherModal.mode = mode
+  voucherModal.withVoucher = true
+  voucherModal.validUntil = defaultVoucherValidUntil()
+  voucherModal.open = true
+}
+
+async function confirmVoucherModal() {
+  if (voucherModal.withVoucher && !voucherModal.validUntil) {
+    toast.error("Amal qilish muddatini kiriting")
+    return
+  }
+  voucherModal.saving = true
+  try {
+    if (voucherModal.mode === 'contract') {
+      // doCreateContract toasts its own errors — keep the modal open on failure.
+      if (!(await doCreateContract(voucherModal.withVoucher, voucherModal.validUntil))) return
+    } else {
+      await vouchersApi.issue(id.value, voucherModal.validUntil)
+      toast.success("Vaucher berildi")
+      await loadAll()
+    }
+    voucherModal.open = false
+  } catch (e) {
+    const ax = e as AxiosError<{ error?: { message?: string } }>
+    toast.error(ax.response?.data?.error?.message || "Xatolik")
+  } finally {
+    voucherModal.saving = false
+  }
+}
+
+async function cancelVoucher(v: Voucher) {
+  const ok = await ask({
+    title: "Vaucherni bekor qilish",
+    message: `Vaucher № ${v.number} bekor qilinsinmi?`,
+    confirmLabel: "Bekor qilish",
+    tone: 'danger',
+  })
+  if (!ok) return
+  try {
+    await vouchersApi.cancel(v.id)
+    toast.success("Vaucher bekor qilindi")
+    await loadAll()
+  } catch (e) {
+    const ax = e as AxiosError<{ error?: { message?: string } }>
+    toast.error(ax.response?.data?.error?.message || "Xatolik")
+  }
+}
+
+async function openVoucherPdf(v: Voucher) {
+  try {
+    await vouchersApi.openPdf(v.id)
+  } catch {
+    toast.error("PDF ni ochib bo'lmadi")
   }
 }
 
@@ -1435,6 +1541,71 @@ function applicantInitials(): string {
           </div>
         </section>
 
+        <!-- Vaucher (o'qishni ko'chirish only) -->
+        <section v-if="isTransfer && (contract || vouchers.length)" class="card p-5">
+          <h2 class="section-title inline-flex items-center gap-2 mb-3">
+            <span class="icon-bubble-sm bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
+              <Ticket class="w-4 h-4" />
+            </span>
+            Vaucher
+          </h2>
+
+          <div v-if="activeVoucher"
+               class="p-3 rounded-xl bg-amber-50/70 ring-1 ring-amber-200 dark:bg-amber-500/10 dark:ring-amber-500/30">
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <div class="font-mono text-xs text-slate-500 dark:text-slate-400">VAUCHER № {{ activeVoucher.number }}</div>
+                <div class="mt-1 flex flex-wrap items-center gap-1.5">
+                  <span class="pill pill-success">Faol</span>
+                  <span class="pill">{{ activeVoucher.discount_percent }}% chegirma</span>
+                </div>
+              </div>
+              <div class="text-2xl font-bold text-amber-600 dark:text-amber-300 shrink-0">{{ activeVoucher.discount_percent }}%</div>
+            </div>
+            <div class="mt-2 text-xs text-slate-600 dark:text-slate-400 space-y-0.5">
+              <div>Amal qilish muddati: <strong class="text-slate-800 dark:text-slate-200">{{ fmtIsoDate(activeVoucher.valid_until) }}</strong></div>
+              <div>Berilgan: {{ fmtDate(activeVoucher.created_at) }}</div>
+            </div>
+            <div class="flex flex-wrap gap-2 mt-3 pt-3 border-t border-amber-200/70 dark:border-amber-500/20">
+              <button type="button" class="btn-outline btn-sm" @click="openVoucherPdf(activeVoucher)">
+                <Download class="w-3.5 h-3.5" /> PDF
+              </button>
+              <button v-if="canSignContract" type="button"
+                      class="btn-outline btn-sm !text-red-600 !border-red-300" @click="cancelVoucher(activeVoucher)">
+                <Ban class="w-3.5 h-3.5" /> Bekor
+              </button>
+            </div>
+          </div>
+
+          <div v-else-if="contract && canCreateContract" class="space-y-2">
+            <button type="button" class="btn-outline w-full" @click="openVoucherModal('standalone')">
+              <Ticket class="w-4 h-4" /> Vaucher berish
+            </button>
+            <p class="field-hint">Kontrakt to'lovidan 50% chegirma vaucheri (PDF, QR kod bilan).</p>
+          </div>
+          <p v-else class="text-sm text-slate-500 dark:text-slate-400">Faol vaucher yo'q.</p>
+
+          <ul v-if="pastVouchers.length" class="mt-3 space-y-2">
+            <li v-for="v in pastVouchers" :key="v.id"
+                class="flex items-center justify-between gap-2 p-3 rounded-xl
+                       bg-slate-50 dark:bg-slate-800/40 ring-1 ring-slate-200/60 dark:ring-slate-700/40">
+              <div class="min-w-0 flex-1">
+                <div class="font-mono text-xs text-slate-500 dark:text-slate-400">VAUCHER № {{ v.number }}</div>
+                <div class="mt-1 flex flex-wrap items-center gap-1.5">
+                  <span class="pill pill-danger">Bekor qilingan</span>
+                  <span class="text-[11px] text-slate-500 dark:text-slate-400">{{ fmtDate(v.cancelled_at || v.created_at) }}</span>
+                </div>
+                <div v-if="v.cancelled_reason" class="mt-1 text-[11px] italic text-slate-500 dark:text-slate-400">
+                  Sabab: {{ v.cancelled_reason }}
+                </div>
+              </div>
+              <button type="button" class="icon-btn shrink-0" title="PDF ni ochish" @click="openVoucherPdf(v)">
+                <Download class="w-4 h-4" />
+              </button>
+            </li>
+          </ul>
+        </section>
+
         <!-- Cancelled contracts history -->
         <section v-if="cancelledContracts.length" class="card p-5">
           <h2 class="section-title inline-flex items-center gap-2 mb-3">
@@ -1735,5 +1906,57 @@ function applicantInitials(): string {
         </section>
       </div>
     </div>
+    <!-- "Vaucher qo'shilsinmi?" modal -->
+    <Teleport to="body">
+      <div v-if="voucherModal.open"
+           class="fixed inset-0 z-[110] bg-black/40 grid place-items-center p-4"
+           @click.self="!voucherModal.saving && (voucherModal.open = false)">
+        <div class="card p-6 w-full max-w-md shadow-2xl space-y-4">
+          <div class="flex items-start gap-3">
+            <div class="w-10 h-10 rounded-full grid place-items-center shrink-0
+                        bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
+              <Ticket class="w-5 h-5" />
+            </div>
+            <div class="flex-1 min-w-0">
+              <h3 class="font-semibold text-slate-900 dark:text-slate-100">
+                {{ voucherModal.mode === 'contract' ? "Vaucher qo'shilsinmi?" : 'Vaucher berish' }}
+              </h3>
+              <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                <template v-if="voucherModal.mode === 'contract'">
+                  Bu o'qishni ko'chirish arizasi, shartnoma qayta yaratilmoqda. Talabaga kontrakt to'lovidan
+                  50% chegirma vaucheri ham berilsinmi?
+                </template>
+                <template v-else>
+                  Talabaga kontrakt to'lovidan 50% chegirma vaucheri beriladi (PDF, QR kod bilan).
+                </template>
+              </p>
+            </div>
+          </div>
+
+          <label v-if="voucherModal.mode === 'contract'"
+                 class="flex items-center gap-2.5 p-3 rounded-xl ring-1 cursor-pointer text-sm font-medium"
+                 :class="voucherModal.withVoucher
+                   ? 'bg-amber-50 ring-amber-300 text-amber-800 dark:bg-amber-500/10 dark:ring-amber-500/40 dark:text-amber-200'
+                   : 'ring-slate-200 text-slate-700 dark:ring-slate-700 dark:text-slate-300'">
+            <input v-model="voucherModal.withVoucher" type="checkbox" class="w-4 h-4 accent-amber-600" />
+            Ha, 50% chegirma vaucheri qo'shilsin
+          </label>
+
+          <div v-if="voucherModal.withVoucher || voucherModal.mode === 'standalone'">
+            <label class="field-label">Amal qilish muddati</label>
+            <input v-model="voucherModal.validUntil" type="date" class="input" />
+          </div>
+
+          <div class="flex justify-end gap-2 pt-2">
+            <button class="btn-ghost" :disabled="voucherModal.saving" @click="voucherModal.open = false">Bekor</button>
+            <button class="btn-primary" :disabled="voucherModal.saving" @click="confirmVoucherModal">
+              <template v-if="voucherModal.saving">Saqlanmoqda...</template>
+              <template v-else-if="voucherModal.mode === 'contract'">Shartnomani yaratish</template>
+              <template v-else>Vaucher berish</template>
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>

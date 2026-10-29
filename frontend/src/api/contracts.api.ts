@@ -41,6 +41,9 @@ export interface ContractCreatePayload {
   total_amount?: string | number | null
   currency?: string
   additional_party?: AdditionalParty | null
+  /** O'qishni ko'chirish only — also issue a 50% chegirma vaucher. */
+  with_voucher?: boolean
+  voucher_valid_until?: string | null
 }
 
 export interface ContractParty {

@@ -22,3 +22,4 @@ from app.modules.programs import models as programs_models
 from app.modules.referrals import models as referrals_models
 from app.modules.regions import models as regions_models
 from app.modules.users import models as users_models
+from app.modules.vouchers import models as vouchers_models

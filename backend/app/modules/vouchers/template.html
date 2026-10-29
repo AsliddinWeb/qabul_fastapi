@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: "VSerif"; font-weight: normal; font-style: normal; src: url("{{ fonts }}/LiberationSerif-Regular.ttf"); }
+  @font-face { font-family: "VSerif"; font-weight: bold;   font-style: normal; src: url("{{ fonts }}/LiberationSerif-Bold.ttf"); }
+  @font-face { font-family: "VSerif"; font-weight: normal; font-style: italic; src: url("{{ fonts }}/LiberationSerif-Italic.ttf"); }
+  @font-face { font-family: "VSerif"; font-weight: bold;   font-style: italic; src: url("{{ fonts }}/LiberationSerif-BoldItalic.ttf"); }
+  @font-face { font-family: "VSans";  font-weight: bold;   font-style: normal; src: url("{{ fonts }}/LiberationSans-Bold.ttf"); }
+  @page { size: 297mm 167mm; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 297mm; height: 167mm; }
+  body {
+    font-family: "VSerif", "Times New Roman", "DejaVu Serif", serif;
+    color: #0f2350;
+    background: #0d2552;
+    background-image: linear-gradient(135deg, #0a1d43 0%, #12357a 50%, #0a1d43 100%);
+    position: relative;
+  }
+  .card {
+    position: absolute; left: 6mm; top: 6mm; width: 285mm; height: 155mm;
+    background: #faf6ef;
+    border: 0.9mm solid #d6a93e;
+    border-radius: 4.5mm;
+    overflow: hidden;
+  }
+  .abs { position: absolute; }
+  .center { left: 0; width: 285mm; text-align: center; }
+
+  /* ---- header ---- */
+  .logo {
+    left: 12mm; top: 7mm; width: 25mm; height: 25mm;
+    border-radius: 50%; border: 0.7mm solid #d6a93e; background: #fff;
+    padding: 1.2mm;
+  }
+  .logo img { width: 100%; height: 100%; object-fit: contain; border-radius: 50%; }
+  .divider { left: 41.5mm; top: 10.5mm; width: 0.35mm; height: 17mm; background: #0f2350; }
+  .uni {
+    left: 46mm; top: 11.6mm; font-size: 14.5pt; font-weight: bold; line-height: 1.32;
+    letter-spacing: 0.1pt;
+  }
+  .tagline {
+    left: 196mm; top: 8.6mm; width: 66mm; text-align: center;
+    font-size: 15pt; font-weight: bold; font-style: italic; line-height: 1.3;
+  }
+  .tag-orn { left: 199mm; top: 25mm; width: 60mm; height: 3mm; }
+  .bow { right: 0; top: 0; width: 26mm; height: 26mm; }
+
+  /* ---- title block ---- */
+  .title { top: 34mm; font-size: 43pt; font-weight: bold; letter-spacing: 1pt; line-height: 1; }
+  .sub-row { top: 52.5mm; height: 7mm; }
+  .sub-line { top: 55.3mm; height: 0.45mm; background: #d6a93e; width: 34.5mm; }
+  .sub {
+    top: 52.4mm; font-size: 16.5pt; font-weight: bold; letter-spacing: 0.4pt;
+  }
+  .percent { top: 60mm; font-size: 74pt; font-weight: bold; line-height: 1; color: #0d1b38; }
+  .ribbon-l { left: 86mm; top: 65.8mm; width: 27mm; height: 13.5mm; }
+  .ribbon-r { left: 172mm; top: 65.8mm; width: 27mm; height: 13.5mm; }
+  .discount { top: 87.6mm; font-size: 17.5pt; font-weight: bold; letter-spacing: 0.3pt; }
+  .desc {
+    top: 96.4mm; font-size: 13pt; font-weight: bold; line-height: 1.5; color: #142a5c;
+  }
+  .orn-mid { left: 110mm; top: 109.6mm; width: 65mm; height: 3mm; }
+
+  /* ---- bottom-left fields ---- */
+  .fields { left: 13mm; top: 115.5mm; width: 133mm; }
+  .frow { position: relative; padding-left: 7.5mm; margin-bottom: 1.5mm; font-size: 13pt; line-height: 1.28; }
+  .frow svg { position: absolute; left: 0; top: 0.7mm; width: 4.4mm; height: 4.4mm; }
+  .frow b { font-weight: bold; }
+  .frow span { font-size: 12pt; color: #1b2f63; padding-left: 1.2mm; }
+  .slogan {
+    left: 20.5mm; top: 143.2mm; font-size: 13pt; font-weight: bold; font-style: italic;
+    padding-bottom: 0.8mm; border-bottom: 0.4mm solid #d6a93e;
+  }
+
+  /* ---- QR ---- */
+  .qr { left: 149mm; top: 115mm; width: 25mm; text-align: center; }
+  .qr img { width: 23mm; height: 23mm; border: 0.3mm solid #d9cfb8; background: #fff; }
+  .qr div { font-size: 6.5pt; color: #5b6785; margin-top: 0.4mm; }
+
+  /* ---- signature ---- */
+  .sign-role { left: 183mm; width: 98mm; text-align: center; top: 122.5mm; font-size: 13.5pt; font-weight: bold; }
+  .sign-line { left: 197mm; width: 71mm; top: 137mm; height: 0.35mm; background: #0f2350; }
+  .sign-name { left: 183mm; width: 98mm; text-align: center; top: 140.2mm; font-size: 12.5pt; font-weight: bold; letter-spacing: 0.2pt; }
+
+  /* ---- cancelled stamp ---- */
+  .void {
+    left: 40mm; top: 62mm; width: 205mm; text-align: center;
+    font-family: "VSans", "DejaVu Sans", sans-serif;
+    font-size: 46pt; font-weight: bold; color: rgba(200, 30, 45, 0.30);
+    border: 1.6mm solid rgba(200, 30, 45, 0.30); border-radius: 4mm;
+    transform: rotate(-14deg); padding: 2mm 0;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+
+  <!-- header -->
+  <div class="abs logo"><img src="{{ logo_src }}" alt=""></div>
+  <div class="abs divider"></div>
+  <div class="abs uni">XALQARO INNOVATSION<br>&nbsp;UNIVERSITET NTM</div>
+
+  <div class="abs tagline">Sizning ta'limingiz —<br>bizning kelajagimiz!</div>
+  <svg class="abs tag-orn" viewBox="0 0 200 10" preserveAspectRatio="none">
+    <line x1="0" y1="5" x2="84" y2="5" stroke="#d6a93e" stroke-width="1.3"/>
+    <circle cx="90" cy="5" r="1.6" fill="#d6a93e"/>
+    <polygon points="100,0 105,5 100,10 95,5" fill="#d6a93e"/>
+    <circle cx="110" cy="5" r="1.6" fill="#d6a93e"/>
+    <line x1="116" y1="5" x2="200" y2="5" stroke="#d6a93e" stroke-width="1.3"/>
+  </svg>
+
+  <!-- gold ribbon + bow in the top-right corner -->
+  <svg class="abs bow" viewBox="0 0 100 100">
+    <defs>
+      <linearGradient id="g2" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#f7e08a"/>
+        <stop offset="0.5" stop-color="#cfa035"/>
+        <stop offset="1" stop-color="#9c7418"/>
+      </linearGradient>
+    </defs>
+    <polygon points="22,0 52,0 100,48 100,78" fill="url(#g2)"/>
+    <ellipse cx="50" cy="36" rx="17" ry="9" transform="rotate(-35 50 36)" fill="url(#g2)" stroke="#a37a1c" stroke-width="1"/>
+    <ellipse cx="74" cy="44" rx="17" ry="9" transform="rotate(55 74 44)" fill="url(#g2)" stroke="#a37a1c" stroke-width="1"/>
+    <polygon points="58,46 50,76 57,72 61,80 66,50" fill="url(#g2)" stroke="#a37a1c" stroke-width="0.8"/>
+    <polygon points="66,50 76,78 80,71 87,74 72,46" fill="url(#g2)" stroke="#a37a1c" stroke-width="0.8"/>
+    <circle cx="62" cy="42" r="6.5" fill="url(#g2)" stroke="#a37a1c" stroke-width="1"/>
+  </svg>
+
+  <!-- title -->
+  <div class="abs center title">VAUCHER № {{ number }}</div>
+
+  <div class="abs sub-line" style="left: 57mm;"></div>
+  <div class="abs sub-line" style="left: 193.5mm;"></div>
+  <div class="abs center sub">KONTRAKT TÖLOVIGA</div>
+
+  <svg class="abs ribbon-l" viewBox="0 0 180 90" preserveAspectRatio="none">
+    <defs><linearGradient id="gl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f7e08a"/><stop offset="0.45" stop-color="#d4a73a"/><stop offset="0.75" stop-color="#b3861f"/><stop offset="1" stop-color="#ecca64"/></linearGradient></defs>
+    <polygon points="0,2 160,10 160,82 0,88 52,45" fill="url(#gl)"/>
+    <polygon points="160,10 179,17 179,75 160,82" fill="#9c7418"/>
+  </svg>
+  <div class="abs center percent">{{ percent }}%</div>
+  <svg class="abs ribbon-r" viewBox="0 0 180 90" preserveAspectRatio="none">
+    <defs><linearGradient id="gr" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f7e08a"/><stop offset="0.45" stop-color="#d4a73a"/><stop offset="0.75" stop-color="#b3861f"/><stop offset="1" stop-color="#ecca64"/></linearGradient></defs>
+    <polygon points="180,2 20,10 20,82 180,88 128,45" fill="url(#gr)"/>
+    <polygon points="20,10 1,17 1,75 20,82" fill="#9c7418"/>
+  </svg>
+
+  <div class="abs center discount">MIQDORIDA ÇEGIRMA</div>
+  <div class="abs center desc">
+    Ushbu vaucher Xalqaro innovatsion universitet NTM da<br>
+    kontrakt tölovidan {{ percent }}% miqdorida çegirma olish huquqini beradi.
+  </div>
+  <svg class="abs orn-mid" viewBox="0 0 200 10" preserveAspectRatio="none">
+    <line x1="0" y1="5" x2="86" y2="5" stroke="#d6a93e" stroke-width="1.2"/>
+    <circle cx="91" cy="5" r="1.5" fill="#d6a93e"/>
+    <polygon points="100,0 105,5 100,10 95,5" fill="#d6a93e"/>
+    <circle cx="109" cy="5" r="1.5" fill="#d6a93e"/>
+    <line x1="114" y1="5" x2="200" y2="5" stroke="#d6a93e" stroke-width="1.2"/>
+  </svg>
+
+  <!-- fields -->
+  <div class="abs fields">
+    <div class="frow"><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="5" fill="#0f2350"/><path d="M2 23c0-6 4.5-10 10-10s10 4 10 10z" fill="#0f2350"/></svg><b>Talaba F.I.Sh.:</b><span>{{ full_name }}</span></div>
+    <div class="frow"><svg viewBox="0 0 24 24"><path d="M4 1h11l6 6v16H4z" fill="#0f2350"/><path d="M15 1v6h6" fill="#5d6f99"/><rect x="7" y="11" width="10" height="1.8" fill="#faf6ef"/><rect x="7" y="15" width="10" height="1.8" fill="#faf6ef"/><rect x="7" y="19" width="7" height="1.8" fill="#faf6ef"/></svg><b>Yönalish (ta'lim yönalishi):</b><span>{{ program }}</span></div>
+    <div class="frow"><svg viewBox="0 0 24 24"><rect x="1" y="3" width="22" height="20" rx="2" fill="#0f2350"/><rect x="5" y="0" width="3" height="6" rx="1" fill="#0f2350"/><rect x="16" y="0" width="3" height="6" rx="1" fill="#0f2350"/><g fill="#faf6ef"><rect x="4" y="10" width="4" height="3"/><rect x="10" y="10" width="4" height="3"/><rect x="16" y="10" width="4" height="3"/><rect x="4" y="16" width="4" height="3"/><rect x="10" y="16" width="4" height="3"/><rect x="16" y="16" width="4" height="3"/></g></svg><b>Amal qiliş muddati:</b><span>{{ valid_until }}</span></div>
+  </div>
+  <div class="abs slogan">Yangi imkoniyatlar — siz uchun!</div>
+
+  <!-- QR -->
+  <div class="abs qr">
+    <img src="{{ qr_src }}" alt="">
+    <div>Tekshirish uchun skanerlang</div>
+  </div>
+
+  <!-- signature -->
+  <div class="abs sign-role">Xalqaro hamkorlik bölimi boşliği</div>
+  <div class="abs sign-line"></div>
+  <div class="abs sign-name">MAMATQULOV AKBARALI OÇILDIYEVIÇ</div>
+
+  {% if cancelled %}
+  <div class="abs void">BEKOR QILINGAN</div>
+  {% endif %}
+</div>
+</body>
+</html>

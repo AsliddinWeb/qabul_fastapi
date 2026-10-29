@@ -339,6 +339,7 @@ async def create_contract(
             "application_id": str(obj.application_id),
             "type": obj.type.value,
             "total_amount": str(obj.total_amount),
+            "with_voucher": payload.with_voucher,
         },
         request=request,
     )
