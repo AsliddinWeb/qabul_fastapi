@@ -195,7 +195,7 @@ async def list_applications(
     svc: ApplicationsService = Depends(_service),
 ) -> PageResponse[ApplicationDetailed]:
     # Operators are confined to applicants they registered; other roles see all.
-    scope = operator_scope(current)
+    scope = await operator_scope(current, svc.session)
     if scope is not None:
         registered_by_id = scope
     items, total = await svc.list_detailed(
@@ -736,7 +736,7 @@ async def get_application(
 ) -> ApplicationRead:
     obj = await svc.get(application_id)
     # Operators may only open applications of applicants they registered.
-    scope = operator_scope(current)
+    scope = await operator_scope(current, svc.session)
     if scope is not None:
         applicant = await svc.applicants.get(obj.applicant_id)
         if applicant is None or applicant.registered_by_id != scope:

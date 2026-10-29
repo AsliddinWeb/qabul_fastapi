@@ -39,6 +39,9 @@ class Permission(str, Enum):
     APPLICATIONS_READ = "applications.read"
     APPLICATIONS_REVIEW = "applications.review"
     APPLICATIONS_EXPORT = "applications.export"
+    # Opt-in, per-user (users.permissions_granted): an operator with this sees
+    # ALL applicants/applications, not only the ones they registered.
+    APPLICATIONS_VIEW_ALL = "applications.view_all"
 
     # Programs / branches / education levels / education forms
     PROGRAMS_READ = "programs.read"
@@ -195,6 +198,14 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
 
 
 # ---------- Helpers ----------
+# Permissions an admin may GRANT to an individual user on top of their role
+# (stored in users.permissions_granted). Kept to an explicit whitelist so the
+# grant list can never be used to hand out arbitrary rights.
+GRANTABLE_PERMISSIONS: frozenset[str] = frozenset({
+    Permission.APPLICATIONS_VIEW_ALL.value,
+})
+
+
 def has_permission(role: Role, perm: Permission) -> bool:
     return perm in ROLE_PERMISSIONS.get(role, frozenset())
 

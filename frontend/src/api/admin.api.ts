@@ -13,6 +13,7 @@ export interface UserRead extends User {
    *  or temporarily reassigned. Ignored for non-operator roles. */
   accepts_leads?: boolean
   permissions_revoked?: string[]
+  permissions_granted?: string[]
   last_login_at: string | null
   created_at: string
   updated_at: string
@@ -29,6 +30,7 @@ export interface UserCreatePayload {
   accepts_leads?: boolean
   /** Permission codes to deny up-front (subset of the role's defaults). */
   permissions_revoked?: string[]
+  permissions_granted?: string[]
 }
 
 export interface UserUpdatePayload {
@@ -40,6 +42,7 @@ export interface UserUpdatePayload {
   is_consulting?: boolean
   accepts_leads?: boolean
   permissions_revoked?: string[]
+  permissions_granted?: string[]
 }
 
 export interface DictionaryTypeRead {

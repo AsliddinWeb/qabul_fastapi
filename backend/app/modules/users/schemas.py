@@ -6,9 +6,21 @@ from typing import Any
 
 from pydantic import EmailStr, Field, field_validator
 
+from app.core.permissions import GRANTABLE_PERMISSIONS
 from app.core.schemas import AppSchema, IdSchema, TimestampedSchema
 from app.db.enums import UserRole
 from app.utils.phone import normalize_phone
+
+
+def _only_grantable(v: Any) -> Any:
+    """Keep only whitelisted, de-duplicated grant codes."""
+    if v is None:
+        return None
+    out: list[str] = []
+    for code in v:
+        if code in GRANTABLE_PERMISSIONS and code not in out:
+            out.append(code)
+    return out
 
 
 def _empty_to_none(v: Any) -> Any:
@@ -50,6 +62,13 @@ class UserCreate(UserBase):
     # Honored at create time so admins can spin up an operator with reduced
     # rights in one round-trip rather than create-then-edit-revoke.
     permissions_revoked: list[str] = Field(default_factory=list)
+    # Opt-in extras (whitelisted), e.g. "applications.view_all".
+    permissions_granted: list[str] = Field(default_factory=list)
+
+    @field_validator("permissions_granted")
+    @classmethod
+    def _grants_whitelisted(cls, v: Any) -> Any:
+        return _only_grantable(v)
 
 
 class UserUpdate(AppSchema):
@@ -61,6 +80,12 @@ class UserUpdate(AppSchema):
     is_consulting: bool | None = None
     accepts_leads: bool | None = None
     permissions_revoked: list[str] | None = None
+    permissions_granted: list[str] | None = None
+
+    @field_validator("permissions_granted")
+    @classmethod
+    def _grants_whitelisted(cls, v: Any) -> Any:
+        return _only_grantable(v)
 
     @field_validator("phone", mode="before")
     @classmethod
@@ -102,6 +127,7 @@ class UserRead(IdSchema, TimestampedSchema):
     is_root_superadmin: bool = False
     accepts_leads: bool = True
     permissions_revoked: list[str] = Field(default_factory=list)
+    permissions_granted: list[str] = Field(default_factory=list)
     referral_code: str | None = None
     last_login_at: datetime | None = None
 

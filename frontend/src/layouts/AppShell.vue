@@ -49,6 +49,9 @@ async function refreshMe() {
         permissions_revoked: Array.isArray((me as any).permissions_revoked)
           ? (me as any).permissions_revoked
           : [],
+        permissions_granted: Array.isArray((me as any).permissions_granted)
+          ? (me as any).permissions_granted
+          : [],
       },
     )
   } catch { /* ignore — token may be expiring; user will retry */ }

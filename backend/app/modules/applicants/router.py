@@ -204,7 +204,7 @@ async def list_applicants(
     svc: ApplicantsService = Depends(_service),
 ) -> PageResponse[ApplicantRead]:
     # Operators only see applicants they registered.
-    scope = operator_scope(current)
+    scope = await operator_scope(current, svc.session)
     if scope is not None:
         registered_by_id = scope
     items, total = await svc.list(
@@ -458,7 +458,7 @@ async def list_diploms(
     svc: ApplicantsService = Depends(_service),
 ) -> PageResponse[DiplomWithApplicant]:
     # Operators only see diplomas of applicants they registered.
-    scope = operator_scope(current)
+    scope = await operator_scope(current, svc.session)
     items, total = await svc.list_diploms(
         user_id=user_id, registered_by_id=scope, search=search,
         is_for_second_specialization=is_for_second_specialization,
@@ -481,7 +481,7 @@ async def get_diplom(
     svc: ApplicantsService = Depends(_service),
 ) -> DiplomRead:
     obj = await svc.get_diplom(diplom_id)
-    scope = operator_scope(current)
+    scope = await operator_scope(current, svc.session)
     if scope is not None:
         applicant = await svc.applicants.get_by_user_id(obj.user_id)
         if applicant is None or applicant.registered_by_id != scope:
@@ -559,7 +559,7 @@ async def list_transfer_diploms(
     svc: ApplicantsService = Depends(_service),
 ) -> PageResponse[TransferDiplomWithApplicant]:
     # Operators only see transfer diplomas of applicants they registered.
-    scope = operator_scope(current)
+    scope = await operator_scope(current, svc.session)
     items, total = await svc.list_transfer_diploms(
         user_id=user_id, registered_by_id=scope, country_id=country_id, search=search,
         limit=size, offset=(page - 1) * size,
@@ -581,7 +581,7 @@ async def get_transfer_diplom(
     svc: ApplicantsService = Depends(_service),
 ) -> TransferDiplomRead:
     obj = await svc.get_transfer_diplom(item_id)
-    scope = operator_scope(current)
+    scope = await operator_scope(current, svc.session)
     if scope is not None:
         applicant = await svc.applicants.get_by_user_id(obj.user_id)
         if applicant is None or applicant.registered_by_id != scope:
@@ -664,7 +664,7 @@ async def get_applicant(
 ) -> ApplicantDetailed:
     obj = await svc.get(applicant_id)
     # Operators may only open applicants they registered.
-    scope = operator_scope(current)
+    scope = await operator_scope(current, svc.session)
     if scope is not None and obj.registered_by_id != scope:
         raise NotFoundError("Applicant not found")
     diplom = await svc.diploms.get_by_user_id(obj.user_id)

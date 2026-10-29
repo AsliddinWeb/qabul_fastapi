@@ -18,6 +18,8 @@ export interface User {
   /** Permission codes the admin has switched off for this specific user. Used
    *  alongside the role default list to compute effective permissions. */
   permissions_revoked?: string[]
+  /** Opt-in extras granted on top of the role (e.g. applications.view_all). */
+  permissions_granted?: string[]
 }
 
 export interface ApiError {

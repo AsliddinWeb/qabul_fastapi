@@ -50,6 +50,8 @@ const saving = ref(false)
 const loading = ref(false)
 const errors = ref<Record<string, string>>({})
 const permissionsRevoked = ref<string[]>([])
+// Opt-in extras (TogglablePerm.grant) — OFF unless listed here.
+const permissionsGranted = ref<string[]>([])
 
 // Role meta — shown as cards instead of a plain <select> so the choice is
 // unmissable in both create and edit. Each card carries its own tone.
@@ -82,10 +84,20 @@ const ROLES: Array<{
 const visiblePermissions = computed(() =>
   TOGGLABLE_PERMISSIONS.filter(p => p.roles.includes(form.role)),
 )
+function isGrantPerm(code: string): boolean {
+  return !!TOGGLABLE_PERMISSIONS.find(p => p.code === code)?.grant
+}
 function isPermissionGranted(code: string): boolean {
+  if (isGrantPerm(code)) return permissionsGranted.value.includes(code)
   return !permissionsRevoked.value.includes(code)
 }
 function togglePermissionDirect(code: string) {
+  if (isGrantPerm(code)) {
+    permissionsGranted.value = permissionsGranted.value.includes(code)
+      ? permissionsGranted.value.filter(c => c !== code)
+      : [...permissionsGranted.value, code]
+    return
+  }
   if (permissionsRevoked.value.includes(code)) {
     permissionsRevoked.value = permissionsRevoked.value.filter(c => c !== code)
   } else {
@@ -112,6 +124,7 @@ onMounted(async () => {
       password: '',
     })
     permissionsRevoked.value = Array.isArray(u.permissions_revoked) ? [...u.permissions_revoked] : []
+    permissionsGranted.value = Array.isArray(u.permissions_granted) ? [...u.permissions_granted] : []
   } catch (e) {
     const ax = e as AxiosError<{ error?: { message?: string } }>
     toast.error(ax.response?.data?.error?.message || "Foydalanuvchi topilmadi")
@@ -162,6 +175,9 @@ async function submit() {
       phone: compactPhone,
       email: form.email?.trim() ? form.email.trim() : null,
       permissions_revoked: permissionsRevoked.value,
+      // Grants only make sense for the roles they're offered to.
+      permissions_granted: permissionsGranted.value.filter(code =>
+        visiblePermissions.value.some(p => p.code === code && p.grant)),
     }
     if (isEdit.value && id.value) {
       // Don't send password on update — use reset password flow instead.
@@ -394,6 +410,7 @@ async function resetPassword() {
             <h3 class="font-semibold text-slate-900 dark:text-slate-100">Maxsus ruxsatlar</h3>
             <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Tanlangan rol bo'yicha standart yoqilgan. Kerak bo'lmaganlarni shu yerda o'chirib qo'ying.
+              Qo'shimcha ruxsatlar (masalan, "Barcha arizalarni ko'rish") standart o'chiq — kerak bo'lsa yoqing.
             </p>
           </div>
         </div>
@@ -419,7 +436,7 @@ async function resetPassword() {
                     : 'bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300'">
               <Check v-if="isPermissionGranted(p.code)" class="w-2.5 h-2.5" />
               <X v-else class="w-2.5 h-2.5" />
-              {{ isPermissionGranted(p.code) ? 'Berildi' : "Olib qo'yildi" }}
+              {{ isPermissionGranted(p.code) ? 'Berildi' : (p.grant ? "Berilmagan" : "Olib qo'yildi") }}
             </span>
           </label>
         </div>

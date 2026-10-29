@@ -59,6 +59,12 @@ class User(UUIDPKMixin, TimestampMixin, Base):
         JSONB, nullable=False, default=list, server_default="[]"
     )
 
+    # Per-user GRANT list — opt-in extras on top of the role (whitelisted by
+    # GRANTABLE_PERMISSIONS, e.g. "applications.view_all" for operators).
+    permissions_granted: Mapped[list[str]] = mapped_column(
+        JSONB, nullable=False, default=list, server_default="[]"
+    )
+
     # Public referral code (6-8 chars, uppercased) — printed on the user's
     # shareable invite link. Backfilled by migration 05_referrals.sql; new
     # users get one assigned by the user service on creation.

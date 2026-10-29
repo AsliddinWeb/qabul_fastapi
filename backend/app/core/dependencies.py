@@ -40,15 +40,36 @@ class CurrentUser:
         self.phone = phone
 
 
-def operator_scope(current: CurrentUser) -> UUID | None:
+async def _user_overrides(session: AsyncSession, user_id: str) -> tuple[list[str], list[str]]:
+    """(permissions_granted, permissions_revoked) for a user — empty if unset."""
+    from sqlalchemy import select
+    from app.modules.users.models import User as _UserModel
+
+    row = (
+        await session.execute(
+            select(_UserModel.permissions_granted, _UserModel.permissions_revoked)
+            .where(_UserModel.id == UUID(user_id))
+        )
+    ).first()
+    return ((row[0] if row else None) or []), ((row[1] if row else None) or [])
+
+
+async def operator_scope(current: CurrentUser, session: AsyncSession) -> UUID | None:
     """The `registered_by_id` an operator is confined to.
 
     Operators may only see the applicants they themselves registered (and the
-    applications / diplomas / transfer-diplomas hanging off them). Every other
-    staff role (admin, superadmin, director, accountant) sees everything, so
-    this returns None for them — meaning "no ownership filter".
+    applications / diplomas / transfer-diplomas hanging off them) — unless an
+    admin granted them `applications.view_all`. Every other staff role (admin,
+    superadmin, director, accountant) sees everything, so this returns None
+    for them — meaning "no ownership filter".
     """
-    return UUID(current.user_id) if current.role == Role.OPERATOR else None
+    if current.role != Role.OPERATOR:
+        return None
+    granted, revoked = await _user_overrides(session, current.user_id)
+    perm = Permission.APPLICATIONS_VIEW_ALL.value
+    if perm in granted and perm not in revoked:
+        return None
+    return UUID(current.user_id)
 
 
 def _parse_bearer(authorization: str | None) -> str:
@@ -102,23 +123,19 @@ def require_roles(*roles: Role | Iterable[Role]):
 
 
 def require_permission(perm: Permission):
-    """Dependency factory: allow only users whose role grants `perm`
-    AND who have not had it explicitly revoked by an admin."""
+    """Dependency factory: allow only users whose role grants `perm` (or who
+    were granted it individually) AND who have not had it revoked."""
 
     async def _checker(
         user: CurrentUser = Depends(get_current_user),
         db: AsyncSession = Depends(get_db),
     ) -> CurrentUser:
-        if not has_permission(user.role, perm):
+        # Per-user overrides: an explicit grant adds a permission the role
+        # lacks; a revocation removes one it has (revocation wins).
+        granted, revoked = await _user_overrides(db, user.user_id)
+        if not (has_permission(user.role, perm) or perm.value in granted):
             raise ForbiddenError(f"Missing permission: {perm.value}")
-        # Per-user revocation override — empty/null array means "no overrides".
-        from sqlalchemy import select
-        from app.modules.users.models import User as _UserModel
-        from uuid import UUID as _UUID
-        revoked = await db.scalar(
-            select(_UserModel.permissions_revoked).where(_UserModel.id == _UUID(user.user_id))
-        )
-        if revoked and perm.value in revoked:
+        if perm.value in revoked:
             raise ForbiddenError(f"Missing permission: {perm.value}")
         return user
 

@@ -13,6 +13,7 @@ export type Permission =
   | 'contracts.read' | 'contracts.create' | 'contracts.sign'
   | 'payments.read' | 'payments.create' | 'payments.confirm' | 'payments.fail' | 'payments.refund'
   | 'applications.list' | 'applications.read' | 'applications.review' | 'applications.export'
+  | 'applications.view_all'
   | 'applicants.list' | 'applicants.read' | 'applicants.write' | 'applicants.create_by_operator' | 'applicants.status'
   | 'leads.list' | 'leads.read' | 'leads.create' | 'leads.update' | 'leads.move'
   | 'leads.assign' | 'leads.convert' | 'leads.lose' | 'leads.delete' | 'leads.settings'
@@ -83,7 +84,7 @@ const ROLE_PERMS: Record<Role, Permission[]> = {
 }
 
 /**
- * Effective permission check: role default ∧ not revoked for this user.
+ * Effective permission check: (role default ∨ granted to this user) ∧ not revoked.
  *
  * `user.permissions_revoked` is propagated from `/users/me` and refreshed
  * by AppShell on mount. If the field is missing (older session), we fall
@@ -92,7 +93,8 @@ const ROLE_PERMS: Record<Role, Permission[]> = {
 export function userHasPermission(user: User | null, perm: Permission): boolean {
   if (!user) return false
   const defaults = ROLE_PERMS[user.role] || []
-  if (!defaults.includes(perm)) return false
+  const granted = Array.isArray(user.permissions_granted) ? user.permissions_granted : []
+  if (!defaults.includes(perm) && !granted.includes(perm)) return false
   const revoked = Array.isArray(user.permissions_revoked) ? user.permissions_revoked : []
   return !revoked.includes(perm)
 }
@@ -103,6 +105,8 @@ export interface TogglablePerm {
   label: string
   description: string
   roles: Role[]
+  /** Opt-in: OFF by default, stored in permissions_granted (not revoked). */
+  grant?: boolean
 }
 
 export const TOGGLABLE_PERMISSIONS: TogglablePerm[] = [
@@ -153,5 +157,12 @@ export const TOGGLABLE_PERMISSIONS: TogglablePerm[] = [
     label: "Arizani ko'rib chiqish",
     description: "Arizani qabul/rad etish huquqi.",
     roles: ['superadmin', 'admin', 'operator'],
+  },
+  {
+    code: 'applications.view_all',
+    label: "Barcha arizalarni ko'rish",
+    description: "Faqat o'zi ro'yxatga olganlarni emas, tizimdagi barcha abituriyent va arizalarni ko'radi.",
+    roles: ['operator'],
+    grant: true,
   },
 ]
