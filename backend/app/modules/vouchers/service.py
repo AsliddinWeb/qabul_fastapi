@@ -128,6 +128,14 @@ class VoucherService:
         if active:
             if not replace_active:
                 raise ConflictError("Bu arizada faol vaucher allaqachon bor")
+            if active.contract_id is None and contract_id is not None:
+                # Issued earlier without a contract — keep its number and
+                # simply attach it to the new contract.
+                active.contract_id = contract_id
+                if valid_until:
+                    active.valid_until = valid_until
+                await self.session.flush()
+                return active
             self._mark_cancelled(active, actor_id, "Yangi shartnoma bilan qayta berildi")
             await self.session.flush()
 
@@ -156,7 +164,9 @@ class VoucherService:
     async def issue_standalone(
         self, application_id: UUID, *, valid_until: date | None, actor_id: UUID | None,
     ) -> Voucher:
-        """From the application page: attach to the current active contract."""
+        """From the application page — any o'qishni ko'chirish application,
+        with or without a contract. Linked to the active contract if there
+        is one (so cancelling that contract cancels the voucher)."""
         from app.modules.contracts.models import Contract
 
         contract_id = await self.session.scalar(
@@ -165,8 +175,6 @@ class VoucherService:
                 Contract.status != ContractStatus.CANCELLED,
             )
         )
-        if not contract_id:
-            raise ValidationError("Vaucher berish uchun arizada faol shartnoma bo'lishi kerak")
         return await self.issue(
             application_id, contract_id=contract_id, valid_until=valid_until, actor_id=actor_id,
         )

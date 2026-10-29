@@ -4,7 +4,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { AxiosError } from 'axios'
 import { contractsApi, type ContractCreatePayload, type ContractTemplateRead } from '@/api/contracts.api'
 import { staffApi } from '@/api/staff.api'
-import { adminApi } from '@/api/admin.api'
 import { Ticket } from 'lucide-vue-next'
 import type { ApplicationDetailed } from '@/api/applications.api'
 import Skeleton from '@/components/ui/Skeleton.vue'
@@ -55,12 +54,6 @@ onMounted(async () => {
     application.value = app
     templates.value = tpls
     form.application_id = app.id
-    // O'qishni ko'chirish re-creation (a cancelled contract exists) → the
-    // submit asks whether to attach a 50% chegirma vaucher.
-    if (app.admission_type === 'perevod') {
-      const res = await adminApi.contracts.list({ application_id: app.id, size: 100 }).catch(() => ({ items: [] } as any))
-      hadCancelledContract.value = (res.items as any[]).some((c) => c.status === 'cancelled')
-    }
   } catch (e) {
     const ax = e as AxiosError<{ error?: { message?: string } }>
     error.value = ax.response?.data?.error?.message || 'Ma\'lumotlarni yuklab bo\'lmadi'
@@ -80,7 +73,6 @@ const compatibleTemplates = computed(() =>
 // Reset template when type changes
 watch(() => form.type, () => { form.template_id = '' })
 
-const hadCancelledContract = ref(false)
 const voucherModal = reactive({ open: false, withVoucher: true, validUntil: '' })
 
 // End of the current academic year (30 June) — same rule as the backend.
@@ -100,7 +92,8 @@ async function submit() {
     error.value = "Uchinchi tomon ma'lumotlari to'liq emas"
     return
   }
-  if (application.value?.admission_type === 'perevod' && hadCancelledContract.value) {
+  // O'qishni ko'chirish: ask whether to attach a 50% chegirma vaucher.
+  if (application.value?.admission_type === 'perevod') {
     voucherModal.withVoucher = true
     voucherModal.validUntil = defaultVoucherValidUntil()
     voucherModal.open = true
@@ -252,7 +245,7 @@ async function doSubmit(withVoucher: boolean, voucherValidUntil?: string) {
       </div>
     </form>
 
-    <!-- "Vaucher qo'shilsinmi?" modal (o'qishni ko'chirish re-creation) -->
+    <!-- "Vaucher qo'shilsinmi?" modal (o'qishni ko'chirish) -->
     <Teleport to="body">
       <div v-if="voucherModal.open"
            class="fixed inset-0 z-[110] bg-black/40 grid place-items-center p-4"
@@ -266,7 +259,7 @@ async function doSubmit(withVoucher: boolean, voucherValidUntil?: string) {
             <div class="flex-1 min-w-0">
               <h3 class="font-semibold text-slate-900 dark:text-slate-100">Vaucher qo'shilsinmi?</h3>
               <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                Bu o'qishni ko'chirish arizasi, shartnoma qayta yaratilmoqda. Talabaga kontrakt to'lovidan
+                Bu o'qishni ko'chirish arizasi. Talabaga kontrakt to'lovidan
                 50% chegirma vaucheri ham berilsinmi?
               </p>
             </div>

@@ -508,9 +508,9 @@ async function createContract() {
     toast.error("Shablonni tanlang")
     return
   }
-  // O'qishni ko'chirish: re-creating a contract after a cancel → ask
-  // whether to attach a 50% chegirma vaucher (default: yes).
-  if (isTransfer.value && cancelledContracts.value.length > 0) {
+  // O'qishni ko'chirish: ask whether to attach a 50% chegirma vaucher
+  // (default: yes) — on every contract, first or re-created.
+  if (isTransfer.value) {
     openVoucherModal('contract')
     return
   }
@@ -1542,7 +1542,7 @@ function applicantInitials(): string {
         </section>
 
         <!-- Vaucher (o'qishni ko'chirish only) -->
-        <section v-if="isTransfer && (contract || vouchers.length)" class="card p-5">
+        <section v-if="isTransfer" class="card p-5">
           <h2 class="section-title inline-flex items-center gap-2 mb-3">
             <span class="icon-bubble-sm bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300">
               <Ticket class="w-4 h-4" />
@@ -1577,11 +1577,11 @@ function applicantInitials(): string {
             </div>
           </div>
 
-          <div v-else-if="contract && canCreateContract" class="space-y-2">
+          <div v-else-if="canCreateContract" class="space-y-2">
             <button type="button" class="btn-outline w-full" @click="openVoucherModal('standalone')">
               <Ticket class="w-4 h-4" /> Vaucher berish
             </button>
-            <p class="field-hint">Kontrakt to'lovidan 50% chegirma vaucheri (PDF, QR kod bilan).</p>
+            <p class="field-hint">Kontrakt to'lovidan 50% chegirma vaucheri (PDF, QR kod bilan). Shartnoma bo'lmasa ham berish mumkin.</p>
           </div>
           <p v-else class="text-sm text-slate-500 dark:text-slate-400">Faol vaucher yo'q.</p>
 
@@ -1923,8 +1923,11 @@ function applicantInitials(): string {
               </h3>
               <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">
                 <template v-if="voucherModal.mode === 'contract'">
-                  Bu o'qishni ko'chirish arizasi, shartnoma qayta yaratilmoqda. Talabaga kontrakt to'lovidan
-                  50% chegirma vaucheri ham berilsinmi?
+                  Bu o'qishni ko'chirish arizasi{{ cancelledContracts.length ? ', shartnoma qayta yaratilmoqda' : '' }}.
+                  Talabaga kontrakt to'lovidan 50% chegirma vaucheri ham berilsinmi?
+                  <span v-if="activeVoucher" class="block mt-1 text-xs">
+                    Faol vaucher № {{ activeVoucher.number }} bor — u shu shartnomaga bog'lanadi.
+                  </span>
                 </template>
                 <template v-else>
                   Talabaga kontrakt to'lovidan 50% chegirma vaucheri beriladi (PDF, QR kod bilan).
