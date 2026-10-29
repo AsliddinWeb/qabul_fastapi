@@ -8,9 +8,9 @@
   @font-face { font-family: "VSerif"; font-weight: normal; font-style: italic; src: url("{{ fonts }}/LiberationSerif-Italic.ttf"); }
   @font-face { font-family: "VSerif"; font-weight: bold;   font-style: italic; src: url("{{ fonts }}/LiberationSerif-BoldItalic.ttf"); }
   @font-face { font-family: "VSans";  font-weight: bold;   font-style: normal; src: url("{{ fonts }}/LiberationSans-Bold.ttf"); }
-  @page { size: 297mm 167mm; margin: 0; }
+  @page { size: A4 landscape; margin: 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { width: 297mm; height: 167mm; }
+  html, body { width: 297mm; height: 210mm; }
   body {
     font-family: "VSerif", "Times New Roman", "DejaVu Serif", serif;
     color: #0f2350;
@@ -19,76 +19,75 @@
     position: relative;
   }
   .card {
-    position: absolute; left: 6mm; top: 6mm; width: 285mm; height: 155mm;
+    position: absolute; left: 6mm; top: 6mm; width: 285mm; height: 198mm;
     background: #faf6ef;
-    border: 0.9mm solid #d6a93e;
-    border-radius: 4.5mm;
+    border: 1mm solid #d6a93e;
+    border-radius: 5mm;
     overflow: hidden;
   }
   .abs { position: absolute; }
-  .center { left: 0; width: 285mm; text-align: center; }
+  .center { left: 0; width: 283mm; text-align: center; }
 
   /* ---- header ---- */
   .logo {
-    left: 12mm; top: 7mm; width: 25mm; height: 25mm;
-    border-radius: 50%; border: 0.7mm solid #d6a93e; background: #fff;
-    padding: 1.2mm;
+    left: 13mm; top: 10mm; width: 30mm; height: 30mm;
+    border-radius: 50%; border: 0.8mm solid #d6a93e; background: #fff;
+    padding: 1.4mm;
   }
   .logo img { width: 100%; height: 100%; object-fit: contain; border-radius: 50%; }
-  .divider { left: 41.5mm; top: 10.5mm; width: 0.35mm; height: 17mm; background: #0f2350; }
+  .divider { left: 48mm; top: 14mm; width: 0.4mm; height: 22mm; background: #0f2350; }
   .uni {
-    left: 46mm; top: 11.6mm; font-size: 14.5pt; font-weight: bold; line-height: 1.32;
+    left: 53mm; top: 15.4mm; font-size: 16.5pt; font-weight: bold; line-height: 1.35;
     letter-spacing: 0.1pt;
   }
   .tagline {
-    left: 196mm; top: 8.6mm; width: 66mm; text-align: center;
-    font-size: 15pt; font-weight: bold; font-style: italic; line-height: 1.3;
+    left: 188mm; top: 12mm; width: 72mm; text-align: center;
+    font-size: 17pt; font-weight: bold; font-style: italic; line-height: 1.3;
   }
-  .tag-orn { left: 199mm; top: 25mm; width: 60mm; height: 3mm; }
-  .bow { right: 0; top: 0; width: 26mm; height: 26mm; }
+  .tag-orn { left: 191mm; top: 31mm; width: 66mm; height: 3.4mm; }
+  .bow { right: 0; top: 0; width: 31mm; height: 31mm; }
 
   /* ---- title block ---- */
-  .title { top: 34mm; font-size: 43pt; font-weight: bold; letter-spacing: 1pt; line-height: 1; }
-  .sub-row { top: 52.5mm; height: 7mm; }
-  .sub-line { top: 55.3mm; height: 0.45mm; background: #d6a93e; width: 34.5mm; }
+  .title { top: 46mm; font-size: 52pt; font-weight: bold; letter-spacing: 1.2pt; line-height: 1; }
+  .sub-line { top: 73.6mm; height: 0.5mm; background: #d6a93e; width: 38mm; }
   .sub {
-    top: 52.4mm; font-size: 16.5pt; font-weight: bold; letter-spacing: 0.4pt;
+    top: 70.4mm; font-size: 19pt; font-weight: bold; letter-spacing: 0.5pt;
   }
-  .percent { top: 60mm; font-size: 74pt; font-weight: bold; line-height: 1; color: #0d1b38; }
-  .ribbon-l { left: 86mm; top: 65.8mm; width: 27mm; height: 13.5mm; }
-  .ribbon-r { left: 172mm; top: 65.8mm; width: 27mm; height: 13.5mm; }
-  .discount { top: 87.6mm; font-size: 17.5pt; font-weight: bold; letter-spacing: 0.3pt; }
+  .percent { top: 80mm; font-size: 92pt; font-weight: bold; line-height: 1; color: #0d1b38; }
+  .ribbon-l { left: 72.5mm; top: 87.5mm; width: 33mm; height: 16.5mm; }
+  .ribbon-r { left: 177.5mm; top: 87.5mm; width: 33mm; height: 16.5mm; }
+  .discount { top: 113.5mm; font-size: 20pt; font-weight: bold; letter-spacing: 0.4pt; }
   .desc {
-    top: 96.4mm; font-size: 13pt; font-weight: bold; line-height: 1.5; color: #142a5c;
+    top: 124.5mm; font-size: 14.5pt; font-weight: bold; line-height: 1.5; color: #142a5c;
   }
-  .orn-mid { left: 110mm; top: 109.6mm; width: 65mm; height: 3mm; }
+  .orn-mid { left: 106mm; top: 140.5mm; width: 71mm; height: 3.4mm; }
 
   /* ---- bottom-left fields ---- */
-  .fields { left: 13mm; top: 115.5mm; width: 133mm; }
-  .frow { position: relative; padding-left: 7.5mm; margin-bottom: 1.5mm; font-size: 13pt; line-height: 1.28; }
-  .frow svg { position: absolute; left: 0; top: 0.7mm; width: 4.4mm; height: 4.4mm; }
+  .fields { left: 14mm; top: 150mm; width: 134mm; }
+  .frow { position: relative; padding-left: 8.5mm; margin-bottom: 2.2mm; font-size: 14.5pt; line-height: 1.28; }
+  .frow svg { position: absolute; left: 0; top: 0.8mm; width: 5mm; height: 5mm; }
   .frow b { font-weight: bold; }
-  .frow span { font-size: 12pt; color: #1b2f63; padding-left: 1.2mm; }
+  .frow span { font-size: 13pt; color: #1b2f63; padding-left: 1.4mm; }
   .slogan {
-    left: 20.5mm; top: 143.2mm; font-size: 13pt; font-weight: bold; font-style: italic;
-    padding-bottom: 0.8mm; border-bottom: 0.4mm solid #d6a93e;
+    left: 22.5mm; top: 182mm; font-size: 14.5pt; font-weight: bold; font-style: italic;
+    padding-bottom: 0.9mm; border-bottom: 0.45mm solid #d6a93e;
   }
 
   /* ---- QR ---- */
-  .qr { left: 149mm; top: 115mm; width: 25mm; text-align: center; }
-  .qr img { width: 23mm; height: 23mm; border: 0.3mm solid #d9cfb8; background: #fff; }
-  .qr div { font-size: 6.5pt; color: #5b6785; margin-top: 0.4mm; }
+  .qr { left: 153mm; top: 150mm; width: 30mm; text-align: center; }
+  .qr img { width: 28mm; height: 28mm; border: 0.3mm solid #d9cfb8; background: #fff; }
+  .qr div { font-size: 7pt; color: #5b6785; margin-top: 0.5mm; }
 
   /* ---- signature ---- */
-  .sign-role { left: 183mm; width: 98mm; text-align: center; top: 122.5mm; font-size: 13.5pt; font-weight: bold; }
-  .sign-line { left: 197mm; width: 71mm; top: 137mm; height: 0.35mm; background: #0f2350; }
-  .sign-name { left: 183mm; width: 98mm; text-align: center; top: 140.2mm; font-size: 12.5pt; font-weight: bold; letter-spacing: 0.2pt; }
+  .sign-role { left: 182mm; width: 100mm; text-align: center; top: 158mm; font-size: 15pt; font-weight: bold; }
+  .sign-line { left: 196mm; width: 72mm; top: 177mm; height: 0.4mm; background: #0f2350; }
+  .sign-name { left: 182mm; width: 100mm; text-align: center; top: 180.5mm; font-size: 13pt; font-weight: bold; white-space: nowrap; }
 
   /* ---- cancelled stamp ---- */
   .void {
-    left: 40mm; top: 62mm; width: 205mm; text-align: center;
+    left: 38mm; top: 84mm; width: 207mm; text-align: center;
     font-family: "VSans", "DejaVu Sans", sans-serif;
-    font-size: 46pt; font-weight: bold; color: rgba(200, 30, 45, 0.30);
+    font-size: 52pt; font-weight: bold; color: rgba(200, 30, 45, 0.30);
     border: 1.6mm solid rgba(200, 30, 45, 0.30); border-radius: 4mm;
     transform: rotate(-14deg); padding: 2mm 0;
   }
@@ -131,8 +130,8 @@
   <!-- title -->
   <div class="abs center title">VAUCHER № {{ number }}</div>
 
-  <div class="abs sub-line" style="left: 57mm;"></div>
-  <div class="abs sub-line" style="left: 193.5mm;"></div>
+  <div class="abs sub-line" style="left: 52mm;"></div>
+  <div class="abs sub-line" style="left: 193mm;"></div>
   <div class="abs center sub">KONTRAKT TÖLOVIGA</div>
 
   <svg class="abs ribbon-l" viewBox="0 0 180 90" preserveAspectRatio="none">
